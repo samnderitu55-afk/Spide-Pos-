@@ -1,0 +1,36 @@
+﻿<!-- ============================================ -->
+<!-- TRANSFER HISTORY MODAL -->
+<!-- ============================================ -->
+<div id="transfer-history-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center border-b pb-3">
+            <div>
+                <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">📋 Transfer History</h2>
+                <p class="text-xs text-gray-500">Stock transfers between shops</p>
+            </div>
+            <button onclick="closeTransferHistoryModal()" class="text-gray-400 hover:text-gray-600 font-bold text-xl">✕</button>
+        </div>
+        <div class="overflow-y-auto flex-1 border rounded-xl relative">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                    <tr>
+                        <th class="p-3">Transfer #</th>
+                        <th class="p-3">From Shop</th>
+                        <th class="p-3">To Shop</th>
+                        <th class="p-3 text-center">Items</th>
+                        <th class="p-3 text-right">Total Cost</th>
+                        <th class="p-3 text-center">Date</th>
+                        <th class="p-3 text-center">Status</th>
+                        <th class="p-3 text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="transfer-history-rows">
+                    <tr><td colspan="8" class="p-4 text-center text-gray-500">Loading transfers...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="flex justify-end border-t pt-3">
+            <button onclick="closeTransferHistoryModal()" class="bg-gray-200 text-gray-800 font-semibold px-5 py-2 rounded-xl hover:bg-gray-300 transition">Close</button>
+        </div>
+    </div>
+</div>

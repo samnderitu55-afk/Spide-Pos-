@@ -1,0 +1,150 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spide POS - Login</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .login-bg {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .login-card {
+            background: rgba(255,255,255,0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 1.5rem;
+            padding: 2.5rem;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5);
+        }
+        .spide-logo {
+            font-size: 4rem;
+            line-height: 1;
+            display: block;
+            text-align: center;
+        }
+        .input-field {
+            transition: all 0.2s;
+        }
+        .input-field:focus {
+            transform: scale(1.02);
+        }
+        .login-btn {
+            background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+            transition: all 0.3s;
+        }
+        .login-btn:hover {
+            transform: scale(1.02);
+            box-shadow: 0 10px 25px -5px rgba(124,58,237,0.4);
+        }
+        .login-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+    <div class="login-bg">
+        <div class="login-card">
+            <div class="text-center">
+                <img src="/favicon.ico" alt="Spide POS" class="w-20 h-20 mx-auto mb-2" onerror="this.style.display='none'; this.outerHTML='<span class=\'spide-logo\'>🕷️</span>'">
+                <h1 class="text-3xl font-bold text-gray-800">Spide POS</h1>
+                <p class="text-sm text-gray-500 mt-1">Point of Sale System</p>
+            </div>
+
+            <form id="loginForm" class="mt-8 space-y-5" onsubmit="handleLogin(event)">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Username</label>
+                    <input type="text" id="username" placeholder="Enter your username" required value="admin"
+                           class="input-field w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Password</label>
+                    <input type="password" id="password" placeholder="Enter your password" required value="admin123"
+                           class="input-field w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition">
+                </div>
+
+                <div id="error-message" class="hidden text-sm text-red-600 bg-red-50 p-3 rounded-xl border border-red-200"></div>
+                <div id="success-message" class="hidden text-sm text-emerald-600 bg-emerald-50 p-3 rounded-xl border border-emerald-200"></div>
+
+                <button type="submit" id="loginBtn" class="login-btn w-full text-white font-bold py-3 rounded-xl text-lg transition">
+                    🚀 Login
+                </button>
+
+                <div class="text-center text-xs text-gray-400 mt-4">
+                    <p>Demo: admin / admin123</p>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🔐 Login page ready');
+            document.getElementById('username').focus();
+        });
+
+        async function handleLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const errorDiv = document.getElementById('error-message');
+            const successDiv = document.getElementById('success-message');
+            const loginBtn = document.getElementById('loginBtn');
+
+            errorDiv.classList.add('hidden');
+            successDiv.classList.add('hidden');
+
+            if (!username || !password) {
+                errorDiv.textContent = '❌ Please enter both username and password';
+                errorDiv.classList.remove('hidden');
+                return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = '⏳ Logging in...';
+
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.success) {
+                    successDiv.textContent = '✅ Login successful! Redirecting...';
+                    successDiv.classList.remove('hidden');
+                    
+                    // Redirect to dashboard
+                    setTimeout(function() {
+                        window.location.href = '/';
+                    }, 500);
+                } else {
+                    errorDiv.textContent = '❌ ' + (data.error || 'Invalid username or password');
+                    errorDiv.classList.remove('hidden');
+                    loginBtn.disabled = false;
+                    loginBtn.textContent = '🚀 Login';
+                }
+            } catch (error) {
+                errorDiv.textContent = '❌ Network error. Please try again.';
+                errorDiv.classList.remove('hidden');
+                loginBtn.disabled = false;
+                loginBtn.textContent = '🚀 Login';
+                console.error('Login error:', error);
+            }
+        }
+    </script>
+</body>
+</html>

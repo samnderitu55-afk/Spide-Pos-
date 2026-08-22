@@ -1,0 +1,128 @@
+﻿package main
+
+import (
+    "context"
+    "log"
+    "net/http"
+    "os"
+    "os/signal"
+    "syscall"
+    "time"
+
+    "github.com/joho/godotenv"
+
+    "cosmetics-pos/internal/db"
+    "cosmetics-pos/internal/handlers"
+    "cosmetics-pos/internal/middleware"
+)
+
+func main() {
+    // Load environment variables
+    if err := godotenv.Load(); err != nil {
+        log.Println("No .env file found, using environment variables")
+    }
+
+    // Database configuration
+    dbConfig := db.Config{
+        User:     getEnv("DB_USER", "root"),
+        Password: getEnv("DB_PASSWORD", ""),
+        Host:     getEnv("DB_HOST", "127.0.0.1"),
+        Port:     getEnv("DB_PORT", "3306"),
+        Name:     getEnv("DB_NAME", "cosmetics_pos"),
+    }
+
+    // Connect to database
+    if _, err := db.ConnectDB(dbConfig); err != nil {
+        log.Fatalf("Database connection failed: %v", err)
+    }
+    defer db.CloseDB()
+
+    // Setup routes
+    mux := http.NewServeMux()
+
+    // HTML Pages
+    mux.HandleFunc("/", handlers.ServeDashboard)
+    mux.HandleFunc("/pos", handlers.ServePOS)
+
+    // API Routes
+    mux.HandleFunc("/api/dashboard/stats", middleware.LoggingMiddleware(middleware.CORSHandler(handlers.DashboardStatsHandler)))
+
+    // Products
+    mux.HandleFunc("/api/products", middleware.LoggingMiddleware(handlers.GetProductsHandler))
+    mux.HandleFunc("/api/products/create", middleware.LoggingMiddleware(handlers.CreateProductHandler))
+    mux.HandleFunc("/api/products/update", middleware.LoggingMiddleware(handlers.UpdateProductHandler))
+    mux.HandleFunc("/api/products/search", middleware.LoggingMiddleware(handlers.SearchProductsHandler))
+    mux.HandleFunc("/api/products/scan-html", middleware.LoggingMiddleware(handlers.ScanProductHandler))
+
+    // Sales
+    mux.HandleFunc("/api/sales/checkout", middleware.LoggingMiddleware(handlers.CheckoutHandler))
+    mux.HandleFunc("/api/sales/recent", middleware.LoggingMiddleware(handlers.RecentSalesHandler))
+    mux.HandleFunc("/api/sales/z-report", middleware.LoggingMiddleware(handlers.ZReportHandler))
+
+    // Reports
+    mux.HandleFunc("/api/reports/product-sales", middleware.LoggingMiddleware(handlers.ProductSalesReportHandler))
+    mux.HandleFunc("/api/reports/low-stock", middleware.LoggingMiddleware(handlers.LowStockReportHandler))
+    mux.HandleFunc("/api/reports/inventory-valuation", middleware.LoggingMiddleware(handlers.InventoryValuationHandler))
+    mux.HandleFunc("/api/reports/inventory-valuation/details", middleware.LoggingMiddleware(handlers.CategoryDrilldownHandler))
+
+    // Expenses
+    mux.HandleFunc("/api/expenses/create", middleware.LoggingMiddleware(handlers.CreateExpenseHandler))
+    mux.HandleFunc("/api/expenses/report", middleware.LoggingMiddleware(handlers.ExpenseReportHandler))
+    mux.HandleFunc("/api/expenses/categories", middleware.LoggingMiddleware(handlers.ExpenseCategoriesHandler))
+    mux.HandleFunc("/api/expenses/delete", middleware.LoggingMiddleware(handlers.DeleteExpenseHandler))
+
+    // Transfers
+    mux.HandleFunc("/api/transfers/create", middleware.LoggingMiddleware(handlers.CreateTransferHandler))
+    mux.HandleFunc("/api/transfers", middleware.LoggingMiddleware(handlers.GetTransfersHandler))
+    mux.HandleFunc("/api/transfers/detail", middleware.LoggingMiddleware(handlers.GetTransferDetailHandler))
+
+    // Purchases
+    mux.HandleFunc("/api/purchases/create", middleware.LoggingMiddleware(handlers.CreatePurchaseHandler))
+    mux.HandleFunc("/api/suppliers", middleware.LoggingMiddleware(handlers.GetSuppliersHandler))
+    mux.HandleFunc("/api/suppliers/create", middleware.LoggingMiddleware(handlers.CreateSupplierHandler))
+
+    // Categories
+    mux.HandleFunc("/api/categories", middleware.LoggingMiddleware(handlers.GetCategoriesHandler))
+    mux.HandleFunc("/api/categories/create", middleware.LoggingMiddleware(handlers.CreateCategoryHandler))
+
+    // Server configuration
+    port := getEnv("PORT", "8081")
+    server := &http.Server{
+        Addr:         ":" + port,
+        Handler:      mux,
+        ReadTimeout:  15 * time.Second,
+        WriteTimeout: 15 * time.Second,
+        IdleTimeout:  60 * time.Second,
+    }
+
+    // Start server
+    go func() {
+        log.Printf("Server running on http://localhost:%s", port)
+        log.Printf("Dashboard: http://localhost:%s/", port)
+        log.Printf("POS: http://localhost:%s/pos", port)
+        if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+            log.Fatalf("Server error: %v", err)
+        }
+    }()
+
+    // Graceful shutdown
+    quit := make(chan os.Signal, 1)
+    signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+    <-quit
+
+    log.Println("Shutting down server...")
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+
+    if err := server.Shutdown(ctx); err != nil {
+        log.Fatalf("Server shutdown error: %v", err)
+    }
+    log.Println("Server stopped gracefully")
+}
+
+func getEnv(key, defaultValue string) string {
+    if value := os.Getenv(key); value != "" {
+        return value
+    }
+    return defaultValue
+}

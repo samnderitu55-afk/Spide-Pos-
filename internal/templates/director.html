@@ -1,0 +1,348 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Director Dashboard - Cosmetics POS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+        .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); }
+        .outlet-bar { transition: width 0.8s ease; }
+        .trend-line { transition: all 0.3s ease; }
+        .alert-critical { background-color: #fee2e2; border-left: 4px solid #dc2626; }
+        .alert-high { background-color: #fef3c7; border-left: 4px solid #f59e0b; }
+        .alert-medium { background-color: #fef9c3; border-left: 4px solid #eab308; }
+        .refresh-spin { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .last-updated { font-size: 11px; color: #9ca3af; }
+        .live-dot { display: inline-block; width: 8px; height: 8px; background: #22c55e; border-radius: 50%; animation: pulse 2s infinite; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+    <header class="bg-indigo-900 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-40">
+        <div class="flex items-center gap-4">
+            <h1 class="text-xl font-bold tracking-wide flex items-center gap-2">🏢 Director Dashboard</h1>
+            <span class="bg-indigo-700 text-xs px-2 py-1 rounded-full">Multi-Outlet View</span>
+            <span class="flex items-center gap-1 text-xs bg-indigo-800 px-2 py-1 rounded-full"><span class="live-dot"></span> LIVE</span>
+        </div>
+        <div class="flex items-center gap-3">
+            <div id="live-clock" class="text-sm font-mono bg-indigo-800 px-3 py-1.5 rounded-lg border border-indigo-700">Loading...</div>
+            <button onclick="refreshDashboard()" class="bg-indigo-700 hover:bg-indigo-600 px-3 py-1.5 rounded-lg text-sm transition flex items-center gap-1">
+                <span id="refresh-icon">🔄</span> <span class="hidden sm:inline">Refresh</span>
+            </button>
+            <span id="last-updated" class="text-xs text-indigo-300 hidden sm:inline"></span>
+            <a href="/" class="bg-purple-700 hover:bg-purple-600 px-4 py-2 rounded-lg text-sm font-semibold transition">📊 POS</a>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4" id="kpi-cards">
+            <div class="stat-card bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Today's Revenue</p>
+                <p id="kpi-revenue" class="text-2xl font-black text-indigo-900 mt-1">KES 0.00</p>
+                <p id="kpi-revenue-detail" class="text-xs text-gray-500">0 transactions today</p>
+            </div>
+            <div class="stat-card bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">30-Day Revenue</p>
+                <p id="kpi-month" class="text-2xl font-black text-emerald-700 mt-1">KES 0.00</p>
+                <p id="kpi-month-detail" class="text-xs text-gray-500">Last 30 days</p>
+            </div>
+            <div class="stat-card bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Stores</p>
+                <p id="kpi-stores" class="text-2xl font-black text-blue-700 mt-1">0</p>
+                <p id="kpi-stores-detail" class="text-xs text-gray-500">0 active today</p>
+            </div>
+            <div class="stat-card bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Low Stock Alerts</p>
+                <p id="kpi-lowstock" class="text-2xl font-black text-red-600 mt-1">0</p>
+                <p id="kpi-lowstock-detail" class="text-xs text-gray-500">Items needing reorder</p>
+            </div>
+            <div class="stat-card bg-white rounded-xl shadow-sm p-4 border border-gray-200">
+                <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Today's Sales</p>
+                <p id="kpi-transactions" class="text-2xl font-black text-purple-700 mt-1">0</p>
+                <p id="kpi-transactions-detail" class="text-xs text-gray-500">Total transactions</p>
+            </div>
+        </div>
+
+        <!-- Outlet Performance -->
+        <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+            <h3 class="font-bold text-gray-800 mb-4">🏪 Outlet Performance (Today's Sales)</h3>
+            <div id="outlet-bars" class="space-y-3">
+                <p class="text-sm text-gray-500 text-center py-6">Loading outlet data...</p>
+            </div>
+        </div>
+
+        <!-- Charts Row -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- Sales Trend -->
+            <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h3 class="font-bold text-gray-800 mb-4">📈 30-Day Sales Trend</h3>
+                <div id="sales-trend" class="h-48 flex items-end gap-1 overflow-x-auto pb-2">
+                    <p class="text-sm text-gray-500 text-center w-full py-6">Loading trend data...</p>
+                </div>
+            </div>
+
+            <!-- Top Products -->
+            <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <h3 class="font-bold text-gray-800 mb-4">🏆 Top Products (30 Days)</h3>
+                <div id="top-products" class="space-y-2">
+                    <p class="text-sm text-gray-500 text-center py-6">Loading top products...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+            <h3 class="font-bold text-gray-800 mb-4">🕐 Recent Transactions (All Outlets)</h3>
+            <div id="recent-transactions" class="space-y-2 max-h-64 overflow-y-auto">
+                <p class="text-sm text-gray-500 text-center py-6">Loading transactions...</p>
+            </div>
+        </div>
+
+        <!-- Alerts -->
+        <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+            <h3 class="font-bold text-gray-800 mb-4">⚠️ Alerts</h3>
+            <div id="alerts-container">
+                <p class="text-sm text-gray-500 text-center py-6">No alerts</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // DIRECTOR DASHBOARD - COMPLETE
+        // ============================================
+
+        let refreshInterval = null;
+        const REFRESH_INTERVAL = 30000;
+
+        document.addEventListener('DOMContentLoaded', function() {
+            refreshDashboard();
+            startClock();
+            refreshInterval = setInterval(refreshDashboard, REFRESH_INTERVAL);
+        });
+
+        function startClock() {
+            function updateClock() {
+                const now = new Date();
+                document.getElementById('live-clock').textContent = now.toLocaleTimeString('en-KE', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        async function refreshDashboard() {
+            const icon = document.getElementById('refresh-icon');
+            icon.classList.add('refresh-spin');
+
+            try {
+                const response = await fetch('/api/director/dashboard');
+                if (!response.ok) throw new Error('Failed to fetch dashboard data');
+                const data = await response.json();
+                renderDashboard(data);
+                document.getElementById('last-updated').textContent = 'Updated: ' + new Date().toLocaleTimeString();
+            } catch (error) {
+                console.error('Dashboard refresh error:', error);
+            } finally {
+                icon.classList.remove('refresh-spin');
+            }
+        }
+
+        function renderDashboard(data) {
+            // KPI Cards
+            document.getElementById('kpi-revenue').textContent = 'KES ' + (data.total_revenue_today || 0).toFixed(2);
+            document.getElementById('kpi-revenue-detail').textContent = (data.today_transactions || 0) + ' transactions today';
+            document.getElementById('kpi-month').textContent = 'KES ' + (data.total_revenue_month || 0).toFixed(2);
+            document.getElementById('kpi-stores').textContent = data.total_stores || 0;
+            document.getElementById('kpi-stores-detail').textContent = (data.active_stores || 0) + ' active today';
+            document.getElementById('kpi-lowstock').textContent = data.low_stock_items || 0;
+            document.getElementById('kpi-lowstock-detail').textContent = (data.low_stock_items > 0 ? 'Items needing reorder' : 'All stock levels healthy 🎉');
+            document.getElementById('kpi-transactions').textContent = data.today_transactions || 0;
+
+            // Outlet Bars
+            renderOutletBars(data.outlet_stats || []);
+
+            // Sales Trend
+            renderSalesTrend(data.sales_trend || []);
+
+            // Top Products
+            renderTopProducts(data.top_products || []);
+
+            // Recent Transactions
+            renderRecentTransactions(data.recent_transactions || []);
+
+            // Alerts
+            renderAlerts(data.alerts || []);
+        }
+
+        function renderOutletBars(outlets) {
+            const container = document.getElementById('outlet-bars');
+            if (!outlets || outlets.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500 text-center py-6">No outlet data available</p>';
+                return;
+            }
+
+            const maxRevenue = Math.max(...outlets.map(o => o.today_revenue), 1);
+            const colors = ['#7c3aed', '#2563eb', '#059669', '#d97706', '#dc2626', '#7c3aed'];
+
+            let html = '';
+            outlets.forEach((outlet, index) => {
+                const pct = maxRevenue > 0 ? (outlet.today_revenue / maxRevenue) * 100 : 0;
+                const color = colors[index % colors.length];
+                const statusColor = outlet.status === 'active' ? 'text-emerald-600' : 'text-gray-400';
+                const statusDot = outlet.status === 'active' ? '🟢' : '⚪';
+
+                html += `
+                    <div class="flex items-center gap-3">
+                        <div class="w-32 sm:w-40 text-sm font-medium text-gray-700 truncate">${outlet.shop_name}</div>
+                        <div class="flex-1 bg-gray-200 rounded-full h-4 overflow-hidden">
+                            <div class="outlet-bar h-4 rounded-full" style="width: ${Math.max(pct, 2)}%; background: ${color}; transition: width 0.8s ease;"></div>
+                        </div>
+                        <div class="text-right min-w-[80px] sm:min-w-[100px]">
+                            <span class="font-bold text-gray-900">KES ${outlet.today_revenue.toFixed(2)}</span>
+                            <div class="text-xs ${statusColor}">${statusDot} ${outlet.status} (${outlet.today_transactions} sales)</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderSalesTrend(trend) {
+            const container = document.getElementById('sales-trend');
+            if (!trend || trend.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500 text-center w-full py-6">No sales data available</p>';
+                return;
+            }
+
+            const maxValue = Math.max(...trend.map(d => d.total), 1);
+            const colors = ['#7c3aed', '#4f46e5', '#2563eb', '#059669'];
+
+            let html = '';
+            trend.forEach((day, index) => {
+                const height = (day.total / maxValue) * 100;
+                const color = colors[index % colors.length];
+                const dateParts = day.date.split('-');
+                const label = dateParts[1] + '/' + dateParts[2];
+
+                html += `
+                    <div class="flex flex-col items-center flex-1 min-w-[20px] group relative">
+                        <div class="w-full flex justify-center">
+                            <div class="w-4 sm:w-6 rounded-t transition-all duration-500" 
+                                 style="height: ${Math.max(height, 4)}%; min-height: 4px; background: ${color};">
+                                <div class="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] px-2 py-1 rounded whitespace-nowrap transition-opacity">
+                                    KES ${day.total.toFixed(2)}
+                                </div>
+                            </div>
+                        </div>
+                        <span class="text-[8px] sm:text-[10px] text-gray-500 mt-1">${label}</span>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderTopProducts(products) {
+            const container = document.getElementById('top-products');
+            if (!products || products.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500 text-center py-6">No product sales data available</p>';
+                return;
+            }
+
+            const medals = ['🥇', '🥈', '🥉'];
+            let html = '';
+            products.slice(0, 5).forEach((product, index) => {
+                const medal = index < 3 ? medals[index] : `${index + 1}.`;
+                const width = products.length > 0 ? (product.units_sold / products[0].units_sold) * 100 : 0;
+
+                html += `
+                    <div class="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition">
+                        <span class="text-lg w-8 text-center">${medal}</span>
+                        <div class="flex-1 min-w-0">
+                            <div class="flex justify-between text-sm">
+                                <span class="font-medium text-gray-800 truncate">${product.product_name}</span>
+                                <span class="font-bold text-indigo-700">${product.units_sold}x</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                                <div class="bg-gradient-to-r from-indigo-400 to-indigo-600 h-2 rounded-full transition-all duration-500" style="width: ${Math.max(width, 2)}%"></div>
+                            </div>
+                            <div class="flex justify-between text-xs text-gray-500 mt-0.5">
+                                <span>${product.category}</span>
+                                <span>KES ${product.revenue.toFixed(2)}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderRecentTransactions(transactions) {
+            const container = document.getElementById('recent-transactions');
+            if (!transactions || transactions.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500 text-center py-6">No recent transactions</p>';
+                return;
+            }
+
+            const paymentEmojis = { 'cash': '💵', 'mpesa': '📱', 'split': '💳' };
+            let html = '';
+            transactions.forEach(t => {
+                const emoji = paymentEmojis[t.payment_type] || '💰';
+                html += `
+                    <div class="flex items-center justify-between p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition border-b border-gray-100 last:border-0">
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span>${emoji}</span>
+                            <div class="min-w-0 flex-1">
+                                <div class="text-sm font-semibold text-gray-800 truncate">Sale #${t.sale_id}</div>
+                                <div class="text-xs text-gray-500 truncate">${t.shop_name} • ${t.created_at}</div>
+                            </div>
+                        </div>
+                        <div class="font-bold text-indigo-900 text-sm whitespace-nowrap ml-2">KES ${t.amount.toFixed(2)}</div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        function renderAlerts(alerts) {
+            const container = document.getElementById('alerts-container');
+            if (!alerts || alerts.length === 0) {
+                container.innerHTML = '<div class="text-center text-emerald-600 font-semibold py-4">🎉 All systems healthy! No alerts.</div>';
+                return;
+            }
+
+            let html = '';
+            alerts.forEach(alert => {
+                const severityClass = alert.severity === 'critical' ? 'alert-critical' : (alert.severity === 'high' ? 'alert-high' : 'alert-medium');
+                const severityIcon = alert.severity === 'critical' ? '🔴' : (alert.severity === 'high' ? '🟡' : '🟠');
+
+                html += `
+                    <div class="${severityClass} p-3 rounded-lg mb-2 flex justify-between items-center">
+                        <div>
+                            <span class="font-bold text-gray-800">${severityIcon} ${alert.product_name}</span>
+                            <span class="text-xs text-gray-600 ml-2">(${alert.shop_name})</span>
+                            <div class="text-xs text-gray-500">Stock: ${alert.stock_level} / Reorder: ${alert.reorder_level}</div>
+                        </div>
+                        <span class="text-xs font-bold uppercase ${alert.severity === 'critical' ? 'text-red-600' : 'text-amber-600'}">${alert.severity}</span>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        window.addEventListener('beforeunload', function() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>

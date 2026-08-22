@@ -1,0 +1,755 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmetics POS - Cashier Register</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .group { position: relative; }
+        .group .dropdown-menu {
+            visibility: hidden;
+            opacity: 0;
+            transition: visibility 0.2s, opacity 0.2s;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            min-width: 200px;
+            z-index: 50;
+            background: white;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+            border: 1px solid #f3f4f6;
+            padding: 0.25rem 0;
+        }
+        .group:hover .dropdown-menu { visibility: visible; opacity: 1; }
+        .dropdown-menu:hover { visibility: visible !important; opacity: 1 !important; }
+        .cart-item { transition: background-color 0.2s; }
+        .cart-item:hover { background-color: #f9fafb; }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+    <header class="bg-purple-900 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold tracking-wide">💄 Cosmetics POS Register</h1>
+        <div class="flex items-center gap-3 flex-wrap">
+            <!-- 🛒 SALES DROPDOWN -->
+            <div class="group relative">
+                <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">
+                    🛒 Sales ▾
+                </button>
+                <div class="dropdown-menu">
+                    <a href="#" onclick="openRecentSalesModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 transition text-gray-800">
+                        📋 Recent Sales
+                    </a>
+                </div>
+            </div>
+
+            <!-- 📦 INVENTORY DROPDOWN -->
+            <div class="group relative">
+                <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">
+                    📦 Inventory ▾
+                </button>
+                <div class="dropdown-menu">
+                    <a href="#" onclick="openAddProductModal()" class="block px-4 py-2.5 text-sm font-semibold text-purple-900 hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition">
+                        ➕ Add / Edit Product
+                    </a>
+                    <a href="#" onclick="openProductCatalogModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 transition">
+                        📦 Product Catalog
+                    </a>
+                    <a href="#" onclick="openLowStockModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 transition">
+                        ⚠️ Low Stock Alerts
+                    </a>
+                    <a href="#" onclick="openInventoryValuationModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition">
+                        💎 Inventory Valuation
+                    </a>
+                </div>
+            </div>
+
+            <!-- 📊 REPORTS DROPDOWN -->
+            <div class="group relative">
+                <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">
+                    📊 Reports ▾
+                </button>
+                <div class="dropdown-menu">
+                    <a href="#" onclick="openZReportModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition text-gray-800">
+                        📊 Daily Z-Report
+                    </a>
+                    <a href="#" onclick="openProductReportModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">
+                        📈 Product Sales & COGS
+                    </a>
+                </div>
+            </div>
+
+            <!-- 💰 EXPENSES DROPDOWN -->
+            <div class="group relative">
+                <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">
+                    💰 Expenses ▾
+                </button>
+                <div class="dropdown-menu">
+                    <a href="#" onclick="openExpenseModal()" class="block px-4 py-2.5 text-sm font-semibold text-purple-900 hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition">
+                        ➕ Add Expense
+                    </a>
+                    <a href="#" onclick="openExpenseReportModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">
+                        📊 Expense Reports
+                    </a>
+                </div>
+            </div>
+
+            <!-- 🔄 TRANSFERS DROPDOWN -->
+            <div class="group relative">
+                <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">
+                    🔄 Transfers ▾
+                </button>
+                <div class="dropdown-menu">
+                    <a href="#" onclick="openTransferModal()" class="block px-4 py-2.5 text-sm font-semibold text-purple-900 hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition">
+                        ➕ New Transfer
+                    </a>
+                    <a href="#" onclick="openTransferHistoryModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">
+                        📋 Transfer History
+                    </a>
+                </div>
+            </div>
+
+            <!-- 📦 PURCHASES DROPDOWN -->
+            <div class="group relative">
+                <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">
+                    📦 Purchases ▾
+                </button>
+                <div class="dropdown-menu">
+                    <a href="#" onclick="openPurchaseModal()" class="block px-4 py-2.5 text-sm font-semibold text-purple-900 hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition">
+                        ➕ New Purchase
+                    </a>
+                    <a href="#" onclick="openSuppliersModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">
+                        👥 Manage Suppliers
+                    </a>
+                </div>
+            </div>
+
+            <a href="/" class="bg-purple-700 hover:bg-purple-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">📊 Dashboard</a>
+            <a href="/director" class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">📊 Director</a>
+        </div>
+    </header>
+
+    <!-- MAIN POS CONTENT -->
+    <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="lg:col-span-1 space-y-6">
+            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                <h2 class="text-lg font-bold text-gray-800 mb-4">Scan / Lookup Item</h2>
+                <div class="relative w-full mb-4">
+                    <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Search Product Name</label>
+                    <input type="text" id="scan-input" oninput="handleSearchInput(this.value)" onkeydown="handleSearchKeyDown(event)"
+                           placeholder="Search product..." class="w-full p-3 border rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-600 text-gray-900" autocomplete="off"/>
+                    <div id="search-results-dropdown" class="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl hidden z-50 max-h-60 overflow-y-auto"></div>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Barcode</label>
+                        <input type="text" id="barcode-input" placeholder="Scan item or type barcode..." autofocus 
+                               class="w-full p-3 border rounded-lg text-lg focus:ring-2 focus:ring-purple-600 focus:outline-none font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Quantity</label>
+                        <input type="number" id="qty-input" value="1" min="1" class="w-full p-3 border rounded-lg text-lg focus:ring-2 focus:ring-purple-600 focus:outline-none">
+                        <p class="text-xs text-gray-400 mt-1">💡 Ordering 6+ auto-applies wholesale price!</p>
+                    </div>
+                    <button onclick="handleAddToCart()" class="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-lg shadow transition">
+                        Add to Cart
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between">
+            <div>
+                <h2 class="text-lg font-bold text-gray-800 mb-4">Current Order Items</h2>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-gray-100 border-b text-gray-600 text-xs uppercase tracking-wider">
+                                <th class="p-3">Item Description</th>
+                                <th class="p-3 text-center">Stock</th>
+                                <th class="p-3 text-right">Cost</th>
+                                <th class="p-3 text-center">Qty</th>
+                                <th class="p-3 text-right">Sell Price</th>
+                                <th class="p-3 text-right">Subtotal</th>
+                                <th class="p-3 text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cart-items"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="mt-8 pt-4 border-t flex items-center justify-between">
+                <div>
+                    <span class="text-xs uppercase text-gray-400 font-bold block">Total Amount</span>
+                    <span id="grand-total" class="text-2xl font-black text-purple-900">KES 0.00</span>
+                </div>
+                <button onclick="openPaymentModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-8 py-4 rounded-xl shadow-lg transition text-lg">
+                    Complete Sale
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- PAYMENT MODAL -->
+    <!-- ============================================ -->
+    <div id="payment-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-6">
+            <div class="flex justify-between items-center border-b pb-3">
+                <h3 class="text-xl font-bold text-gray-800">Payment Breakdown</h3>
+                <button onclick="closePaymentModal()" class="text-gray-400 hover:text-gray-600 text-2xl font-bold">&times;</button>
+            </div>
+            <div class="bg-purple-50 p-4 rounded-xl flex justify-between items-center">
+                <span class="text-sm font-semibold text-purple-900">Total Payable:</span>
+                <span id="modal-total" class="text-xl font-extrabold text-purple-900">KES 0.00</span>
+            </div>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">💵 Cash Amount (KES)</label>
+                    <input type="number" id="cash-input" value="0" step="0.01" oninput="calculateSplit()" class="w-full p-3 border rounded-lg text-lg focus:ring-2 focus:ring-emerald-600 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">📲 M-Pesa Amount (KES)</label>
+                    <input type="number" id="mpesa-input" value="0" step="0.01" oninput="calculateSplit()" class="w-full p-3 border rounded-lg text-lg focus:ring-2 focus:ring-emerald-600 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">M-Pesa Ref / Code (Optional)</label>
+                    <input type="text" id="mpesa-code" placeholder="e.g. QX12345678" class="w-full p-3 border rounded-lg font-mono focus:ring-2 focus:ring-emerald-600 focus:outline-none uppercase">
+                </div>
+                <div id="payment-status" class="text-sm font-medium text-center py-2 rounded-lg bg-gray-100 text-gray-600">Enter Cash and/or M-Pesa amounts</div>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="closePaymentModal()" class="w-1/3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 rounded-lg transition">Cancel</button>
+                <button id="confirm-sale-btn" onclick="submitSale()" disabled class="w-2/3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold py-3 rounded-lg shadow transition">Confirm & Print</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- RECENT SALES MODAL -->
+    <div id="recent-sales-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex justify-end">
+        <div class="bg-white w-full max-w-lg h-full p-6 overflow-y-auto shadow-2xl flex flex-col justify-between">
+            <div>
+                <div class="flex justify-between items-center border-b pb-4 mb-4">
+                    <h2 class="text-xl font-bold text-gray-800">Recent Transactions Log</h2>
+                    <button onclick="closeRecentSalesModal()" class="text-gray-400 hover:text-gray-600 font-bold text-xl">✕</button>
+                </div>
+                <div id="recent-sales-list" class="space-y-3"><p class="text-gray-500 text-center py-6">Loading past sales...</p></div>
+            </div>
+            <div class="border-t pt-4">
+                <button onclick="closeRecentSalesModal()" class="w-full bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg hover:bg-gray-300">Close Log</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // SEARCH FUNCTIONS
+        // ============================================
+        let searchTimeout = null;
+        let selectedSearchIndex = -1;
+        let currentSearchResults = [];
+
+        function handleSearchInput(query) {
+            clearTimeout(searchTimeout);
+            const trimmed = query.trim();
+
+            if (trimmed.length < 2) {
+                closeSearchDropdown();
+                return;
+            }
+
+            searchTimeout = setTimeout(function() {
+                fetchSearchResults(trimmed);
+            }, 200);
+        }
+
+        async function fetchSearchResults(query) {
+            try {
+                const res = await fetch('/api/products/search?q=' + encodeURIComponent(query));
+                if (!res.ok) return;
+
+                currentSearchResults = await res.json();
+                renderSearchDropdown(currentSearchResults);
+            } catch (err) {
+                console.error("Search error:", err);
+            }
+        }
+
+        function renderSearchDropdown(items) {
+            const dropdown = document.getElementById('search-results-dropdown');
+            selectedSearchIndex = -1;
+
+            if (!items || items.length === 0) {
+                dropdown.innerHTML = '<div class="p-3 text-center text-sm text-gray-500">No products found</div>';
+                dropdown.classList.remove('hidden');
+                return;
+            }
+
+            let html = '';
+            items.forEach((item, index) => {
+                const price = item.retail_price || 0;
+                html += '<div id="search-item-' + index + '" onclick="selectSearchResult(' + index + ')" class="p-3 hover:bg-purple-50 cursor-pointer flex justify-between items-center transition">' +
+                    '<div><div class="font-bold text-gray-900 text-sm">' + item.name + '</div><div class="text-xs text-gray-500">Barcode: ' + (item.barcode || 'N/A') + ' | Stock: ' + item.stock_quantity + '</div></div>' +
+                    '<div class="text-right"><div class="font-bold text-purple-700 text-sm">KES ' + price.toFixed(2) + '</div><span class="text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full">+ Add</span></div>' +
+                '</div>';
+            });
+
+            dropdown.innerHTML = html;
+            dropdown.classList.remove('hidden');
+        }
+
+        function handleSearchKeyDown(e) {
+            const dropdown = document.getElementById('search-results-dropdown');
+            const isDropdownVisible = !dropdown.classList.contains('hidden');
+
+            if (!isDropdownVisible || currentSearchResults.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (selectedSearchIndex < currentSearchResults.length - 1) {
+                    selectedSearchIndex++;
+                    updateSearchHighlight();
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (selectedSearchIndex > 0) {
+                    selectedSearchIndex--;
+                    updateSearchHighlight();
+                }
+            } else if (e.key === 'Enter') {
+                if (selectedSearchIndex >= 0 && selectedSearchIndex < currentSearchResults.length) {
+                    e.preventDefault();
+                    selectSearchResult(selectedSearchIndex);
+                }
+            } else if (e.key === 'Escape') {
+                closeSearchDropdown();
+            }
+        }
+
+        function updateSearchHighlight() {
+            currentSearchResults.forEach(function(_, index) {
+                const itemEl = document.getElementById('search-item-' + index);
+                if (itemEl) {
+                    if (index === selectedSearchIndex) {
+                        itemEl.classList.add('bg-purple-100');
+                    } else {
+                        itemEl.classList.remove('bg-purple-100');
+                    }
+                }
+            });
+        }
+
+        function selectSearchResult(index) {
+            const product = currentSearchResults[index];
+            if (!product) return;
+
+            const barcodeInput = document.getElementById('barcode-input');
+            if (barcodeInput && product.barcode) {
+                barcodeInput.value = product.barcode;
+                handleAddToCart();
+            }
+
+            const input = document.getElementById('scan-input');
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+            closeSearchDropdown();
+        }
+
+        function closeSearchDropdown() {
+            const dropdown = document.getElementById('search-results-dropdown');
+            if (dropdown) {
+                dropdown.classList.add('hidden');
+                dropdown.innerHTML = '';
+            }
+            selectedSearchIndex = -1;
+            currentSearchResults = [];
+        }
+
+        // ============================================
+        // ADD TO CART
+        // ============================================
+        let totalAmount = 0;
+        let saleItems = [];
+
+        async function handleAddToCart() {
+            const barcode = document.getElementById('barcode-input').value.trim();
+            const qty = parseInt(document.getElementById('qty-input').value) || 1;
+            
+            if (!barcode) {
+                alert('Please enter a barcode or search for a product.');
+                return;
+            }
+
+            // Check if product already exists in cart by barcode
+            const existingRow = document.querySelector(`#cart-items tr[data-barcode="${barcode}"]`);
+            
+            if (existingRow) {
+                const qtyInput = existingRow.querySelector('.cart-qty-input');
+                const currentQty = parseInt(qtyInput.value) || 1;
+                qtyInput.value = currentQty + qty;
+                qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                document.getElementById('barcode-input').value = '';
+                document.getElementById('qty-input').value = 1;
+                document.getElementById('barcode-input').focus();
+                return;
+            }
+
+            await fetchProductByBarcode(barcode, qty);
+        }
+
+        async function fetchProductByBarcode(barcode, qty) {
+            try {
+                const url = '/api/products/scan-html?barcode=' + encodeURIComponent(barcode) + '&qty=' + qty;
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    alert('Product not found!');
+                    document.getElementById('barcode-input').focus();
+                    return;
+                }
+                
+                const html = await response.text();
+                const trMatch = html.match(/<tr[\s\S]*?<\/tr>/);
+                
+                if (!trMatch) {
+                    alert('Error adding product to cart. Please try again.');
+                    return;
+                }
+                
+                const trHTML = trMatch[0];
+                const temp = document.createElement('tbody');
+                temp.innerHTML = trHTML;
+                const newRow = temp.firstElementChild;
+                
+                if (newRow && newRow.tagName === 'TR') {
+                    newRow.setAttribute('data-barcode', barcode);
+                    document.getElementById('cart-items').appendChild(newRow);
+                    updateCartTotals();
+                } else {
+                    alert('Error adding product to cart. Please try again.');
+                }
+                
+                document.getElementById('barcode-input').value = '';
+                document.getElementById('qty-input').value = 1;
+                document.getElementById('barcode-input').focus();
+                
+            } catch (error) {
+                console.error('Error adding product:', error);
+                alert('Error adding product: ' + error.message);
+            }
+        }
+
+        document.getElementById('barcode-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddToCart();
+            }
+        });
+
+        document.getElementById('qty-input').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddToCart();
+            }
+        });
+
+        // ============================================
+        // CART FUNCTIONS
+        // ============================================
+        function updateCartTotals() {
+            let total = 0;
+            const rows = document.querySelectorAll('#cart-items tr');
+            rows.forEach(row => {
+                const subtotalTd = row.querySelector('.subtotal-td');
+                if (subtotalTd) {
+                    const priceText = subtotalTd.innerText.replace('KES', '').trim();
+                    const price = parseFloat(priceText);
+                    if (!isNaN(price)) total += price;
+                }
+            });
+            totalAmount = total;
+            document.getElementById('grand-total').innerText = 'KES ' + total.toFixed(2);
+        }
+
+        function updateRowTotals(inputElement, isManualPriceChange) {
+            const row = inputElement.closest('tr');
+            const qtyInput = row.querySelector('.cart-qty-input');
+            const priceInput = row.querySelector('.cart-price-input');
+            
+            let qty = parseInt(qtyInput.value);
+            if (isNaN(qty) || qty < 1) qty = 1;
+
+            let currentPrice = parseFloat(priceInput.value);
+            if (isNaN(currentPrice) || currentPrice < 0) currentPrice = 0;
+
+            const wholesaleQty = parseInt(row.getAttribute('data-wholesale-threshold')) || 0;
+            const retailPrice = parseFloat(row.getAttribute('data-retail-price')) || 0;
+            const wholesalePrice = parseFloat(row.getAttribute('data-wholesale-price')) || 0;
+            const badgeSpan = row.querySelector('.price-badge');
+
+            if (!isManualPriceChange) {
+                if (wholesaleQty > 0 && qty >= wholesaleQty && wholesalePrice > 0) {
+                    currentPrice = wholesalePrice;
+                    badgeSpan.innerHTML = '<span class="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded font-semibold">Wholesale</span>';
+                } else {
+                    currentPrice = retailPrice;
+                    badgeSpan.innerHTML = '<span class="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded">Retail</span>';
+                }
+                priceInput.value = currentPrice.toFixed(2);
+            } else {
+                badgeSpan.innerHTML = '<span class="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded font-semibold">Custom</span>';
+            }
+
+            const subtotal = qty * currentPrice;
+            row.querySelector('.subtotal-td').innerText = 'KES ' + subtotal.toFixed(2);
+            updateCartTotals();
+        }
+
+        function removeRow(btn) {
+            btn.closest('tr').remove();
+            updateCartTotals();
+        }
+
+        // ============================================
+        // PAYMENT FUNCTIONS - FULLY RESTORED
+        // ============================================
+        function openPaymentModal() {
+            if (totalAmount <= 0) {
+                alert('Cart is empty!');
+                return;
+            }
+            document.getElementById('modal-total').innerText = 'KES ' + totalAmount.toFixed(2);
+            document.getElementById('cash-input').value = totalAmount.toFixed(2);
+            document.getElementById('mpesa-input').value = '0.00';
+            calculateSplit();
+            document.getElementById('payment-modal').classList.remove('hidden');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('payment-modal').classList.add('hidden');
+        }
+
+        function calculateSplit() {
+            const cash = parseFloat(document.getElementById('cash-input').value) || 0;
+            const mpesa = parseFloat(document.getElementById('mpesa-input').value) || 0;
+            const sum = cash + mpesa;
+            const statusBox = document.getElementById('payment-status');
+            const confirmBtn = document.getElementById('confirm-sale-btn');
+
+            if (sum < totalAmount - 0.009) {
+                const remaining = totalAmount - sum;
+                statusBox.className = "text-sm font-semibold text-center py-2 rounded-lg bg-amber-100 text-amber-800";
+                statusBox.innerText = "Remaining: KES " + remaining.toFixed(2);
+                confirmBtn.disabled = true;
+            } else {
+                const balanceAfterMpesa = Math.max(0, totalAmount - mpesa);
+                const change = Math.max(0, cash - balanceAfterMpesa);
+
+                if (change > 0) {
+                    statusBox.className = "text-sm font-semibold text-center py-2 rounded-lg bg-blue-100 text-blue-800";
+                    statusBox.innerText = "Change Due: KES " + change.toFixed(2);
+                } else {
+                    statusBox.className = "text-sm font-semibold text-center py-2 rounded-lg bg-emerald-100 text-emerald-800";
+                    statusBox.innerText = "✓ Exact Amount Covered";
+                }
+                confirmBtn.disabled = false;
+            }
+        }
+
+        async function submitSale() {
+            const cash = parseFloat(document.getElementById('cash-input').value) || 0;
+            const mpesa = parseFloat(document.getElementById('mpesa-input').value) || 0;
+            const mpesaCode = document.getElementById('mpesa-code').value.trim();
+
+            let paymentType = 'cash';
+            if (cash > 0 && mpesa > 0) paymentType = 'split';
+            else if (mpesa > 0) paymentType = 'mpesa';
+
+            const rows = document.querySelectorAll('#cart-items tr');
+            const items = [];
+            
+            rows.forEach(row => {
+                const qtyInput = row.querySelector('.cart-qty-input');
+                const priceInput = row.querySelector('.cart-price-input');
+                const productId = parseInt(row.getAttribute('data-product-id')) || 0;
+                
+                if (qtyInput && priceInput && productId > 0) {
+                    const qty = parseInt(qtyInput.value) || 1;
+                    const unitPrice = parseFloat(priceInput.value) || 0;
+                    const subtotalTd = row.querySelector('.subtotal-td');
+                    const subtotal = subtotalTd ? parseFloat(subtotalTd.innerText.replace('KES', '').trim()) : (qty * unitPrice);
+                    
+                    items.push({ 
+                        product_id: productId, 
+                        quantity: qty, 
+                        unit_price: unitPrice, 
+                        subtotal: subtotal 
+                    });
+                }
+            });
+
+            if (items.length === 0) {
+                alert('No valid products found in cart.');
+                return;
+            }
+
+            const payload = {
+                total_amount: totalAmount,
+                cash_amount: cash,
+                mpesa_amount: mpesa,
+                mpesa_code: mpesaCode,
+                payment_type: paymentType,
+                items: items
+            };
+
+            try {
+                const response = await fetch('/api/sales/checkout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    payload.change_given = result.change_given || 0;
+                    printThermalReceipt(payload, result.sale_id);
+                    document.getElementById('cart-items').innerHTML = '';
+                    updateCartTotals();
+                    closePaymentModal();
+                } else {
+                    alert('Server error: ' + response.status);
+                }
+            } catch (err) {
+                alert('Network error.');
+                console.error(err);
+            }
+        }
+
+        function printThermalReceipt(saleData, saleId, isReprint) {
+            const printWindow = window.open('', '_blank', 'width=350,height=600');
+            let itemsRowsHTML = '';
+            
+            saleData.items.forEach(function(item) {
+                itemsRowsHTML += '<tr>' +
+                    '<td style="padding: 2px 0; vertical-align: top;">' +
+                        'Item #' + item.product_id + '<br/>' +
+                        '<span style="font-size: 10px; color: #555;">' + item.quantity + ' x KES ' + item.unit_price.toFixed(2) + '</span>' +
+                    '</td>' +
+                    '<td style="text-align: right; padding: 2px 0; vertical-align: top;">' +
+                        item.subtotal.toFixed(2) +
+                    '</td>' +
+                '</tr>';
+            });
+
+            const now = new Date().toLocaleString('en-KE', { dateStyle: 'short', timeStyle: 'short' });
+            const reprintHeader = isReprint ? '<div style="text-align:center; font-weight:bold; border: 1px dashed #000; padding: 4px; margin-bottom: 6px; font-size: 12px;">*** REPRINTED RECEIPT ***</div>' : '';
+
+            const receiptHTML = '<!DOCTYPE html><html><head><title>Receipt #' + saleId + (isReprint ? ' (Reprint)' : '') + '</title>' +
+                '<style>' +
+                    '@page { margin: 0; }' +
+                    'body { font-family: "Courier New", Courier, monospace; width: 260px; margin: 10px auto; font-size: 11px; color: #000; line-height: 1.2; }' +
+                    '.center { text-align: center; }' +
+                    '.right { text-align: right; }' +
+                    '.dashed { border-bottom: 1px dashed #000; margin: 6px 0; }' +
+                    'table { width: 100%; border-collapse: collapse; }' +
+                    '.bold { font-weight: bold; }' +
+                '</style></head><body>' +
+                    reprintHeader +
+                    '<div class="center">' +
+                        '<h2 style="margin: 0; font-size: 15px;">COSMETICS BEAUTY SHOP</h2>' +
+                        '<p style="margin: 2px 0;">Retail & Wholesale POS</p>' +
+                        '<p style="margin: 2px 0;">Receipt #: <strong>' + saleId + '</strong></p>' +
+                        '<p style="margin: 2px 0;">Date: ' + now + '</p>' +
+                    '</div>' +
+                    '<div class="dashed"></div>' +
+                    '<table><thead><tr style="text-align: left; border-bottom: 1px solid #000;"><th>Item</th><th style="text-align: right;">Subtotal</th></tr></thead>' +
+                    '<tbody>' + itemsRowsHTML + '</tbody></table>' +
+                    '<div class="dashed"></div>' +
+                    '<table>' +
+                        '<tr class="bold"><td>TOTAL AMOUNT:</td><td class="right">KES ' + saleData.total_amount.toFixed(2) + '</td></tr>' +
+                        (saleData.cash_amount > 0 ? '<tr><td>Cash Paid:</td><td class="right">KES ' + saleData.cash_amount.toFixed(2) + '</td></tr>' : '') +
+                        (saleData.mpesa_amount > 0 ? '<tr><td>M-Pesa Paid:</td><td class="right">KES ' + saleData.mpesa_amount.toFixed(2) + '</td></tr>' : '') +
+                        (saleData.change_given > 0 ? '<tr><td>Change Given:</td><td class="right">KES ' + saleData.change_given.toFixed(2) + '</td></tr>' : '') +
+                        (saleData.mpesa_code ? '<tr><td>M-Pesa Code:</td><td class="right">' + saleData.mpesa_code + '</td></tr>' : '') +
+                    '</table>' +
+                    '<div class="dashed"></div>' +
+                    '<div class="center" style="margin-top: 8px;">' +
+                        '<p style="margin: 2px 0;">Thank you for your business!</p>' +
+                        '<p style="margin: 2px 0;">Goods once sold are not returnable.</p>' +
+                    '</div>' +
+                    '<script>' +
+                        'window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };' +
+                    '<\/script>' +
+                '</body></html>';
+
+            printWindow.document.write(receiptHTML);
+            printWindow.document.close();
+        }
+
+        // ============================================
+        // RECENT SALES
+        // ============================================
+        function openRecentSalesModal() { 
+            document.getElementById('recent-sales-modal').classList.remove('hidden');
+            loadRecentSales();
+        }
+        
+        async function loadRecentSales() {
+            const container = document.getElementById('recent-sales-list');
+            container.innerHTML = '<p class="text-gray-500 text-center py-6">Loading...</p>';
+            try {
+                const res = await fetch('/api/sales/recent');
+                const data = await res.json();
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 text-center py-6">No sales recorded yet.</p>';
+                    return;
+                }
+                let html = '';
+                data.forEach(sale => {
+                    const itemsCount = sale.items ? sale.items.length : 0;
+                    html += '<div class="border rounded-lg p-3 flex justify-between items-center hover:bg-gray-50">' +
+                        '<div><div class="font-bold text-gray-800">Sale #' + sale.id + '</div>' +
+                        '<div class="text-xs text-gray-500">' + sale.created_at + ' • ' + itemsCount + ' items</div>' +
+                        '<span class="text-xs px-2 py-0.5 rounded bg-' + (sale.payment_type === 'mpesa' ? 'green' : sale.payment_type === 'split' ? 'purple' : 'blue') + '-100 text-' + (sale.payment_type === 'mpesa' ? 'green' : sale.payment_type === 'split' ? 'purple' : 'blue') + '-800">' + sale.payment_type.toUpperCase() + '</span>' +
+                        '</div>' +
+                        '<div class="font-bold text-purple-900 text-lg">KES ' + sale.total_amount.toFixed(2) + '</div>' +
+                    '</div>';
+                });
+                container.innerHTML = html;
+            } catch(e) {
+                container.innerHTML = '<p class="text-red-500 text-center py-6">Error loading sales</p>';
+            }
+        }
+        
+        function closeRecentSalesModal() {
+            document.getElementById('recent-sales-modal').classList.add('hidden');
+        }
+
+        // ============================================
+        // MODAL PLACEHOLDERS
+        // ============================================
+        function openAddProductModal() { alert('Add Product - Coming soon!'); }
+        function openProductCatalogModal() { alert('Product Catalog - Coming soon!'); }
+        function openLowStockModal() { alert('Low Stock - Coming soon!'); }
+        function openInventoryValuationModal() { alert('Inventory Valuation - Coming soon!'); }
+        function openZReportModal() { alert('Z-Report - Coming soon!'); }
+        function openProductReportModal() { alert('Product Report - Coming soon!'); }
+        function openExpenseModal() { alert('Add Expense - Coming soon!'); }
+        function openExpenseReportModal() { alert('Expense Report - Coming soon!'); }
+        function openTransferModal() { alert('New Transfer - Coming soon!'); }
+        function openTransferHistoryModal() { alert('Transfer History - Coming soon!'); }
+        function openPurchaseModal() { alert('New Purchase - Coming soon!'); }
+        function openSuppliersModal() { alert('Manage Suppliers - Coming soon!'); }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            updateCartTotals();
+            console.log('✅ POS Ready!');
+        });
+    </script>
+</body>
+</html>

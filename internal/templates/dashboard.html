@@ -1,0 +1,285 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spide POS - Dashboard</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.5; } }
+        .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); }
+        .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
+        .trend-bar { transition: height 0.3s ease; }
+        .quick-action-btn { transition: all 0.2s; }
+        .quick-action-btn:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(124,58,237,0.3); }
+        @media (max-width: 768px) { .dashboard-grid { grid-template-columns: 1fr; } }
+        .shop-badge {
+            background: rgba(255,255,255,0.15);
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .shop-badge:hover {
+            background: rgba(255,255,255,0.25);
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans min-h-screen">
+    <header class="bg-purple-900 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-40">
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <img src="/favicon.ico" alt="Spide POS" class="w-8 h-8" onerror="this.style.display='none'; this.parentElement.innerHTML='🕷️'">
+                <h1 class="text-xl font-bold tracking-wide">Spide POS</h1>
+            </div>
+            <span class="bg-purple-700 text-xs px-2 py-1 rounded-full">Dashboard</span>
+            <div class="shop-badge px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-2">
+                <span>🏪</span>
+                <span id="shop-name-display">Store #1 - Main</span>
+            </div>
+        </div>
+        <div class="flex items-center gap-3">
+            <div id="live-clock" class="text-sm font-mono bg-purple-800 px-3 py-1.5 rounded-lg border border-purple-700">Loading...</div>
+            <button onclick="refreshDashboard()" class="bg-purple-700 hover:bg-purple-600 px-3 py-1.5 rounded-lg text-sm transition flex items-center gap-1">🔄 Refresh</button>
+            <a href="/pos" class="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2">🛒 Open POS</a>
+            <a href="/director" class="bg-amber-600 hover:bg-amber-700 px-4 py-2 rounded-lg text-sm font-semibold transition flex items-center gap-2">📊 Director</a>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto p-4 sm:p-6 space-y-6">
+        <div class="dashboard-grid" id="quick-stats">
+            <div class="stat-card bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Today's Revenue</p>
+                        <p id="stat-revenue" class="text-2xl font-black text-purple-900 mt-1">KES 0.00</p>
+                    </div>
+                    <div class="bg-purple-100 p-3 rounded-full"><span class="text-2xl">💰</span></div>
+                </div>
+                <p id="stat-transactions" class="text-xs text-gray-500 mt-2">0 transactions today</p>
+            </div>
+            <div class="stat-card bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Average Ticket</p>
+                        <p id="stat-average" class="text-2xl font-black text-emerald-700 mt-1">KES 0.00</p>
+                    </div>
+                    <div class="bg-emerald-100 p-3 rounded-full"><span class="text-2xl">🧾</span></div>
+                </div>
+                <p id="stat-items" class="text-xs text-gray-500 mt-2">0 items sold today</p>
+            </div>
+            <div class="stat-card bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Inventory Value</p>
+                        <p id="stat-stock-value" class="text-2xl font-black text-blue-700 mt-1">KES 0.00</p>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-full"><span class="text-2xl">📦</span></div>
+                </div>
+                <p id="stat-products" class="text-xs text-gray-500 mt-2">0 products in catalog</p>
+            </div>
+            <div class="stat-card bg-white rounded-xl shadow-sm p-5 border border-gray-200 relative">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Low Stock Alerts</p>
+                        <p id="stat-low-stock" class="text-2xl font-black text-red-600 mt-1">0</p>
+                    </div>
+                    <div class="bg-red-100 p-3 rounded-full"><span class="text-2xl">⚠️</span></div>
+                </div>
+                <p id="stat-low-stock-label" class="text-xs text-gray-500 mt-2">No items need reordering</p>
+                <div id="low-stock-dot" class="hidden absolute top-3 right-3">
+                    <span class="relative flex h-3 w-3">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                    </span>
+                </div>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 space-y-6">
+                <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <h3 class="font-bold text-gray-800">📈 Today's Sales Trend</h3>
+                            <p class="text-xs text-gray-500">Hourly breakdown</p>
+                        </div>
+                        <span id="trend-update-time" class="text-xs text-gray-400"></span>
+                    </div>
+                    <div id="sales-trend-chart" class="flex items-end h-40 gap-1 overflow-x-auto pb-2">
+                        <div class="text-center text-xs text-gray-400 w-full py-4">No data yet today</div>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                    <h3 class="font-bold text-gray-800 mb-4">🏆 Top Selling Products Today</h3>
+                    <div id="top-products-list" class="space-y-2">
+                        <p class="text-sm text-gray-500 text-center py-4">No sales recorded yet today</p>
+                    </div>
+                </div>
+            </div>
+            <div class="space-y-6">
+                <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+                    <h3 class="font-bold text-gray-800 mb-4">⚡ Quick Actions</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <a href="/pos" class="quick-action-btn bg-purple-100 hover:bg-purple-200 text-purple-900 p-4 rounded-xl text-center transition">
+                            <div class="text-2xl mb-1">🛒</div>
+                            <div class="text-xs font-semibold">New Sale</div>
+                        </a>
+                        <a href="/pos" class="quick-action-btn bg-blue-100 hover:bg-blue-200 text-blue-900 p-4 rounded-xl text-center transition">
+                            <div class="text-2xl mb-1">📦</div>
+                            <div class="text-xs font-semibold">View Catalog</div>
+                        </a>
+                        <a href="/pos" class="quick-action-btn bg-emerald-100 hover:bg-emerald-200 text-emerald-900 p-4 rounded-xl text-center transition">
+                            <div class="text-2xl mb-1">➕</div>
+                            <div class="text-xs font-semibold">Add Product</div>
+                        </a>
+                        <a href="/director" class="quick-action-btn bg-amber-100 hover:bg-amber-200 text-amber-900 p-4 rounded-xl text-center transition">
+                            <div class="text-2xl mb-1">📊</div>
+                            <div class="text-xs font-semibold">Director View</div>
+                        </a>
+                    </div>
+                </div>
+                <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200 max-h-96 overflow-hidden flex flex-col">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="font-bold text-gray-800">🕐 Recent Sales</h3>
+                        <a href="/pos" class="text-xs text-purple-600 hover:text-purple-800 font-semibold">View All →</a>
+                    </div>
+                    <div id="recent-sales-list" class="flex-1 overflow-y-auto space-y-2 pr-1">
+                        <p class="text-sm text-gray-500 text-center py-4">No recent sales</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const shopName = localStorage.getItem('currentShopName') || 'Store #1 - Main';
+            const display = document.getElementById('shop-name-display');
+            if (display) display.textContent = shopName;
+            refreshDashboard();
+            startClock();
+        });
+
+        function startClock() {
+            function updateClock() {
+                document.getElementById('live-clock').textContent = new Date().toLocaleTimeString('en-KE', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+            updateClock();
+            setInterval(updateClock, 1000);
+        }
+
+        async function refreshDashboard() {
+            try {
+                const response = await fetch('/api/dashboard/stats');
+                if (!response.ok) throw new Error('Failed to fetch dashboard data');
+                const data = await response.json();
+                renderDashboard(data);
+                document.getElementById('trend-update-time').textContent = 'Updated: ' + new Date().toLocaleTimeString('en-KE', { hour12: false, hour: '2-digit', minute: '2-digit' });
+            } catch (error) {
+                console.error('Dashboard refresh error:', error);
+            }
+        }
+
+        function renderDashboard(data) {
+            document.getElementById('stat-revenue').textContent = 'KES ' + (data.today_sales?.total_revenue || 0).toFixed(2);
+            document.getElementById('stat-transactions').textContent = (data.today_sales?.transaction_count || 0) + ' transactions today';
+            document.getElementById('stat-average').textContent = 'KES ' + (data.today_sales?.average_ticket || 0).toFixed(2);
+            document.getElementById('stat-items').textContent = (data.today_sales?.total_items || 0) + ' items sold today';
+            document.getElementById('stat-stock-value').textContent = 'KES ' + (data.quick_stats?.total_stock_value || 0).toFixed(2);
+            document.getElementById('stat-products').textContent = (data.quick_stats?.total_products || 0) + ' products in catalog';
+            
+            const lowStockCount = data.low_stock_items ? data.low_stock_items.length : 0;
+            document.getElementById('stat-low-stock').textContent = lowStockCount;
+            if (lowStockCount > 0) {
+                document.getElementById('stat-low-stock-label').textContent = lowStockCount + ' items need reordering';
+                document.getElementById('low-stock-dot').classList.remove('hidden');
+            } else {
+                document.getElementById('stat-low-stock-label').textContent = 'All stock levels healthy 🎉';
+                document.getElementById('low-stock-dot').classList.add('hidden');
+            }
+
+            renderTrendChart(data.sales_trend || []);
+            renderTopProducts(data.top_products || []);
+            renderRecentSales(data.recent_sales || []);
+        }
+
+        function renderTrendChart(trendData) {
+            const container = document.getElementById('sales-trend-chart');
+            if (!trendData || trendData.length === 0) {
+                container.innerHTML = '<div class="text-center text-xs text-gray-400 w-full py-4">No sales data yet today</div>';
+                return;
+            }
+            const maxAmount = Math.max(...trendData.map(d => d.amount), 1);
+            const bars = trendData.map(hour => {
+                const height = (hour.amount / maxAmount) * 100;
+                const isCurrentHour = new Date().getHours() === hour.hour;
+                return '<div class="flex flex-col items-center flex-1 min-w-[24px] group relative">' +
+                    '<div class="w-full flex justify-center">' +
+                        '<div class="trend-bar w-6 rounded-t transition-all duration-500 ' + (isCurrentHour ? 'bg-purple-600' : 'bg-purple-300') + '" style="height: ' + Math.max(height, 2) + '%; min-height: 4px;">' +
+                            '<div class="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap transition-opacity">KES ' + hour.amount.toFixed(2) + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<span class="text-[10px] text-gray-500 mt-1">' + String(hour.hour).padStart(2, '0') + ':00</span>' +
+                    '<span class="text-[9px] text-gray-400">' + hour.count + ' sale' + (hour.count !== 1 ? 's' : '') + '</span>' +
+                '</div>';
+            });
+            container.innerHTML = bars.join('');
+        }
+
+        function renderTopProducts(products) {
+            const container = document.getElementById('top-products-list');
+            if (!products || products.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No sales recorded yet today</p>';
+                return;
+            }
+            const maxUnits = Math.max(...products.map(p => p.units_sold), 1);
+            const medals = ['🥇', '🥈', '🥉'];
+            const list = products.map((product, index) => {
+                const width = (product.units_sold / maxUnits) * 100;
+                const medal = index < 3 ? medals[index] : '•';
+                return '<div class="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition">' +
+                    '<span class="text-lg w-8 text-center">' + medal + '</span>' +
+                    '<div class="flex-1 min-w-0">' +
+                        '<div class="flex justify-between text-sm">' +
+                            '<span class="font-medium text-gray-800 truncate">' + product.product_name + '</span>' +
+                            '<span class="font-bold text-purple-700">' + product.units_sold + 'x</span>' +
+                        '</div>' +
+                        '<div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">' +
+                            '<div class="bg-gradient-to-r from-purple-400 to-purple-600 h-2 rounded-full transition-all duration-500" style="width: ' + width + '%"></div>' +
+                        '</div>' +
+                        '<div class="flex justify-between text-xs text-gray-500 mt-0.5">' +
+                            '<span>KES ' + product.revenue.toFixed(2) + '</span>' +
+                            '<span>' + Math.round((product.units_sold / maxUnits) * 100) + '% of top</span>' +
+                        '</div>' +
+                    '</div>' +
+                '</div>';
+            });
+            container.innerHTML = list.join('');
+        }
+
+        function renderRecentSales(sales) {
+            const container = document.getElementById('recent-sales-list');
+            if (!sales || sales.length === 0) {
+                container.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No recent sales</p>';
+                return;
+            }
+            const paymentEmojis = { 'cash': '💵', 'mpesa': '📱', 'split': '💳' };
+            const list = sales.map(sale => {
+                const emoji = paymentEmojis[sale.payment_type] || '💰';
+                const itemCount = sale.items ? sale.items.length : 0;
+                return '<div class="flex items-center justify-between p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition">' +
+                    '<div class="flex items-center gap-2 min-w-0">' +
+                        '<span>' + emoji + '</span>' +
+                        '<div class="min-w-0 flex-1">' +
+                            '<div class="text-xs font-semibold text-gray-800 truncate">Sale #' + sale.id + ' <span class="text-[10px] font-normal text-gray-500">' + (sale.created_at || '') + '</span></div>' +
+                            '<div class="text-[10px] text-gray-500 truncate">' + itemCount + ' item' + (itemCount !== 1 ? 's' : '') + (sale.mpesa_code ? ' • ' + sale.mpesa_code : '') + '</div>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="font-bold text-purple-900 text-sm whitespace-nowrap ml-2">KES ' + sale.total_amount.toFixed(2) + '</div>' +
+                '</div>';
+            });
+            container.innerHTML = list.join('');
+        }
+    </script>
+</body>
+</html>
