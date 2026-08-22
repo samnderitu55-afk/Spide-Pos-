@@ -15,6 +15,7 @@ import (
 
     "spide-pos/internal/db"
     "spide-pos/internal/handlers"
+    "spide-pos/internal/middleware"
 )
 
 var startTime = time.Now()
@@ -23,9 +24,9 @@ func main() {
     // Load .env file
     envPath := filepath.Join(".", ".env")
     if err := godotenv.Load(envPath); err != nil {
-        log.Printf("⚠️ No .env file found at %s, using environment variables", envPath)
+        log.Printf("No .env file found, using environment variables")
     } else {
-        log.Printf("✅ .env file loaded from %s", envPath)
+        log.Printf("✅ .env file loaded")
     }
 
     // Database configuration
@@ -37,7 +38,7 @@ func main() {
         Name:     getEnv("DB_NAME", "spide_pos"),
     }
 
-    log.Printf("🔐 Connecting to database: %s@%s:%s/%s", dbConfig.User, dbConfig.Host, dbConfig.Port, dbConfig.Name)
+    log.Printf("Connecting to database...")
 
     // Connect to database
     if _, err := db.ConnectDB(dbConfig); err != nil {
@@ -45,7 +46,7 @@ func main() {
     }
     defer db.CloseDB()
 
-    // Setup routes - NO AUTH
+    // Setup routes
     mux := http.NewServeMux()
 
     // Favicon
@@ -53,7 +54,7 @@ func main() {
         http.ServeFile(w, r, "favicon.ico")
     })
 
-    // Health check
+    // Health check (public)
     mux.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {
         w.Header().Set("Content-Type", "application/json")
         if err := db.GetDB().Ping(); err != nil {
@@ -72,42 +73,48 @@ func main() {
         })
     })
 
-    // Login routes (keep for later)
+    // Login routes (public)
     mux.HandleFunc("/login", handlers.ServeLogin)
     mux.HandleFunc("/api/login", handlers.LoginHandler)
-    mux.HandleFunc("/api/logout", handlers.LogoutHandler)
 
-    // HTML Pages - NO AUTH
-    mux.HandleFunc("/", handlers.ServeDashboard)
-    mux.HandleFunc("/pos", handlers.ServePOS)
-    mux.HandleFunc("/director", handlers.ServeDirector)
+    // Protected routes (require authentication)
+    mux.HandleFunc("/", middleware.AuthMiddleware(handlers.ServeDashboard))
+    mux.HandleFunc("/pos", middleware.AuthMiddleware(handlers.ServePOS))
+    mux.HandleFunc("/director", middleware.AuthMiddleware(handlers.ServeDirector))
+    mux.HandleFunc("/api/logout", middleware.AuthMiddleware(handlers.LogoutHandler))
 
-    // API Routes - NO AUTH - DIRECT HANDLERS
-    mux.HandleFunc("/api/dashboard/stats", handlers.DashboardStatsHandler)
-    mux.HandleFunc("/api/products", handlers.GetProductsHandler)
-    mux.HandleFunc("/api/products/create", handlers.CreateProductHandler)
-    mux.HandleFunc("/api/products/update", handlers.UpdateProductHandler)
-    mux.HandleFunc("/api/products/search", handlers.SearchProductsHandler)
-    mux.HandleFunc("/api/products/scan-html", handlers.ScanProductHandler)
-    mux.HandleFunc("/api/sales/checkout", handlers.CheckoutHandler)
-    mux.HandleFunc("/api/sales/recent", handlers.RecentSalesHandler)
-    mux.HandleFunc("/api/sales/z-report", handlers.ZReportHandler)
-    mux.HandleFunc("/api/reports/product-sales", handlers.ProductSalesReportHandler)
-    mux.HandleFunc("/api/reports/low-stock", handlers.LowStockReportHandler)
-    mux.HandleFunc("/api/reports/inventory-valuation", handlers.InventoryValuationHandler)
-    mux.HandleFunc("/api/reports/inventory-valuation/details", handlers.CategoryDrilldownHandler)
-    mux.HandleFunc("/api/expenses/create", handlers.CreateExpenseHandler)
-    mux.HandleFunc("/api/expenses/report", handlers.ExpenseReportHandler)
-    mux.HandleFunc("/api/expenses/categories", handlers.ExpenseCategoriesHandler)
-    mux.HandleFunc("/api/expenses/delete", handlers.DeleteExpenseHandler)
-    mux.HandleFunc("/api/transfers/create", handlers.CreateTransferHandler)
-    mux.HandleFunc("/api/transfers", handlers.GetTransfersHandler)
-    mux.HandleFunc("/api/transfers/detail", handlers.GetTransferDetailHandler)
-    mux.HandleFunc("/api/purchases/create", handlers.CreatePurchaseHandler)
-    mux.HandleFunc("/api/suppliers", handlers.GetSuppliersHandler)
-    mux.HandleFunc("/api/suppliers/create", handlers.CreateSupplierHandler)
-    mux.HandleFunc("/api/categories", handlers.GetCategoriesHandler)
-    mux.HandleFunc("/api/categories/create", handlers.CreateCategoryHandler)
+    // API Routes - Protected
+    mux.HandleFunc("/api/dashboard/stats", middleware.AuthMiddleware(handlers.DashboardStatsHandler))
+    mux.HandleFunc("/api/products", middleware.AuthMiddleware(handlers.GetProductsHandler))
+    mux.HandleFunc("/api/products/create", middleware.AuthMiddleware(handlers.CreateProductHandler))
+    mux.HandleFunc("/api/products/update", middleware.AuthMiddleware(handlers.UpdateProductHandler))
+    mux.HandleFunc("/api/products/search", middleware.AuthMiddleware(handlers.SearchProductsHandler))
+    mux.HandleFunc("/api/products/scan-html", middleware.AuthMiddleware(handlers.ScanProductHandler))
+    mux.HandleFunc("/api/sales/checkout", middleware.AuthMiddleware(handlers.CheckoutHandler))
+    mux.HandleFunc("/api/sales/recent", middleware.AuthMiddleware(handlers.RecentSalesHandler))
+    mux.HandleFunc("/api/sales/z-report", middleware.AuthMiddleware(handlers.ZReportHandler))
+    mux.HandleFunc("/api/reports/product-sales", middleware.AuthMiddleware(handlers.ProductSalesReportHandler))
+    mux.HandleFunc("/api/reports/low-stock", middleware.AuthMiddleware(handlers.LowStockReportHandler))
+    mux.HandleFunc("/api/reports/inventory-valuation", middleware.AuthMiddleware(handlers.InventoryValuationHandler))
+    mux.HandleFunc("/api/reports/inventory-valuation/details", middleware.AuthMiddleware(handlers.CategoryDrilldownHandler))
+    mux.HandleFunc("/api/expenses/create", middleware.AuthMiddleware(handlers.CreateExpenseHandler))
+    mux.HandleFunc("/api/expenses/report", middleware.AuthMiddleware(handlers.ExpenseReportHandler))
+    mux.HandleFunc("/api/expenses/categories", middleware.AuthMiddleware(handlers.ExpenseCategoriesHandler))
+    mux.HandleFunc("/api/expenses/delete", middleware.AuthMiddleware(handlers.DeleteExpenseHandler))
+    mux.HandleFunc("/api/transfers/create", middleware.AuthMiddleware(handlers.CreateTransferHandler))
+    mux.HandleFunc("/api/transfers", middleware.AuthMiddleware(handlers.GetTransfersHandler))
+    mux.HandleFunc("/api/transfers/detail", middleware.AuthMiddleware(handlers.GetTransferDetailHandler))
+    mux.HandleFunc("/api/purchases/create", middleware.AuthMiddleware(handlers.CreatePurchaseHandler))
+    mux.HandleFunc("/api/suppliers", middleware.AuthMiddleware(handlers.GetSuppliersHandler))
+    mux.HandleFunc("/api/suppliers/create", middleware.AuthMiddleware(handlers.CreateSupplierHandler))
+    mux.HandleFunc("/api/categories", middleware.AuthMiddleware(handlers.GetCategoriesHandler))
+    mux.HandleFunc("/api/categories/create", middleware.AuthMiddleware(handlers.CreateCategoryHandler))
+
+    // User management (protected - director only)
+    mux.HandleFunc("/api/users", middleware.AuthMiddleware(handlers.GetUsersHandler))
+    mux.HandleFunc("/api/users/create", middleware.AuthMiddleware(handlers.CreateUserHandler))
+    mux.HandleFunc("/api/users/update", middleware.AuthMiddleware(handlers.UpdateUserHandler))
+    mux.HandleFunc("/api/users/delete", middleware.AuthMiddleware(handlers.DeleteUserHandler))
 
     // Server configuration
     port := getEnv("PORT", "8081")
@@ -122,9 +129,9 @@ func main() {
     // Start server
     go func() {
         log.Printf("🕷️ Spide POS running on http://localhost:%s", port)
+        log.Printf("🔐 Login: http://localhost:%s/login", port)
         log.Printf("📊 Dashboard: http://localhost:%s/", port)
         log.Printf("🛒 POS: http://localhost:%s/pos", port)
-        log.Printf("🔐 Login: http://localhost:%s/login (disabled)", port)
         if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
             log.Fatalf("Server error: %v", err)
         }

@@ -3,6 +3,7 @@
 import (
     "encoding/json"
     "net/http"
+    "spide-pos/internal/auth"
     "spide-pos/internal/db"
 )
 
@@ -26,7 +27,6 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Get user from database
     user, err := db.GetUserByUsername(db.GetDB(), credentials.Username)
     if err != nil {
         w.Header().Set("Content-Type", "application/json")
@@ -37,8 +37,8 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Check password
-    if user.Password != credentials.Password {
+    // Password check enabled
+    if !auth.CheckPassword(credentials.Password, user.Password) {
         w.Header().Set("Content-Type", "application/json")
         w.WriteHeader(http.StatusUnauthorized)
         json.NewEncoder(w).Encode(map[string]string{
@@ -47,45 +47,38 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Update last login
     db.UpdateLastLogin(db.GetDB(), user.ID)
 
-    // Set session cookie
-    http.SetCookie(w, &http.Cookie{
-        Name:     "spide_session",
-        Value:    user.Username,
-        Path:     "/",
-        HttpOnly: true,
-        Secure:   false,
-        MaxAge:   86400,
-        SameSite: http.SameSiteLaxMode,
-    })
+    token, err := auth.GenerateToken(
+        user.ID,
+        user.Username,
+        user.Name,
+        user.Role,
+        user.ShopID,
+        user.ShopName,
+    )
+    if err != nil {
+        w.Header().Set("Content-Type", "application/json")
+        w.WriteHeader(http.StatusInternalServerError)
+        json.NewEncoder(w).Encode(map[string]string{
+            "error": "Failed to generate token",
+        })
+        return
+    }
 
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(map[string]interface{}{
         "success": true,
         "user":    user,
+        "token":   token,
         "message": "Login successful",
     })
 }
 
 func LogoutHandler(w http.ResponseWriter, r *http.Request) {
-    // Clear session cookie
-    http.SetCookie(w, &http.Cookie{
-        Name:     "spide_session",
-        Value:    "",
-        Path:     "/",
-        HttpOnly: true,
-        MaxAge:   -1,
-    })
-
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(map[string]string{
         "success": "true",
         "message": "Logged out successfully",
     })
 }
-
-
-
-

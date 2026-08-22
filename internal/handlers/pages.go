@@ -43,7 +43,3 @@ func ServeDirector(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "text/html")
     directorTemplate.Execute(w, nil)
 }
-
-
-
-
