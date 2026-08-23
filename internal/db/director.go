@@ -3,6 +3,7 @@
 import (
     "database/sql"
     "fmt"
+    "log"
     "time"
 )
 
@@ -14,43 +15,51 @@ type DirectorDashboard struct {
     LowStockItems       int              `json:"low_stock_items"`
     TodayTransactions   int              `json:"today_transactions"`
     OutletStats         []OutletStats    `json:"outlet_stats"`
-    SalesTrend          []struct {
-        Date  string  `json:"date"`
-        Total float64 `json:"total"`
-    } `json:"sales_trend"`
-    TopProducts []struct {
-        ProductName string  `json:"product_name"`
-        Category    string  `json:"category"`
-        UnitsSold   int     `json:"units_sold"`
-        Revenue     float64 `json:"revenue"`
-    } `json:"top_products"`
-    RecentTransactions []struct {
-        SaleID      int     `json:"sale_id"`
-        ShopName    string  `json:"shop_name"`
-        Amount      float64 `json:"amount"`
-        PaymentType string  `json:"payment_type"`
-        CreatedAt   string  `json:"created_at"`
-    } `json:"recent_transactions"`
-    Alerts []struct {
-        ShopName     string `json:"shop_name"`
-        ProductName  string `json:"product_name"`
-        StockLevel   int    `json:"stock_level"`
-        ReorderLevel int    `json:"reorder_level"`
-        Severity     string `json:"severity"`
-    } `json:"alerts"`
+    SalesTrend          []SalesTrendItem `json:"sales_trend"`
+    TopProducts         []TopProductItem `json:"top_products"`
+    RecentTransactions  []RecentTxItem   `json:"recent_transactions"`
+    Alerts              []AlertItem      `json:"alerts"`
 }
 
 type OutletStats struct {
-    ShopID          int     `json:"shop_id"`
-    ShopName        string  `json:"shop_name"`
-    Location        string  `json:"location"`
-    Manager         string  `json:"manager"`
-    TodayRevenue    float64 `json:"today_revenue"`
-    TodayTransactions int   `json:"today_transactions"`
-    TodayItems      int     `json:"today_items"`
-    MonthRevenue    float64 `json:"month_revenue"`
-    MonthTransactions int   `json:"month_transactions"`
-    Status          string  `json:"status"`
+    ShopID             int     `json:"shop_id"`
+    ShopName           string  `json:"shop_name"`
+    Location           string  `json:"location"`
+    Manager            string  `json:"manager"`
+    TodayRevenue       float64 `json:"today_revenue"`
+    TodayTransactions  int     `json:"today_transactions"`
+    TodayItems         int     `json:"today_items"`
+    MonthRevenue       float64 `json:"month_revenue"`
+    MonthTransactions  int     `json:"month_transactions"`
+    Status             string  `json:"status"`
+}
+
+type SalesTrendItem struct {
+    Date  string  `json:"date"`
+    Total float64 `json:"total"`
+}
+
+type TopProductItem struct {
+    ProductName string  `json:"product_name"`
+    Category    string  `json:"category"`
+    UnitsSold   int     `json:"units_sold"`
+    Revenue     float64 `json:"revenue"`
+}
+
+type RecentTxItem struct {
+    SaleID      int     `json:"sale_id"`
+    ShopName    string  `json:"shop_name"`
+    Amount      float64 `json:"amount"`
+    PaymentType string  `json:"payment_type"`
+    CreatedAt   string  `json:"created_at"`
+}
+
+type AlertItem struct {
+    ShopName     string `json:"shop_name"`
+    ProductName  string `json:"product_name"`
+    StockLevel   int    `json:"stock_level"`
+    ReorderLevel int    `json:"reorder_level"`
+    Severity     string `json:"severity"`
 }
 
 func GetDirectorDashboard(db *sql.DB) (*DirectorDashboard, error) {
@@ -58,24 +67,28 @@ func GetDirectorDashboard(db *sql.DB) (*DirectorDashboard, error) {
     today := time.Now().Format("2006-01-02")
     monthStart := time.Now().AddDate(0, 0, -30).Format("2006-01-02")
 
-    // Get total stores
+    log.Println("🔍 Starting GetDirectorDashboard...")
+
+    // 1. Get total stores
     err := db.QueryRow("SELECT COUNT(*) FROM branches WHERE is_active = 1").Scan(&dashboard.TotalStores)
     if err != nil && err != sql.ErrNoRows {
         return nil, fmt.Errorf("failed to get total stores: %w", err)
     }
+    log.Printf("✅ Total stores: %d", dashboard.TotalStores)
 
-    // Get active stores (with sales today)
+    // 2. Get active stores (with sales today)
     err = db.QueryRow(`
-        SELECT COUNT(DISTINCT s.id) 
-        FROM branches s
-        INNER JOIN sales sl ON sl.shop_id = s.id
-        WHERE DATE(sl.created_at) = ? AND s.is_active = 1
+        SELECT COUNT(DISTINCT b.id) 
+        FROM branches b
+        INNER JOIN sales s ON s.shop_id = b.id
+        WHERE DATE(s.created_at) = ? AND b.is_active = 1
     `, today).Scan(&dashboard.ActiveStores)
     if err != nil && err != sql.ErrNoRows {
-        dashboard.ActiveStores = dashboard.TotalStores
+        return nil, fmt.Errorf("failed to get active stores: %w", err)
     }
+    log.Printf("✅ Active stores: %d", dashboard.ActiveStores)
 
-    // Get today's total revenue
+    // 3. Get today's total revenue
     err = db.QueryRow(`
         SELECT COALESCE(SUM(total_amount), 0)
         FROM sales
@@ -84,8 +97,9 @@ func GetDirectorDashboard(db *sql.DB) (*DirectorDashboard, error) {
     if err != nil && err != sql.ErrNoRows {
         return nil, fmt.Errorf("failed to get today's revenue: %w", err)
     }
+    log.Printf("✅ Today's revenue: %.2f", dashboard.TotalRevenueToday)
 
-    // Get month revenue
+    // 4. Get month revenue (last 30 days)
     err = db.QueryRow(`
         SELECT COALESCE(SUM(total_amount), 0)
         FROM sales
@@ -94,8 +108,9 @@ func GetDirectorDashboard(db *sql.DB) (*DirectorDashboard, error) {
     if err != nil && err != sql.ErrNoRows {
         return nil, fmt.Errorf("failed to get month revenue: %w", err)
     }
+    log.Printf("✅ Month revenue: %.2f", dashboard.TotalRevenueMonth)
 
-    // Get today's transaction count
+    // 5. Get today's transaction count
     err = db.QueryRow(`
         SELECT COUNT(*)
         FROM sales
@@ -104,102 +119,114 @@ func GetDirectorDashboard(db *sql.DB) (*DirectorDashboard, error) {
     if err != nil && err != sql.ErrNoRows {
         return nil, fmt.Errorf("failed to get today's transactions: %w", err)
     }
+    log.Printf("✅ Today's transactions: %d", dashboard.TodayTransactions)
 
-    // Get low stock items count
+    // 6. Get low stock items (from shop_stock with branch_inventory reorder_level)
     err = db.QueryRow(`
-        SELECT COUNT(DISTINCT p.id)
-        FROM products p
-        LEFT JOIN shop_stock ss ON p.id = ss.product_id
-        WHERE p.is_active = 1 AND COALESCE(ss.quantity, 0) <= p.reorder_level
+        SELECT COUNT(DISTINCT ss.product_id)
+        FROM shop_stock ss
+        LEFT JOIN branch_inventory bi ON ss.shop_id = bi.branch_id AND ss.product_id = bi.product_id
+        LEFT JOIN products p ON ss.product_id = p.id
+        WHERE p.is_active = 1 
+        AND ss.quantity <= COALESCE(bi.reorder_level, 5)
     `).Scan(&dashboard.LowStockItems)
     if err != nil && err != sql.ErrNoRows {
         return nil, fmt.Errorf("failed to get low stock items: %w", err)
     }
+    log.Printf("✅ Low stock items: %d", dashboard.LowStockItems)
 
-    // Get outlet stats
+    // 7. Get outlet stats
     outletStats, err := getOutletStats(db, today, monthStart)
     if err != nil {
         return nil, fmt.Errorf("failed to get outlet stats: %w", err)
     }
     dashboard.OutletStats = outletStats
+    log.Printf("✅ Outlet stats: %d outlets", len(outletStats))
 
-    // Get sales trend (last 30 days)
+    // 8. Get sales trend
     salesTrend, err := getDirectorSalesTrend(db, monthStart, today)
     if err != nil {
         return nil, fmt.Errorf("failed to get sales trend: %w", err)
     }
     dashboard.SalesTrend = salesTrend
+    log.Printf("✅ Sales trend: %d days", len(salesTrend))
 
-    // Get top products (all outlets)
+    // 9. Get top products
     topProducts, err := getTopProductsAllOutlets(db, monthStart, today)
     if err != nil {
         return nil, fmt.Errorf("failed to get top products: %w", err)
     }
     dashboard.TopProducts = topProducts
+    log.Printf("✅ Top products: %d", len(topProducts))
 
-    // Get recent transactions
+    // 10. Get recent transactions
     recentTransactions, err := getRecentTransactions(db, 10)
     if err != nil {
         return nil, fmt.Errorf("failed to get recent transactions: %w", err)
     }
     dashboard.RecentTransactions = recentTransactions
+    log.Printf("✅ Recent transactions: %d", len(recentTransactions))
 
-    // Get alerts
+    // 11. Get alerts
     alerts, err := getAlerts(db)
     if err != nil {
         return nil, fmt.Errorf("failed to get alerts: %w", err)
     }
     dashboard.Alerts = alerts
+    log.Printf("✅ Alerts: %d", len(alerts))
 
+    log.Println("🎉 DirectorDashboard complete!")
     return dashboard, nil
 }
 
 func getOutletStats(db *sql.DB, today, monthStart string) ([]OutletStats, error) {
     query := `
         SELECT 
-            s.id,
-            s.name,
-            s.location,
-            COALESCE(s.manager, 'N/A') as manager,
+            b.id,
+            b.name,
+            COALESCE(b.location, 'N/A') as location,
+            COALESCE(u.username, 'N/A') as manager,
             COALESCE((
                 SELECT SUM(total_amount) 
                 FROM sales 
-                WHERE shop_id = s.id AND DATE(created_at) = ?
+                WHERE shop_id = b.id AND DATE(created_at) = ?
             ), 0) as today_revenue,
             COALESCE((
                 SELECT COUNT(*) 
                 FROM sales 
-                WHERE shop_id = s.id AND DATE(created_at) = ?
+                WHERE shop_id = b.id AND DATE(created_at) = ?
             ), 0) as today_transactions,
             COALESCE((
                 SELECT SUM(si.quantity) 
-                FROM sales sl
-                JOIN sale_items si ON sl.id = si.sale_id
-                WHERE sl.shop_id = s.id AND DATE(sl.created_at) = ?
+                FROM sales s
+                JOIN sale_items si ON s.id = si.sale_id
+                WHERE s.shop_id = b.id AND DATE(s.created_at) = ?
             ), 0) as today_items,
             COALESCE((
                 SELECT SUM(total_amount) 
                 FROM sales 
-                WHERE shop_id = s.id AND DATE(created_at) >= ?
+                WHERE shop_id = b.id AND DATE(created_at) >= ?
             ), 0) as month_revenue,
             COALESCE((
                 SELECT COUNT(*) 
                 FROM sales 
-                WHERE shop_id = s.id AND DATE(created_at) >= ?
+                WHERE shop_id = b.id AND DATE(created_at) >= ?
             ), 0) as month_transactions,
             CASE 
                 WHEN EXISTS (
                     SELECT 1 FROM sales 
-                    WHERE shop_id = s.id AND DATE(created_at) = ?
+                    WHERE shop_id = b.id AND DATE(created_at) = ?
                 ) THEN 'active'
                 ELSE 'inactive'
             END as status
-        FROM branches s
-        WHERE s.is_active = 1
+        FROM branches b
+        LEFT JOIN users u ON b.manager_id = u.id
+        WHERE b.is_active = 1
         ORDER BY today_revenue DESC
     `
     rows, err := db.Query(query, today, today, today, monthStart, monthStart, today)
     if err != nil {
+        log.Printf("❌ getOutletStats query error: %v", err)
         return nil, err
     }
     defer rows.Close()
@@ -213,22 +240,22 @@ func getOutletStats(db *sql.DB, today, monthStart string) ([]OutletStats, error)
             &stat.MonthRevenue, &stat.MonthTransactions, &stat.Status,
         )
         if err != nil {
+            log.Printf("❌ getOutletStats scan error: %v", err)
             return nil, err
         }
         stats = append(stats, stat)
     }
 
     if err := rows.Err(); err != nil {
+        log.Printf("❌ getOutletStats rows error: %v", err)
         return nil, err
     }
 
+    log.Printf("✅ getOutletStats: found %d outlets", len(stats))
     return stats, nil
 }
 
-func getDirectorSalesTrend(db *sql.DB, startDate, endDate string) ([]struct {
-    Date  string  `json:"date"`
-    Total float64 `json:"total"`
-}, error) {
+func getDirectorSalesTrend(db *sql.DB, startDate, endDate string) ([]SalesTrendItem, error) {
     query := `
         SELECT DATE(created_at) as date, COALESCE(SUM(total_amount), 0) as total
         FROM sales
@@ -238,43 +265,35 @@ func getDirectorSalesTrend(db *sql.DB, startDate, endDate string) ([]struct {
     `
     rows, err := db.Query(query, startDate, endDate)
     if err != nil {
+        log.Printf("❌ getDirectorSalesTrend query error: %v", err)
         return nil, err
     }
     defer rows.Close()
 
-    var trend []struct {
-        Date  string  `json:"date"`
-        Total float64 `json:"total"`
-    }
+    var trend []SalesTrendItem
     for rows.Next() {
-        var item struct {
-            Date  string  `json:"date"`
-            Total float64 `json:"total"`
-        }
+        var item SalesTrendItem
         err := rows.Scan(&item.Date, &item.Total)
         if err != nil {
+            log.Printf("❌ getDirectorSalesTrend scan error: %v", err)
             return nil, err
         }
         trend = append(trend, item)
     }
 
     if err := rows.Err(); err != nil {
+        log.Printf("❌ getDirectorSalesTrend rows error: %v", err)
         return nil, err
     }
 
     return trend, nil
 }
 
-func getTopProductsAllOutlets(db *sql.DB, startDate, endDate string) ([]struct {
-    ProductName string  `json:"product_name"`
-    Category    string  `json:"category"`
-    UnitsSold   int     `json:"units_sold"`
-    Revenue     float64 `json:"revenue"`
-}, error) {
+func getTopProductsAllOutlets(db *sql.DB, startDate, endDate string) ([]TopProductItem, error) {
     query := `
         SELECT 
             p.name,
-            p.category,
+            COALESCE(p.category, 'Uncategorized') as category,
             SUM(si.quantity) as units_sold,
             SUM(si.subtotal) as revenue
         FROM sale_items si
@@ -287,50 +306,37 @@ func getTopProductsAllOutlets(db *sql.DB, startDate, endDate string) ([]struct {
     `
     rows, err := db.Query(query, startDate, endDate)
     if err != nil {
+        log.Printf("❌ getTopProductsAllOutlets query error: %v", err)
         return nil, err
     }
     defer rows.Close()
 
-    var products []struct {
-        ProductName string  `json:"product_name"`
-        Category    string  `json:"category"`
-        UnitsSold   int     `json:"units_sold"`
-        Revenue     float64 `json:"revenue"`
-    }
+    var products []TopProductItem
     for rows.Next() {
-        var item struct {
-            ProductName string  `json:"product_name"`
-            Category    string  `json:"category"`
-            UnitsSold   int     `json:"units_sold"`
-            Revenue     float64 `json:"revenue"`
-        }
+        var item TopProductItem
         err := rows.Scan(&item.ProductName, &item.Category, &item.UnitsSold, &item.Revenue)
         if err != nil {
+            log.Printf("❌ getTopProductsAllOutlets scan error: %v", err)
             return nil, err
         }
         products = append(products, item)
     }
 
     if err := rows.Err(); err != nil {
+        log.Printf("❌ getTopProductsAllOutlets rows error: %v", err)
         return nil, err
     }
 
     return products, nil
 }
 
-func getRecentTransactions(db *sql.DB, limit int) ([]struct {
-    SaleID      int     `json:"sale_id"`
-    ShopName    string  `json:"shop_name"`
-    Amount      float64 `json:"amount"`
-    PaymentType string  `json:"payment_type"`
-    CreatedAt   string  `json:"created_at"`
-}, error) {
+func getRecentTransactions(db *sql.DB, limit int) ([]RecentTxItem, error) {
     query := `
         SELECT 
             s.id,
             COALESCE(b.name, 'Unknown Shop') as shop_name,
             s.total_amount,
-            s.payment_type,
+            COALESCE(s.payment_type, 'cash') as payment_type,
             DATE_FORMAT(s.created_at, '%Y-%m-%d %H:%i') as created_at
         FROM sales s
         LEFT JOIN branches b ON s.shop_id = b.id
@@ -339,93 +345,71 @@ func getRecentTransactions(db *sql.DB, limit int) ([]struct {
     `
     rows, err := db.Query(query, limit)
     if err != nil {
+        log.Printf("❌ getRecentTransactions query error: %v", err)
         return nil, err
     }
     defer rows.Close()
 
-    var transactions []struct {
-        SaleID      int     `json:"sale_id"`
-        ShopName    string  `json:"shop_name"`
-        Amount      float64 `json:"amount"`
-        PaymentType string  `json:"payment_type"`
-        CreatedAt   string  `json:"created_at"`
-    }
+    var transactions []RecentTxItem
     for rows.Next() {
-        var t struct {
-            SaleID      int     `json:"sale_id"`
-            ShopName    string  `json:"shop_name"`
-            Amount      float64 `json:"amount"`
-            PaymentType string  `json:"payment_type"`
-            CreatedAt   string  `json:"created_at"`
-        }
+        var t RecentTxItem
         err := rows.Scan(&t.SaleID, &t.ShopName, &t.Amount, &t.PaymentType, &t.CreatedAt)
         if err != nil {
+            log.Printf("❌ getRecentTransactions scan error: %v", err)
             return nil, err
         }
         transactions = append(transactions, t)
     }
 
     if err := rows.Err(); err != nil {
+        log.Printf("❌ getRecentTransactions rows error: %v", err)
         return nil, err
     }
 
     return transactions, nil
 }
 
-func getAlerts(db *sql.DB) ([]struct {
-    ShopName     string `json:"shop_name"`
-    ProductName  string `json:"product_name"`
-    StockLevel   int    `json:"stock_level"`
-    ReorderLevel int    `json:"reorder_level"`
-    Severity     string `json:"severity"`
-}, error) {
+func getAlerts(db *sql.DB) ([]AlertItem, error) {
     query := `
         SELECT 
             COALESCE(b.name, 'Main Shop') as shop_name,
             p.name as product_name,
             COALESCE(ss.quantity, 0) as stock_level,
-            p.reorder_level,
+            COALESCE(bi.reorder_level, 5) as reorder_level,
             CASE 
                 WHEN COALESCE(ss.quantity, 0) = 0 THEN 'critical'
-                WHEN COALESCE(ss.quantity, 0) <= p.reorder_level/2 THEN 'high'
+                WHEN COALESCE(ss.quantity, 0) <= COALESCE(bi.reorder_level, 5) / 2 THEN 'high'
                 ELSE 'medium'
             END as severity
         FROM products p
-        LEFT JOIN shop_stock ss ON p.id = ss.product_id
+        JOIN shop_stock ss ON p.id = ss.product_id
         LEFT JOIN branches b ON ss.shop_id = b.id
-        WHERE p.is_active = 1 AND COALESCE(ss.quantity, 0) <= p.reorder_level
+        LEFT JOIN branch_inventory bi ON b.id = bi.branch_id AND p.id = bi.product_id
+        WHERE p.is_active = 1 
+        AND COALESCE(ss.quantity, 0) <= COALESCE(bi.reorder_level, 5)
         ORDER BY stock_level ASC
         LIMIT 20
     `
     rows, err := db.Query(query)
     if err != nil {
+        log.Printf("❌ getAlerts query error: %v", err)
         return nil, err
     }
     defer rows.Close()
 
-    var alerts []struct {
-        ShopName     string `json:"shop_name"`
-        ProductName  string `json:"product_name"`
-        StockLevel   int    `json:"stock_level"`
-        ReorderLevel int    `json:"reorder_level"`
-        Severity     string `json:"severity"`
-    }
+    var alerts []AlertItem
     for rows.Next() {
-        var a struct {
-            ShopName     string `json:"shop_name"`
-            ProductName  string `json:"product_name"`
-            StockLevel   int    `json:"stock_level"`
-            ReorderLevel int    `json:"reorder_level"`
-            Severity     string `json:"severity"`
-        }
+        var a AlertItem
         err := rows.Scan(&a.ShopName, &a.ProductName, &a.StockLevel, &a.ReorderLevel, &a.Severity)
         if err != nil {
+            log.Printf("❌ getAlerts scan error: %v", err)
             return nil, err
         }
         alerts = append(alerts, a)
     }
 
     if err := rows.Err(); err != nil {
+        log.Printf("❌ getAlerts rows error: %v", err)
         return nil, err
     }
 

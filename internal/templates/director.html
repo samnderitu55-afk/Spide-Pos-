@@ -19,6 +19,8 @@
         .severity-medium { color: #f59e0b; }
         .trend-bar { transition: height 0.3s ease; }
         .hidden-role { display: none !important; }
+        .refresh-spinner { display: inline-block; animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
     </style>
 </head>
 <body class="bg-gray-100 font-sans min-h-screen">
@@ -31,7 +33,9 @@
             <span class="bg-amber-600 text-xs px-2 py-1 rounded-full">Director View</span>
         </div>
         <div class="flex items-center gap-3">
-            <button onclick="refreshDashboard()" class="bg-purple-700 hover:bg-purple-600 px-3 py-1.5 rounded-lg text-sm transition flex items-center gap-1">🔄 Refresh</button>
+            <button onclick="refreshDashboard()" class="bg-purple-700 hover:bg-purple-600 px-3 py-1.5 rounded-lg text-sm transition flex items-center gap-1">
+                <span id="refresh-icon">🔄</span> Refresh
+            </button>
             <a href="/" class="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg text-sm font-semibold transition">📊 Dashboard</a>
             <a href="/pos" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-semibold transition">🛒 POS</a>
             <button onclick="logout()" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-semibold transition">🚪 Logout</button>
@@ -44,7 +48,6 @@
             <div class="stat-card bg-white rounded-xl shadow-sm p-5 border border-gray-200">
                 <p class="text-xs font-semibold text-gray-500 uppercase">Today's Revenue</p>
                 <p id="kpi-revenue" class="text-2xl font-black text-purple-900 mt-1">KES 0.00</p>
-                <p id="kpi-revenue-trend" class="text-xs text-gray-400 mt-1">vs yesterday: --</p>
             </div>
             <div class="stat-card bg-white rounded-xl shadow-sm p-5 border border-gray-200">
                 <p class="text-xs font-semibold text-gray-500 uppercase">30-Day Revenue</p>
@@ -97,6 +100,22 @@
             </div>
         </div>
 
+        <!-- Top Products -->
+        <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+            <h3 class="font-bold text-gray-800 mb-4">🏆 Top Products (All Outlets)</h3>
+            <div id="top-products-list" class="space-y-2">
+                <p class="text-sm text-gray-500 text-center py-4">No sales data yet</p>
+            </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
+            <h3 class="font-bold text-gray-800 mb-4">🕐 Recent Transactions</h3>
+            <div id="recent-transactions" class="space-y-2">
+                <p class="text-sm text-gray-500 text-center py-4">No transactions yet</p>
+            </div>
+        </div>
+
         <!-- Alerts -->
         <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
             <h3 class="font-bold text-gray-800 mb-4">⚠️ Stock Alerts</h3>
@@ -123,6 +142,8 @@
             deleteCookie('spide_user');
             deleteCookie('currentShopId');
             deleteCookie('currentShopName');
+            localStorage.removeItem('spide_token');
+            localStorage.removeItem('spide_user');
             window.location.href = '/login';
         }
 
@@ -136,6 +157,10 @@
         }
 
         async function refreshDashboard() {
+            const refreshIcon = document.getElementById('refresh-icon');
+            refreshIcon.textContent = '⟳';
+            refreshIcon.className = 'refresh-spinner';
+
             try {
                 const response = await fetch('/api/director/dashboard', {
                     headers: { 'Authorization': 'Bearer ' + token }
@@ -147,26 +172,33 @@
                 }
 
                 if (!response.ok) {
-                    throw new Error('Failed to fetch director data');
+                    const errorText = await response.text();
+                    console.error('Response error:', errorText);
+                    throw new Error('Failed to fetch director data: ' + response.status);
                 }
 
                 const data = await response.json();
+                console.log('📊 Director data:', data);
                 renderDashboard(data);
             } catch (error) {
                 console.error('Dashboard error:', error);
-                document.querySelector('#outlet-rows').innerHTML = '<tr><td colspan="6" class="p-4 text-center text-red-500">Error loading data</td></tr>';
+                document.querySelector('#outlet-rows').innerHTML = '<tr><td colspan="6" class="p-4 text-center text-red-500">Error loading data: ' + error.message + '</td></tr>';
+                document.querySelector('#alerts-list').innerHTML = '<p class="text-sm text-red-500 text-center py-4">Error loading alerts</p>';
+            } finally {
+                refreshIcon.textContent = '🔄';
+                refreshIcon.className = '';
             }
         }
 
         function renderDashboard(data) {
-            // KPI Cards
-            document.getElementById('kpi-revenue').textContent = formatCurrency(data.total_revenue_today);
-            document.getElementById('kpi-month').textContent = formatCurrency(data.total_revenue_month);
+            // KPI Cards - using the field names from your struct
+            document.getElementById('kpi-revenue').textContent = formatCurrency(data.total_revenue_today || 0);
+            document.getElementById('kpi-month').textContent = formatCurrency(data.total_revenue_month || 0);
             document.getElementById('kpi-stores').textContent = (data.active_stores || 0) + ' / ' + (data.total_stores || 0);
             document.getElementById('kpi-sales').textContent = data.today_transactions || 0;
             document.getElementById('kpi-lowstock').textContent = data.low_stock_items || 0;
 
-            // Outlet Stats
+            // Outlet Stats - using outlet_stats field
             const outletContainer = document.getElementById('outlet-rows');
             if (!data.outlet_stats || data.outlet_stats.length === 0) {
                 outletContainer.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No outlet data available</td></tr>';
@@ -175,10 +207,10 @@
                 data.outlet_stats.forEach(outlet => {
                     const statusClass = outlet.status === 'active' ? 'text-emerald-600' : 'text-gray-400';
                     html += `<tr class="outlet-row border-b">
-                        <td class="p-3 font-semibold">${outlet.shop_name}</td>
+                        <td class="p-3 font-semibold">${outlet.shop_name || 'Unknown'}</td>
                         <td class="p-3 text-center font-mono font-bold text-purple-900">${formatCurrency(outlet.today_revenue)}</td>
-                        <td class="p-3 text-center">${outlet.today_transactions}</td>
-                        <td class="p-3 text-center">${outlet.today_items}</td>
+                        <td class="p-3 text-center">${outlet.today_transactions || 0}</td>
+                        <td class="p-3 text-center">${outlet.today_items || 0}</td>
                         <td class="p-3 text-center font-mono">${formatCurrency(outlet.month_revenue)}</td>
                         <td class="p-3 text-center"><span class="${statusClass}">${outlet.status === 'active' ? '🟢 Active' : '⚪ Inactive'}</span></td>
                     </tr>`;
@@ -186,12 +218,12 @@
                 outletContainer.innerHTML = html;
             }
 
-            // Sales Trend
+            // Sales Trend - using sales_trend field
             const trendContainer = document.getElementById('trend-chart');
             if (!data.sales_trend || data.sales_trend.length === 0) {
                 trendContainer.innerHTML = '<div class="text-center text-xs text-gray-400 w-full py-4">No sales data yet</div>';
             } else {
-                const max = Math.max(...data.sales_trend.map(d => d.total), 1);
+                const max = Math.max(...data.sales_trend.map(d => d.total || 0), 1);
                 let html = '';
                 data.sales_trend.forEach(day => {
                     const height = Math.max((day.total / max) * 100, 2);
@@ -201,10 +233,56 @@
                                 <div class="opacity-0 group-hover:opacity-100 absolute -top-8 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs px-2 py-1 rounded whitespace-nowrap transition-opacity">${formatCurrency(day.total)}</div>
                             </div>
                         </div>
-                        <span class="text-[8px] text-gray-500 mt-1">${day.date.substring(5)}</span>
+                        <span class="text-[8px] text-gray-500 mt-1">${day.date ? day.date.substring(5) : ''}</span>
                     </div>`;
                 });
                 trendContainer.innerHTML = html;
+            }
+
+            // Top Products
+            const productsContainer = document.getElementById('top-products-list');
+            if (!data.top_products || data.top_products.length === 0) {
+                productsContainer.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No sales recorded yet</p>';
+            } else {
+                const medals = ['🥇', '🥈', '🥉'];
+                let html = '';
+                data.top_products.forEach((product, index) => {
+                    const medal = index < 3 ? medals[index] : '•';
+                    html += `<div class="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition">
+                        <span class="text-lg w-8 text-center">${medal}</span>
+                        <div class="flex-1">
+                            <div class="flex justify-between text-sm">
+                                <span class="font-medium text-gray-800">${product.product_name || 'Unknown'}</span>
+                                <span class="font-bold text-purple-700">${product.units_sold || 0}x</span>
+                            </div>
+                            <div class="text-xs text-gray-500">${product.category || 'Uncategorized'} • ${formatCurrency(product.revenue || 0)}</div>
+                        </div>
+                    </div>`;
+                });
+                productsContainer.innerHTML = html;
+            }
+
+            // Recent Transactions
+            const transactionsContainer = document.getElementById('recent-transactions');
+            if (!data.recent_transactions || data.recent_transactions.length === 0) {
+                transactionsContainer.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No transactions yet</p>';
+            } else {
+                let html = '';
+                const paymentEmojis = { 'cash': '💵', 'mpesa': '📱', 'split': '💳', 'card': '💳' };
+                data.recent_transactions.forEach(tx => {
+                    const emoji = paymentEmojis[tx.payment_type] || '💰';
+                    html += `<div class="flex items-center justify-between p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition">
+                        <div class="flex items-center gap-2">
+                            <span>${emoji}</span>
+                            <div>
+                                <div class="text-xs font-semibold text-gray-800">Sale #${tx.sale_id} • ${tx.shop_name || 'Unknown'}</div>
+                                <div class="text-xs text-gray-500">${tx.created_at || ''}</div>
+                            </div>
+                        </div>
+                        <div class="font-bold text-purple-900 text-sm">${formatCurrency(tx.amount)}</div>
+                    </div>`;
+                });
+                transactionsContainer.innerHTML = html;
             }
 
             // Alerts
@@ -214,11 +292,12 @@
             } else {
                 let html = '';
                 data.alerts.forEach(alert => {
-                    const severityClass = alert.severity === 'critical' ? 'severity-critical' : alert.severity === 'high' ? 'severity-high' : 'severity-medium';
+                    const severityClass = alert.severity === 'critical' ? 'severity-critical' : 
+                                        alert.severity === 'high' ? 'severity-high' : 'severity-medium';
                     html += `<div class="flex items-center justify-between p-2 border-b hover:bg-gray-50">
                         <div>
                             <span class="font-semibold">${alert.product_name}</span>
-                            <span class="text-xs text-gray-500 ml-2">${alert.shop_name}</span>
+                            <span class="text-xs text-gray-500 ml-2">${alert.shop_name || 'Main'}</span>
                         </div>
                         <div class="flex items-center gap-4">
                             <span class="text-sm">Stock: <span class="font-bold">${alert.stock_level}</span> / Reorder: ${alert.reorder_level}</span>
