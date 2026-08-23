@@ -1,6 +1,7 @@
 ﻿package handlers
 
 import (
+    "log"
     "encoding/json"
     "net/http"
     "strconv"
@@ -50,23 +51,41 @@ func ProductSalesReportHandler(w http.ResponseWriter, r *http.Request) {
         http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
         return
     }
+
+    // Get query parameters
+    startDate := r.URL.Query().Get("start_date")
+    endDate := r.URL.Query().Get("end_date")
     
-    startDate := r.URL.Query().Get("start")
-    endDate := r.URL.Query().Get("end")
-    shopID := claims.ShopID
-    if shopID == 0 {
-        shopID = 1
-    }
+    // Debug: log to terminal
+    log.Println("ProductSalesReportHandler called")
+    log.Printf("startDate: '%s', endDate: '%s'", startDate, endDate)
     
-    report, err := db.GetProductSalesReport(db.GetDB(), startDate, endDate, shopID)
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
+    if startDate == "" {
+        http.Error(w, `{"error":"start_date parameter is required"}`, http.StatusBadRequest)
         return
     }
-    if report == nil {
-        report = []db.ProductSalesReportItem{}
+    if endDate == "" {
+        http.Error(w, `{"error":"end_date parameter is required"}`, http.StatusBadRequest)
+        return
     }
-    json.NewEncoder(w).Encode(report)
+
+    // Get shop_id - default to user's shop
+    shopID := claims.ShopID
+    if claims.Role == "director" || claims.Role == "admin" {
+        if shopIDParam := r.URL.Query().Get("shop_id"); shopIDParam != "" {
+            if id, err := strconv.Atoi(shopIDParam); err == nil && id > 0 {
+                shopID = id
+            }
+        }
+    }
+
+    products, err := db.GetProductSalesReport(db.GetDB(), startDate, endDate, shopID)
+    if err != nil {
+        http.Error(w, `{"error":"Failed to generate product sales report: `+err.Error()+`"}`, http.StatusInternalServerError)
+        return
+    }
+
+    json.NewEncoder(w).Encode(products)
 }
 
 // LowStockReportHandler - Low Stock Alerts
@@ -148,16 +167,37 @@ func InventoryValuationHandler(w http.ResponseWriter, r *http.Request) {
         http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
         return
     }
-    
-    report, err := db.GetInventoryValuationReport(db.GetDB())
+
+    branchID := 0
+    if branchIDParam := r.URL.Query().Get("branch_id"); branchIDParam != "" {
+        if id, err := strconv.Atoi(branchIDParam); err == nil && id > 0 {
+            branchID = id
+        }
+    }
+
+    // If user is not director, force their branch
+    if claims.Role != "director" && claims.Role != "admin" {
+        branchID = claims.ShopID
+    }
+
+    valuation, err := db.GetInventoryValuation(db.GetDB(), branchID)
     if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
+        http.Error(w, `{"error":"Failed to get inventory valuation: `+err.Error()+`"}`, http.StatusInternalServerError)
         return
     }
-    if report == nil {
-        report = []db.InventoryValuationItem{}
+
+    products, err := db.GetProductValuation(db.GetDB(), branchID)
+    if err != nil {
+        http.Error(w, `{"error":"Failed to get product details: `+err.Error()+`"}`, http.StatusInternalServerError)
+        return
     }
-    json.NewEncoder(w).Encode(report)
+
+    response := map[string]interface{}{
+        "valuation": valuation,
+        "products":  products,
+    }
+
+    json.NewEncoder(w).Encode(response)
 }
 
 // CategoryDrilldownHandler - Category Drilldown for Valuation
@@ -192,3 +232,9 @@ func CategoryDrilldownHandler(w http.ResponseWriter, r *http.Request) {
     }
     json.NewEncoder(w).Encode(details)
 }
+
+
+
+
+
+

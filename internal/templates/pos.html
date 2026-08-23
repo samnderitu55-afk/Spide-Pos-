@@ -72,7 +72,7 @@
                 <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">📊 Reports ▾</button>
                 <div class="dropdown-menu">
                     <a href="#" onclick="openZReportModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition text-gray-800">📊 Daily Z-Report</a>
-                    <a href="#" onclick="openProductReportModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">📈 Product Sales & COGS</a>
+                    <a href="#" onclick="openProductSalesModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">📈 Product Sales & COGS</a>
                 </div>
             </div>
             <div class="group relative">
@@ -336,6 +336,21 @@
     </div>
 
     <script>
+
+        // ============================================
+        // COOKIE FUNCTIONS
+        // ============================================
+            function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+            }
+
+            function deleteCookie(name) {
+            document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
+      }
+
         // ============================================
         // SHOP MANAGEMENT
         // ============================================
@@ -1053,12 +1068,490 @@
                 console.error('Low stock error:', err);
             }
         }
+            function openInventoryValuationModal() {
+    document.getElementById('inventory-valuation-modal').classList.remove('hidden');
+    loadBranchesForValuation();
+    loadInventoryValuation();
+}
+
+function closeInventoryValuationModal() {
+    document.getElementById('inventory-valuation-modal').classList.add('hidden');
+}
+
+async function loadBranchesForValuation() {
+    try {
+        const response = await fetch('/api/branches');
+        if (!response.ok) return;
+        const branches = await response.json();
+        const select = document.getElementById('valuation-branch-select');
+        if (!select) return;
+        select.innerHTML = '<option value="0">All Branches</option>';
+        branches.forEach(b => {
+            const opt = document.createElement('option');
+            opt.value = b.id;
+            opt.textContent = b.name;
+            select.appendChild(opt);
+        });
+    } catch(e) {
+        console.error('Error loading branches:', e);
+    }
+}
+
+async function loadInventoryValuation() {
+    const branchSelect = document.getElementById('valuation-branch-select');
+    const branchId = branchSelect ? branchSelect.value : 0;
+    
+    try {
+        const response = await fetch('/api/reports/inventory-valuation?branch_id=' + branchId);
+        if (!response.ok) {
+            throw new Error('Failed to load valuation');
+        }
+        const data = await response.json();
+        renderValuation(data);
+    } catch(error) {
+        console.error('Valuation error:', error);
+        const container = document.getElementById('valuation-products');
+        if (container) {
+            container.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-red-500">Error loading valuation: ' + error.message + '</td></tr>';
+        }
+    }
+}
+
+function renderValuation(data) {
+    const valuation = data.valuation || {};
+    const products = data.products || [];
+    
+    // Summary cards
+    document.getElementById('val-total-items').textContent = valuation.total_items || 0;
+    document.getElementById('val-total-qty').textContent = valuation.total_quantity || 0;
+    document.getElementById('val-cost-value').textContent = 'KES ' + (valuation.total_cost_value || 0).toFixed(2);
+    document.getElementById('val-retail-value').textContent = 'KES ' + (valuation.total_retail_value || 0).toFixed(2);
+    document.getElementById('val-profit').textContent = 'KES ' + (valuation.potential_profit || 0).toFixed(2);
+    
+    // Categories
+    const categoriesContainer = document.getElementById('valuation-categories');
+    const categories = valuation.categories || [];
+    if (categories.length === 0) {
+        categoriesContainer.innerHTML = '<p class="text-xs text-gray-400 text-center py-2">No categories found</p>';
+    } else {
+        let html = '';
+        const totalCost = valuation.total_cost_value || 1;
+        categories.forEach(cat => {
+            const width = Math.min((cat.total_cost_value / totalCost) * 100, 100);
+            html += '<div>' +
+                '<div class="flex justify-between text-xs">' +
+                    '<span class="font-medium text-gray-700">' + cat.category + '</span>' +
+                    '<span class="text-gray-500">' + cat.item_count + ' items • KES ' + cat.total_cost_value.toFixed(2) + '</span>' +
+                '</div>' +
+                '<div class="w-full bg-gray-200 rounded-full h-1.5 mt-0.5">' +
+                    '<div class="bg-purple-500 h-1.5 rounded-full" style="width: ' + width + '%"></div>' +
+                '</div>' +
+            '</div>';
+        });
+        categoriesContainer.innerHTML = html;
+    }
+    
+    // Products
+    const productsContainer = document.getElementById('valuation-products');
+    if (products.length === 0) {
+        productsContainer.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-gray-500">No products in stock</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    products.forEach(p => {
+        const profitClass = p.profit >= 0 ? 'text-emerald-600' : 'text-red-600';
+        html += '<tr class="border-b hover:bg-purple-50/50 transition">' +
+            '<td class="p-2 font-medium text-gray-800">' + p.product_name + '</td>' +
+            '<td class="p-2 font-mono text-gray-500">' + (p.barcode || 'N/A') + '</td>' +
+            '<td class="p-2 text-gray-500">' + p.category + '</td>' +
+            '<td class="p-2 text-center font-bold">' + p.quantity + '</td>' +
+            '<td class="p-2 text-right font-mono">KES ' + (p.cost_price || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-right font-mono">KES ' + (p.retail_price || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-right font-mono text-amber-700">KES ' + (p.cost_value || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-right font-mono text-emerald-700">KES ' + (p.retail_value || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-right font-mono ' + profitClass + '">KES ' + (p.profit || 0).toFixed(2) + '</td>' +
+        '</tr>';
+    });
+    productsContainer.innerHTML = html;
+}
+
+// ============================================
+// Z-REPORT
+// ============================================
+function openZReportModal() {
+    document.getElementById('zreport-modal').classList.remove('hidden');
+    // Set default date to today
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('zreport-date').value = today;
+    loadZReport();
+}
+
+function closeZReportModal() {
+    document.getElementById('zreport-modal').classList.add('hidden');
+}
+
+async function loadZReport() {
+    const date = document.getElementById('zreport-date').value;
+    if (!date) {
+        alert('Please select a date');
+        return;
+    }
+    
+    const container = document.getElementById('zreport-content');
+    container.innerHTML = '<div class="text-center text-gray-500 py-8">Loading report...</div>';
+    
+    try {
+        const response = await fetch('/api/sales/z-report?date=' + date);
+        if (!response.ok) {
+            throw new Error('Failed to load Z-Report');
+        }
+        const data = await response.json();
+        renderZReport(data);
+    } catch(error) {
+        console.error('Z-Report error:', error);
+        container.innerHTML = '<div class="text-center text-red-500 py-8">Error loading report: ' + error.message + '</div>';
+    }
+}
+
+function renderZReport(data) {
+    const container = document.getElementById('zreport-content');
+    
+    if (!data || !data.total_revenue) {
+        container.innerHTML = `
+            <div class="text-center py-12 flex flex-col items-center">
+                <span class="text-4xl mb-3">📭</span>
+                <p class="text-sm font-medium text-gray-500">No sales data for this date</p>
+                <p class="text-xs text-gray-400 mt-1">Try selecting a different date</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <!-- Report Header -->
+        <div class="text-center border-b border-gray-200 pb-4 mb-4">
+            <h2 class="text-xl font-bold text-gray-900">📊 Daily Z-Report</h2>
+            <p class="text-sm text-gray-500">${data.report_date || 'N/A'}</p>
+            <div class="flex justify-center gap-6 mt-2 text-xs">
+                <span class="text-gray-400">📈 ${data.total_sales_count || 0} sales</span>
+                <span class="text-gray-400">💰 ${data.expense_count || 0} expenses</span>
+            </div>
+        </div>
+        
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div class="bg-gradient-to-br from-purple-50 to-purple-100/50 p-4 rounded-xl text-center border border-purple-200/50">
+                <p class="text-xs font-medium text-purple-600 uppercase tracking-wider">Revenue</p>
+                <p class="text-xl font-bold text-purple-900 mt-1">KES ${(data.total_revenue || 0).toFixed(2)}</p>
+            </div>
+            <div class="bg-gradient-to-br from-blue-50 to-blue-100/50 p-4 rounded-xl text-center border border-blue-200/50">
+                <p class="text-xs font-medium text-blue-600 uppercase tracking-wider">Sales</p>
+                <p class="text-xl font-bold text-blue-900 mt-1">${data.total_sales_count || 0}</p>
+            </div>
+            <div class="bg-gradient-to-br from-amber-50 to-amber-100/50 p-4 rounded-xl text-center border border-amber-200/50">
+                <p class="text-xs font-medium text-amber-600 uppercase tracking-wider">Expenses</p>
+                <p class="text-xl font-bold text-amber-900 mt-1">KES ${(data.total_expenses || 0).toFixed(2)}</p>
+            </div>
+            <div class="bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-4 rounded-xl text-center border border-emerald-200/50">
+                <p class="text-xs font-medium text-emerald-600 uppercase tracking-wider">Net Profit</p>
+                <p class="text-xl font-bold text-emerald-900 mt-1">KES ${(data.net_profit || 0).toFixed(2)}</p>
+            </div>
+        </div>
+        
+        <!-- Payment Methods -->
+        <div class="grid grid-cols-3 gap-3 mb-4">
+            <div class="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
+                <p class="text-xs text-gray-500">💵 Cash</p>
+                <p class="font-bold text-gray-800">KES ${(data.total_cash || 0).toFixed(2)}</p>
+                <p class="text-xs text-gray-400">${data.cash_sales_count || 0} transactions</p>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
+                <p class="text-xs text-gray-500">📱 M-Pesa</p>
+                <p class="font-bold text-gray-800">KES ${(data.total_mpesa || 0).toFixed(2)}</p>
+                <p class="text-xs text-gray-400">${data.mpesa_sales_count || 0} transactions</p>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
+                <p class="text-xs text-gray-500">💳 Split</p>
+                <p class="font-bold text-gray-800">KES ${(data.split_sales_count || 0).toFixed(2)}</p>
+                <p class="text-xs text-gray-400">${data.split_sales_count || 0} transactions</p>
+            </div>
+        </div>
+    `;
+    
+    // Expenses
+    if (data.expense_breakdown && Object.keys(data.expense_breakdown).length > 0) {
+        html += `
+            <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <h3 class="font-semibold text-gray-700 text-sm mb-3 flex items-center gap-2">
+                    <span>💰</span> Expense Breakdown
+                </h3>
+                <div class="space-y-1">
+        `;
+        for (const [category, amount] of Object.entries(data.expense_breakdown)) {
+            const pct = data.total_expenses > 0 ? (amount / data.total_expenses * 100) : 0;
+            html += `
+                <div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">${category}</span>
+                        <span class="font-medium text-amber-700">KES ${amount.toFixed(2)}</span>
+                    </div>
+                    <div class="w-full bg-gray-100 rounded-full h-1.5 mt-0.5">
+                        <div class="bg-amber-400 h-1.5 rounded-full" style="width: ${pct}%"></div>
+                    </div>
+                </div>
+            `;
+        }
+        html += `
+                </div>
+                <div class="flex justify-between text-sm font-bold border-t border-gray-100 pt-2 mt-2">
+                    <span class="text-gray-700">Total Expenses</span>
+                    <span class="text-amber-700">KES ${(data.total_expenses || 0).toFixed(2)}</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Margin
+    if (data.margin_percent) {
+        const marginColor = data.margin_percent > 30 ? 'emerald' : data.margin_percent > 15 ? 'blue' : 'amber';
+        html += `
+            <div class="mt-3 text-center bg-${marginColor}-50 border border-${marginColor}-200 rounded-xl p-3">
+                <span class="text-sm font-medium text-gray-600">Profit Margin:</span>
+                <span class="font-bold text-${marginColor}-600">${data.margin_percent.toFixed(1)}%</span>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = html;
+}
+
+function printZReport() {
+    const content = document.getElementById('zreport-content');
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    printWindow.document.write(`
+        <html><head><title>Z-Report</title>
+        <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            @media print { body { padding: 10px; } }
+        </style>
+        </head><body>
+        ${content.innerHTML}
+        <script>
+            window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };
+        <\/script>
+        </body></html>
+    `);
+    printWindow.document.close();
+}
+
+// ============================================
+// PRODUCT SALES & COGS REPORT
+// ============================================
+function openProductSalesModal() {
+    document.getElementById('product-sales-modal').classList.remove('hidden');
+    
+    // Set default dates (last 30 days)
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    
+    // Format as YYYY-MM-DD
+    const formatDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return year + '-' + month + '-' + day;
+    };
+    
+    document.getElementById('productsales-start-date').value = formatDate(startDate);
+    document.getElementById('productsales-end-date').value = formatDate(endDate);
+    
+    loadProductSalesBranches();
+    loadProductSalesReport();
+}
+
+function closeProductSalesModal() {
+    document.getElementById('product-sales-modal').classList.add('hidden');
+}
+
+async function loadProductSalesBranches() {
+    try {
+        console.log('Loading branches for filter...');
+        const token = getCookie('spide_token');
+        console.log('Token:', token ? 'Found' : 'Not found');
+        
+        if (!token) {
+            console.error('No token found for branches');
+            return;
+        }
+        
+        const response = await fetch('/api/branches', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        console.log('Branches response status:', response.status);
+        
+        if (!response.ok) {
+            console.error('Failed to load branches:', response.status);
+            return;
+        }
+        
+        const branches = await response.json();
+        console.log('Branches data:', branches);
+        
+        const select = document.getElementById('productsales-branch-filter');
+        if (!select) {
+            console.error('Branch filter select not found! Check ID: productsales-branch-filter');
+            return;
+        }
+        
+        select.innerHTML = '<option value="0">All Branches</option>';
+        branches.forEach(b => {
+            const opt = document.createElement('option');
+            opt.value = b.id;
+            opt.textContent = b.name;
+            select.appendChild(opt);
+        });
+        
+        console.log('✅ Branches loaded:', branches.length);
+    } catch(e) {
+        console.error('Error loading branches:', e);
+    }   
+}
+
+async function loadProductSalesReport() {
+    const startDate = document.getElementById('productsales-start-date').value;
+    const endDate = document.getElementById('productsales-end-date').value;
+    const branchId = document.getElementById('productsales-branch-filter').value || 0;
+    
+    console.log('Start Date:', startDate);
+    console.log('End Date:', endDate);
+    console.log('Branch ID:', branchId);
+    
+    if (!startDate || !endDate) {
+        alert('Please select both start and end dates');
+        return;
+    }
+    
+    const tbody = document.getElementById('productsales-table-body');
+    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">Loading...</td></tr>';
+    
+    try {
+        const token = getCookie('spide_token');
+        if (!token) {
+            throw new Error('Not authenticated');
+        }
+        
+        const url = '/api/reports/product-sales?start_date=' + startDate + '&end_date=' + endDate + '&shop_id=' + branchId;
+        console.log('Fetching URL:', url);
+        
+        const response = await fetch(url, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Response error:', errorText);
+            throw new Error('Failed to load report: ' + errorText);
+        }
+        const data = await response.json();
+        renderProductSalesReport(data);
+    } catch(error) {
+        console.error('Product sales error:', error);
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-500">Error loading report: ' + error.message + '</td></tr>';
+    }
+}
+
+function renderProductSalesReport(data) {
+    const tbody = document.getElementById('productsales-table-body');
+    
+    if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No sales data for this period</td></tr>';
+        // Reset summary
+        document.getElementById('ps-total-revenue').textContent = 'KES 0.00';
+        document.getElementById('ps-total-cogs').textContent = 'KES 0.00';
+        document.getElementById('ps-total-profit').textContent = 'KES 0.00';
+        document.getElementById('ps-avg-margin').textContent = '0%';
+        return;
+    }
+    
+    // Calculate totals
+    let totalRevenue = 0;
+    let totalCogs = 0;
+    let totalProfit = 0;
+    let totalMargin = 0;
+    let count = 0;
+    
+    data.forEach(item => {
+        totalRevenue += item.total_revenue || 0;
+        totalCogs += item.total_cost || 0;
+        totalProfit += item.net_profit || 0;
+        if (item.margin_pct) {
+            totalMargin += item.margin_pct;
+            count++;
+        }
+    });
+    
+    const avgMargin = count > 0 ? totalMargin / count : 0;
+    
+    // Update summary
+    document.getElementById('ps-total-revenue').textContent = 'KES ' + totalRevenue.toFixed(2);
+    document.getElementById('ps-total-cogs').textContent = 'KES ' + totalCogs.toFixed(2);
+    document.getElementById('ps-total-profit').textContent = 'KES ' + totalProfit.toFixed(2);
+    document.getElementById('ps-avg-margin').textContent = avgMargin.toFixed(1) + '%';
+    
+    // Render rows
+    let html = '';
+    data.forEach(item => {
+        const margin = item.margin_pct || 0;
+        const marginColor = margin > 30 ? 'text-emerald-600' : margin > 15 ? 'text-blue-600' : 'text-amber-600';
+        const profitColor = item.net_profit >= 0 ? 'text-emerald-600' : 'text-red-600';
+        
+        html += '<tr class="border-b hover:bg-blue-50/50 transition">' +
+            '<td class="p-2 font-medium text-gray-800">' + (item.product_name || 'Unknown') + '</td>' +
+            '<td class="p-2 text-gray-500">' + (item.category || 'Uncategorized') + '</td>' +
+            '<td class="p-2 text-center font-bold">' + (item.units_sold || 0) + '</td>' +
+            '<td class="p-2 text-right font-mono text-blue-700">KES ' + (item.total_revenue || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-right font-mono text-amber-700">KES ' + (item.total_cost || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-right font-mono ' + profitColor + '">KES ' + (item.net_profit || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-right font-mono ' + marginColor + '">' + margin.toFixed(1) + '%</td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+}
+
+function printProductSalesReport() {
+    const content = document.getElementById('product-sales-modal').cloneNode(true);
+    // Remove buttons and header actions
+    content.querySelector('.flex.items-center.gap-2 .flex.items-center.gap-1')?.remove();
+    content.querySelectorAll('button').forEach(btn => btn.remove());
+    // Remove print button
+    const printWindow = window.open('', '_blank', 'width=1000,height=800');
+    printWindow.document.write(`
+        <html><head><title>Product Sales Report</title>
+        <style>
+            body { font-family: Arial, sans-serif; padding: 20px; background: white; }
+            table { width: 100%; border-collapse: collapse; font-size: 12px; }
+            th, td { padding: 8px; text-align: left; border-bottom: 1px solid #e5e7eb; }
+            th { background: #f3f4f6; font-weight: 600; }
+            @media print { body { padding: 10px; } }
+        </style>
+        </head><body>
+        ${content.innerHTML}
+        <script>
+            window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };
+        <\/script>
+        </body></html>
+    `);
+    printWindow.document.close();
+}
 
         // ============================================
         // OTHER FUNCTIONS (Placeholders)
         // ============================================
-        function openInventoryValuationModal() { alert('Inventory Valuation - Coming soon!'); }
-        function openZReportModal() { alert('Z-Report - Coming soon!'); }
+        //function openInventoryValuationModal() { alert('Inventory Valuation - Coming soon!'); }
+        //function openZReportModal() { alert('Z-Report - Coming soon!'); }
         function openProductReportModal() { alert('Product Report - Coming soon!'); }
         function openExpenseModal() { alert('Add Expense - Coming soon!'); }
         function openExpenseReportModal() { alert('Expense Report - Coming soon!'); }
@@ -1074,7 +1567,197 @@
             console.log('🕷️ Spide POS Ready!');
         });
     </script>
-</body>
+
+    <!-- INVENTORY VALUATION MODAL -->
+    <div id="inventory-valuation-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-6xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-3">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">💎 Inventory Valuation</h2>
+                    <p class="text-xs text-gray-500">Total value of inventory across all branches</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <select id="valuation-branch-select" onchange="loadInventoryValuation()" class="text-xs border rounded-lg px-2 py-1 bg-white">
+                        <option value="0">All Branches</option>
+                    </select>
+                    <button onclick="loadInventoryValuation()" class="bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold px-3 py-1.5 rounded-lg transition">🔄 Refresh</button>
+                    <button onclick="closeInventoryValuationModal()" class="text-gray-400 hover:text-gray-600 font-bold text-xl">✕</button>
+                </div>
+            </div>
+            
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div class="bg-purple-50 p-3 rounded-xl text-center"><p class="text-xs text-gray-500">Total Items</p><p id="val-total-items" class="text-xl font-bold text-purple-900">0</p></div>
+                <div class="bg-blue-50 p-3 rounded-xl text-center"><p class="text-xs text-gray-500">Total Quantity</p><p id="val-total-qty" class="text-xl font-bold text-blue-700">0</p></div>
+                <div class="bg-amber-50 p-3 rounded-xl text-center"><p class="text-xs text-gray-500">Cost Value</p><p id="val-cost-value" class="text-xl font-bold text-amber-700">KES 0.00</p></div>
+                <div class="bg-emerald-50 p-3 rounded-xl text-center"><p class="text-xs text-gray-500">Retail Value</p><p id="val-retail-value" class="text-xl font-bold text-emerald-700">KES 0.00</p></div>
+                <div class="bg-purple-100 p-3 rounded-xl text-center"><p class="text-xs text-gray-500">Potential Profit</p><p id="val-profit" class="text-xl font-bold text-purple-900">KES 0.00</p></div>
+            </div>
+
+            <!-- Category Breakdown -->
+            <div class="border rounded-xl p-3 max-h-48 overflow-y-auto">
+                <h3 class="font-semibold text-gray-800 text-sm mb-2">📊 Category Breakdown</h3>
+                <div id="valuation-categories" class="space-y-1"><p class="text-xs text-gray-400 text-center py-2">Loading categories...</p></div>
+            </div>
+
+            <!-- Product List -->
+            <div class="flex-1 overflow-y-auto border rounded-xl relative">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                        <tr><th class="p-2">Product</th><th class="p-2">Barcode</th><th class="p-2">Category</th><th class="p-2 text-center">Qty</th><th class="p-2 text-right">Cost Price</th><th class="p-2 text-right">Retail Price</th><th class="p-2 text-right">Cost Value</th><th class="p-2 text-right">Retail Value</th><th class="p-2 text-right">Profit</th></tr>
+                    </thead>
+                    <tbody id="valuation-products"><tr><td colspan="9" class="p-4 text-center text-gray-500">Loading products...</td></tr></tbody>
+                </table>
+            </div>
+            <div class="flex justify-end border-t pt-3">
+                <button onclick="closeInventoryValuationModal()" class="bg-gray-200 text-gray-800 font-semibold px-5 py-2 rounded-xl hover:bg-gray-300 transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    
+
+</body><!-- Z-REPORT MODAL - REDESIGNED -->
+<div id="zreport-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+        <!-- Header -->
+        <div class="flex justify-between items-center border-b border-gray-100 pb-4">
+            <div>
+                <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <span class="bg-purple-100 p-1.5 rounded-lg">📊</span>
+                    Daily Z-Report
+                </h2>
+                <p class="text-xs text-gray-500 mt-0.5">Complete sales summary for the day</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <div class="flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
+                    <span class="text-xs text-gray-500">📅</span>
+                    <input type="date" id="zreport-date" value="" 
+                           class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-32">
+                </div>
+                <button onclick="loadZReport()" 
+                        class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                    <span>⟳</span> Generate
+                </button>
+                <button onclick="printZReport()" 
+                        class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                    🖨️ Print
+                </button>
+                <button onclick="closeZReportModal()" 
+                        class="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1.5 transition text-lg">
+                    ✕
+                </button>
+            </div>
+        </div>
+        
+        <!-- Report Content -->
+        <div id="zreport-content" class="flex-1 overflow-y-auto">
+            <div class="text-center text-gray-400 py-12 flex flex-col items-center">
+                <span class="text-4xl mb-3">📋</span>
+                <p class="text-sm font-medium">Select a date and click Generate</p>
+                <p class="text-xs mt-1">View daily sales, payments, expenses, and profit</p>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="flex justify-end border-t border-gray-100 pt-3">
+            <button onclick="closeZReportModal()" 
+                    class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+    <!-- PRODUCT SALES & COGS REPORT MODAL -->
+    <div id="product-sales-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-6xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <!-- Header -->
+            <div class="flex justify-between items-center border-b border-gray-100 pb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <span class="bg-blue-100 p-1.5 rounded-lg">📈</span>
+                        Product Sales &amp; COGS
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Sales, cost of goods sold, and profit by product</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
+                        <span class="text-xs text-gray-500">📅</span>
+                        <input type="date" id="productsales-start-date" value="" class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-28">
+                        <span class="text-xs text-gray-400">to</span>
+                        <input type="date" id="productsales-end-date" value="" class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-28">
+                    </div>
+                    <select id="productsales-branch-filter" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
+                        <option value="0">All Branches</option>
+                    </select>
+                    <button onclick="loadProductSalesReport()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                        <span>⟳</span> Generate
+                    </button>
+                    <button onclick="printProductSalesReport()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                        🖨️ Print
+                    </button>
+                    <button onclick="closeProductSalesModal()" class="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1.5 transition text-lg">
+                        ✕
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Summary Stats -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="productsales-summary">
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100/50 p-3 rounded-xl text-center border border-blue-200/50">
+                    <p class="text-xs font-medium text-blue-600 uppercase tracking-wider">Total Revenue</p>
+                    <p id="ps-total-revenue" class="text-lg font-bold text-blue-900">KES 0.00</p>
+                </div>
+                <div class="bg-gradient-to-br from-amber-50 to-amber-100/50 p-3 rounded-xl text-center border border-amber-200/50">
+                    <p class="text-xs font-medium text-amber-600 uppercase tracking-wider">Total COGS</p>
+                    <p id="ps-total-cogs" class="text-lg font-bold text-amber-900">KES 0.00</p>
+                </div>
+                <div class="bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-3 rounded-xl text-center border border-emerald-200/50">
+                    <p class="text-xs font-medium text-emerald-600 uppercase tracking-wider">Gross Profit</p>
+                    <p id="ps-total-profit" class="text-lg font-bold text-emerald-900">KES 0.00</p>
+                </div>
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100/50 p-3 rounded-xl text-center border border-purple-200/50">
+                    <p class="text-xs font-medium text-purple-600 uppercase tracking-wider">Avg Margin</p>
+                    <p id="ps-avg-margin" class="text-lg font-bold text-purple-900">0%</p>
+                </div>
+            </div>
+
+            <!-- Product List -->
+            <div class="flex-1 overflow-y-auto border rounded-xl relative">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                        <tr>
+                            <th class="p-2">Product</th>
+                            <th class="p-2">Category</th>
+                            <th class="p-2 text-center">Units Sold</th>
+                            <th class="p-2 text-right">Total Revenue</th>
+                            <th class="p-2 text-right">Total COGS</th>
+                            <th class="p-2 text-right">Gross Profit</th>
+                            <th class="p-2 text-right">Margin %</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productsales-table-body">
+                        <tr><td colspan="7" class="p-4 text-center text-gray-500">Select date range and click Generate</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Footer -->
+            <div class="flex justify-end border-t border-gray-100 pt-3">
+                <button onclick="closeProductSalesModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
 </html>
+
+
+
+
+
+
 
 
