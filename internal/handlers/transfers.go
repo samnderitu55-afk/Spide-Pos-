@@ -1,6 +1,7 @@
 ﻿package handlers
 
 import (
+    "log"
     "encoding/json"
     "net/http"
     "spide-pos/internal/db"
@@ -139,5 +140,33 @@ func GetTransferDetailHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    json.NewEncoder(w).Encode(transfer)
+    // Get items for this transfer
+    items, err := db.GetTransferItems(db.GetDB(), id)
+    if err != nil {
+        http.Error(w, `{"error":"Failed to get transfer items: `+err.Error()+`"}`, http.StatusInternalServerError)
+        return
+    }
+
+    // Log for debugging
+    log.Printf("Transfer ID: %d, Items count: %d", id, len(items))
+
+    // Combine into response
+    response := map[string]interface{}{
+        "id":              transfer.ID,
+        "transfer_number": transfer.TransferNumber,
+        "from_shop_id":    transfer.FromShopID,
+        "to_shop_id":      transfer.ToShopID,
+        "total_items":     transfer.TotalItems,
+        "total_cost":      transfer.TotalCost,
+        "transfer_date":   transfer.TransferDate,
+        "status":          transfer.Status,
+        "notes":           transfer.Notes,
+        "created_by":      transfer.CreatedBy,
+        "created_at":      transfer.CreatedAt,
+        "items":           items,
+    }
+
+    json.NewEncoder(w).Encode(response)
 }
+
+

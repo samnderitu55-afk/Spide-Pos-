@@ -225,3 +225,50 @@ func GetTransferDetail(db *sql.DB, transferID int) (*StockTransfer, error) {
 
     return &t, nil
 }
+
+
+func GetTransferItems(db *sql.DB, transferID int) ([]map[string]interface{}, error) {
+    query := `
+        SELECT ti.id, ti.product_id, p.name as product_name, 
+               COALESCE(p.barcode, '') as barcode,
+               ti.quantity, ti.cost_price, ti.subtotal
+        FROM transfer_items ti
+        JOIN products p ON ti.product_id = p.id
+        WHERE ti.transfer_id = ?
+    `
+    rows, err := db.Query(query, transferID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get transfer items: %w", err)
+    }
+    defer rows.Close()
+
+    var items []map[string]interface{}
+    for rows.Next() {
+        var id, productID int
+        var productName, barcode string
+        var quantity int
+        var costPrice, subtotal float64
+
+        err := rows.Scan(&id, &productID, &productName, &barcode, &quantity, &costPrice, &subtotal)
+        if err != nil {
+            return nil, err
+        }
+
+        item := map[string]interface{}{
+            "id":           id,
+            "product_id":   productID,
+            "product_name": productName,
+            "barcode":      barcode,
+            "quantity":     quantity,
+            "cost_price":   costPrice,
+            "subtotal":     subtotal,
+        }
+        items = append(items, item)
+    }
+
+    if err := rows.Err(); err != nil {
+        return nil, fmt.Errorf("error iterating transfer items: %w", err)
+    }
+
+    return items, nil
+}

@@ -1751,11 +1751,469 @@ async function deleteExpense(id) {
     }
 }
 
+// ============================================
+// STOCK TRANSFERS
+// ============================================
+let transferItems = [];
+let transferSearchResults = [];
+let transferSelectedIndex = -1;
+let transferSearchTimeout = null;
+
+function openTransferModal() {
+    document.getElementById('transfer-modal').classList.remove('hidden');
+    document.getElementById('transfer-date').value = new Date().toISOString().split('T')[0];
+    transferItems = [];
+    document.getElementById('transfer-items-list').innerHTML = '';
+    document.getElementById('transfer-alert').classList.add('hidden');
+    document.getElementById('transfer-product-search').value = '';
+    document.getElementById('transfer-search-results').classList.add('hidden');
+    loadTransferShops();
+}
+
+function closeTransferModal() {
+    document.getElementById('transfer-modal').classList.add('hidden');
+}
+
+async function loadTransferShops() {
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/branches', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) return;
+        const branches = await response.json();
+        const select = document.getElementById('transfer-to-shop');
+        const currentShopId = parseInt(localStorage.getItem('currentShopId')) || 1;
+        select.innerHTML = '<option value="">Select Shop</option>';
+        branches.forEach(b => {
+            if (b.id !== currentShopId) {
+                const opt = document.createElement('option');
+                opt.value = b.id;
+                opt.textContent = b.name;
+                select.appendChild(opt);
+            }
+        });
+    } catch(e) {
+        console.error('Error loading shops:', e);
+    }
+}
+
+// Search products by barcode or name
+function handleTransferSearch(query) {
+    clearTimeout(transferSearchTimeout);
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+        document.getElementById('transfer-search-results').classList.add('hidden');
+        return;
+    }
+    transferSearchTimeout = setTimeout(() => {
+        fetchTransferSearchResults(trimmed);
+    }, 300);
+}
+
+async function fetchTransferSearchResults(query) {
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/products/search?q=' + encodeURIComponent(query), {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) return;
+        transferSearchResults = await response.json();
+        renderTransferSearchResults(transferSearchResults);
+    } catch(err) {
+        console.error('Search error:', err);
+    }
+}
+
+function renderTransferSearchResults(items) {
+    const dropdown = document.getElementById('transfer-search-results');
+    transferSelectedIndex = -1;
+    
+    if (!items || items.length === 0) {
+        dropdown.innerHTML = '<div class="p-3 text-center text-sm text-gray-500">No products found</div>';
+        dropdown.classList.remove('hidden');
+        return;
+    }
+    
+    let html = '';
+    items.forEach((item, index) => {
+        const stock = item.stock_quantity || 0;
+        html += `<div id="transfer-search-item-${index}" 
+                      onclick="selectTransferSearchResult(${index})"
+                      class="p-3 hover:bg-blue-50 cursor-pointer flex justify-between items-center transition border-b last:border-b-0">
+            <div>
+                <div class="font-bold text-gray-900 text-sm">${item.name}</div>
+                <div class="text-xs text-gray-500">
+                    ${item.barcode ? '📱 ' + item.barcode : ''} 
+                    ${item.category ? ' • ' + item.category : ''}
+                    <span class="text-gray-400">| Stock: ${stock}</span>
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="font-bold text-blue-700 text-sm">KES ${(item.retail_price || 0).toFixed(2)}</div>
+                <span class="text-[10px] bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded-full">Add</span>
+            </div>
+        </div>`;
+    });
+    dropdown.innerHTML = html;
+    dropdown.classList.remove('hidden');
+}
+
+function handleTransferSearchKeydown(e) {
+    const dropdown = document.getElementById('transfer-search-results');
+    const isVisible = !dropdown.classList.contains('hidden');
+    if (!isVisible || transferSearchResults.length === 0) return;
+    
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (transferSelectedIndex < transferSearchResults.length - 1) {
+            transferSelectedIndex++;
+            updateTransferSearchHighlight();
+        }
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (transferSelectedIndex > 0) {
+            transferSelectedIndex--;
+            updateTransferSearchHighlight();
+        }
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (transferSelectedIndex >= 0 && transferSelectedIndex < transferSearchResults.length) {
+            selectTransferSearchResult(transferSelectedIndex);
+        }
+    } else if (e.key === 'Escape') {
+        document.getElementById('transfer-search-results').classList.add('hidden');
+    }
+}
+
+function updateTransferSearchHighlight() {
+    transferSearchResults.forEach((_, index) => {
+        const el = document.getElementById('transfer-search-item-' + index);
+        if (el) {
+            if (index === transferSelectedIndex) {
+                el.classList.add('bg-blue-100');
+            } else {
+                el.classList.remove('bg-blue-100');
+            }
+        }
+    });
+}
+
+function selectTransferSearchResult(index) {
+    const product = transferSearchResults[index];
+    if (!product) return;
+    
+    // Set the search input to the product name
+    document.getElementById('transfer-product-search').value = product.name;
+    document.getElementById('transfer-search-results').classList.add('hidden');
+    
+    // Store the selected product for adding
+    document.getElementById('transfer-product-search').dataset.productId = product.id;
+    document.getElementById('transfer-product-search').dataset.productName = product.name;
+    document.getElementById('transfer-product-search').dataset.barcode = product.barcode || '';
+    document.getElementById('transfer-product-search').dataset.costPrice = product.cost_price || 0;
+    document.getElementById('transfer-product-search').dataset.retailPrice = product.retail_price || 0;
+    document.getElementById('transfer-product-search').dataset.stock = product.stock_quantity || 0;
+}
+
+function addTransferItem() {
+    const searchInput = document.getElementById('transfer-product-search');
+    const qtyInput = document.getElementById('transfer-qty');
+    
+    const productName = searchInput.value.trim();
+    const productId = parseInt(searchInput.dataset.productId) || 0;
+    const barcode = searchInput.dataset.barcode || '';
+    const costPrice = parseFloat(searchInput.dataset.costPrice) || 0;
+    const retailPrice = parseFloat(searchInput.dataset.retailPrice) || 0;
+    const qty = parseInt(qtyInput.value) || 1;
+    
+    if (!productName) {
+        alert('Please search and select a product first');
+        return;
+    }
+    
+    // Check if product already in list
+    const existing = transferItems.find(item => item.product_id === productId);
+    if (existing) {
+        existing.quantity += qty;
+    } else {
+        transferItems.push({
+            product_id: productId,
+            name: productName,
+            barcode: barcode,
+            quantity: qty,
+            cost_price: costPrice,
+            retail_price: retailPrice
+        });
+    }
+    
+    renderTransferItems();
+    searchInput.value = '';
+    searchInput.dataset.productId = '';
+    searchInput.dataset.productName = '';
+    searchInput.dataset.barcode = '';
+    searchInput.dataset.costPrice = '';
+    searchInput.dataset.retailPrice = '';
+    searchInput.dataset.stock = '';
+    qtyInput.value = 1;
+    document.getElementById('transfer-search-results').classList.add('hidden');
+    document.getElementById('transfer-product-search').focus();
+}
+
+function renderTransferItems() {
+    const container = document.getElementById('transfer-items-list');
+    if (transferItems.length === 0) {
+        container.innerHTML = '<p class="text-xs text-gray-400 text-center py-2">No items added</p>';
+        return;
+    }
+    
+    let html = '';
+    transferItems.forEach((item, index) => {
+        const totalCost = item.quantity * item.cost_price;
+        html += `<div class="flex items-center justify-between bg-gray-50 p-2 rounded-lg border border-gray-100">
+            <div>
+                <span class="font-medium text-gray-800">${item.name}</span>
+                ${item.barcode ? '<span class="text-xs text-gray-400 ml-1">(' + item.barcode + ')</span>' : ''}
+                <span class="text-xs text-gray-500 ml-2">x${item.quantity}</span>
+                <span class="text-xs text-amber-700 ml-2">KES ${totalCost.toFixed(2)}</span>
+            </div>
+            <button type="button" onclick="removeTransferItem(${index})" class="text-red-400 hover:text-red-600 text-xs font-bold px-2">✕</button>
+        </div>`;
+    });
+    container.innerHTML = html;
+}
+
+function removeTransferItem(index) {
+    transferItems.splice(index, 1);
+    renderTransferItems();
+}
+
+async function submitTransfer(event) {
+    event.preventDefault();
+    
+    const alertBox = document.getElementById('transfer-alert');
+    const submitBtn = document.getElementById('transfer-submit-btn');
+    const token = getCookie('spide_token');
+    
+    const toShopId = document.getElementById('transfer-to-shop').value;
+    const transferDate = document.getElementById('transfer-date').value;
+    const notes = document.getElementById('transfer-notes').value;
+    
+    if (!toShopId) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Please select a destination shop';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    if (transferItems.length === 0) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Please add at least one item to transfer';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    // Build payload
+    const payload = {
+        to_shop_id: parseInt(toShopId),
+        transfer_date: transferDate,
+        notes: notes,
+        items: transferItems.map(item => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            cost_price: item.cost_price
+        }))
+    };
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating...';
+    alertBox.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/api/transfers/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-green-100 text-green-700 border border-green-200';
+            alertBox.textContent = '✅ Transfer created successfully!';
+            alertBox.classList.remove('hidden');
+            setTimeout(() => closeTransferModal(), 1500);
+        } else {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+            alertBox.textContent = 'Error: ' + (result.error || 'Failed to create transfer');
+            alertBox.classList.remove('hidden');
+        }
+    } catch(error) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Network error: ' + error.message;
+        alertBox.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '📦 Create Transfer';
+    }
+}
+
+function openTransferHistoryModal() {
+    document.getElementById('transfer-history-modal').classList.remove('hidden');
+    loadTransferHistory();
+}
+
+function closeTransferHistoryModal() {
+    document.getElementById('transfer-history-modal').classList.add('hidden');
+}
+
+async function loadTransferHistory() {
+    const tbody = document.getElementById('transfer-history-body');
+    tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">Loading...</td></tr>';
+    
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/transfers', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load transfers');
+        }
+        
+        const transfers = await response.json();
+        renderTransferHistory(transfers);
+    } catch(error) {
+        console.error('Transfer history error:', error);
+        tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-500">Error: ' + error.message + '</td></tr>';
+    }
+}
+
+function renderTransferHistory(transfers) {
+    const tbody = document.getElementById('transfer-history-body');
+    
+    if (!transfers || transfers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">No transfers found</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    transfers.forEach(t => {
+        const statusColor = t.status === 'completed' ? 'bg-green-100 text-green-800' : 
+                           t.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                           'bg-red-100 text-red-800';
+        html += '<tr class="border-b hover:bg-blue-50/50 transition">' +
+            '<td class="p-2 font-mono text-blue-600">' + (t.transfer_number || '#' + t.id) + '</td>' +
+            '<td class="p-2">Shop #' + t.from_shop_id + '</td>' +
+            '<td class="p-2">Shop #' + t.to_shop_id + '</td>' +
+            '<td class="p-2 text-center font-bold">' + (t.total_items || 0) + '</td>' +
+            '<td class="p-2 text-right font-bold text-amber-700">KES ' + (t.total_cost || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-gray-500">' + (t.transfer_date || t.created_at || '') + '</td>' +
+            '<td class="p-2"><span class="px-2 py-0.5 rounded-full text-xs ' + statusColor + '">' + (t.status || 'pending') + '</span></td>' +
+            '<td class="p-2 text-center"><button onclick="viewTransferDetail(' + t.id + ')" class="text-blue-400 hover:text-blue-600 text-xs font-bold">📄 View</button></td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+}
+
+async function viewTransferDetail(id) {
+    // Show loading state
+    document.getElementById('transfer-detail-items').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">Loading transfer details...</td></tr>';
+    document.getElementById('td-from-shop').textContent = '...';
+    document.getElementById('td-to-shop').textContent = '...';
+    document.getElementById('td-date').textContent = '...';
+    document.getElementById('td-status').textContent = '...';
+    document.getElementById('td-total-items').textContent = '0';
+    document.getElementById('td-total-cost').textContent = 'KES 0.00';
+    
+    // Open the modal
+    openTransferDetailModal();
+    
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/transfers/detail?id=' + id, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load transfer details');
+        }
+        
+        const data = await response.json();
+        renderTransferDetail(data);
+    } catch(error) {
+        console.error('Transfer detail error:', error);
+        document.getElementById('transfer-detail-items').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500">Error: ' + error.message + '</td></tr>';
+    }
+}
+
+function openTransferDetailModal() {
+    document.getElementById('transfer-detail-modal').classList.remove('hidden');
+}
+
+function closeTransferDetailModal() {
+    document.getElementById('transfer-detail-modal').classList.add('hidden');
+}
+
+function renderTransferDetail(transfer) {
+    // Set transfer number
+    document.getElementById('transfer-detail-number').textContent = transfer.transfer_number || '#' + transfer.id;
+    
+    // Set basic info
+    document.getElementById('td-from-shop').textContent = 'Shop #' + (transfer.from_shop_id || '?');
+    document.getElementById('td-to-shop').textContent = 'Shop #' + (transfer.to_shop_id || '?');
+    document.getElementById('td-date').textContent = transfer.transfer_date || transfer.created_at || '-';
+    
+    // Set status with color
+    const statusEl = document.getElementById('td-status');
+    const status = transfer.status || 'pending';
+    const statusColors = {
+        'completed': 'bg-green-100 text-green-800',
+        'pending': 'bg-yellow-100 text-yellow-800',
+        'cancelled': 'bg-red-100 text-red-800'
+    };
+    statusEl.className = 'px-2 py-0.5 rounded-full text-xs font-semibold ' + (statusColors[status] || 'bg-gray-100 text-gray-800');
+    statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+    
+    // Set totals
+    document.getElementById('td-total-items').textContent = transfer.total_items || 0;
+    document.getElementById('td-total-cost').textContent = 'KES ' + (transfer.total_cost || 0).toFixed(2);
+    
+    // Render items
+    const tbody = document.getElementById('transfer-detail-items');
+    const items = transfer.items || [];
+    
+    if (items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">No items in this transfer</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    items.forEach(item => {
+        const productName = item.product_name || item.name || 'Unknown Product';
+        const barcode = item.barcode || '-';
+        const quantity = item.quantity || 0;
+        const costPrice = item.cost_price || 0;
+        const subtotal = item.subtotal || (quantity * costPrice);
+        
+        html += '<tr class="border-b hover:bg-blue-50/50 transition">' +
+            '<td class="p-2 font-medium text-gray-800">' + productName + '</td>' +
+            '<td class="p-2 font-mono text-gray-500">' + barcode + '</td>' +
+            '<td class="p-2 text-center font-bold">' + quantity + '</td>' +
+            '<td class="p-2 text-right font-mono">KES ' + costPrice.toFixed(2) + '</td>' +
+            '<td class="p-2 text-right font-mono text-amber-700 font-bold">KES ' + subtotal.toFixed(2) + '</td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+} 
         // ============================================
         // OTHER FUNCTIONS (Placeholders)
         // ============================================
-        function openTransferModal() { alert('New Transfer - Coming soon!'); }
-        function openTransferHistoryModal() { alert('Transfer History - Coming soon!'); }
+        //function openTransferModal() { alert('New Transfer - Coming soon!'); }
+        //function openTransferHistoryModal() { alert('Transfer History - Coming soon!'); }
         function openPurchaseModal() { alert('New Purchase - Coming soon!'); }
         function openSuppliersModal() { alert('Manage Suppliers - Coming soon!'); }
 
@@ -2078,6 +2536,172 @@ async function deleteExpense(id) {
             </div>
             <div class="flex justify-end border-t border-gray-100 pt-3">
                 <button onclick="closeExpenseReportModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW TRANSFER MODAL -->
+    <div id="transfer-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <span class="bg-blue-100 p-1.5 rounded-lg">📦</span>
+                    New Stock Transfer
+                </h2>
+                <button onclick="closeTransferModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            
+            <form id="transfer-form" onsubmit="submitTransfer(event)" class="flex-1 flex flex-col">
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Destination Shop *</label>
+                        <select id="transfer-to-shop" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                            <option value="">Select Shop</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Transfer Date</label>
+                        <input type="date" id="transfer-date" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Notes (Optional)</label>
+                        <textarea id="transfer-notes" rows="2" placeholder="Reason for transfer..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"></textarea>
+                    </div>
+                    
+                    <!-- Transfer Items Section -->
+                    <div class="border-t pt-3">
+                        <h3 class="text-sm font-semibold text-gray-700 mb-2">📋 Items to Transfer</h3>
+                        <div id="transfer-items-container" class="space-y-2">
+                            <div class="flex gap-2 items-center">
+                                <div class="flex-1 relative">
+                                    <input type="text" 
+                                           id="transfer-product-search" 
+                                           placeholder="Search by barcode or product name..." 
+                                           class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                           autocomplete="off"
+                                           oninput="handleTransferSearch(this.value)"
+                                           onkeydown="handleTransferSearchKeydown(event)">
+                                    <div id="transfer-search-results" class="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl hidden z-50 max-h-48 overflow-y-auto"></div>
+                                </div>
+                                <input type="number" id="transfer-qty" placeholder="Qty" class="w-20 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none" value="1" min="1">
+                                <button type="button" onclick="addTransferItem()" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm whitespace-nowrap">➕ Add</button>
+                            </div>
+                        </div>
+                        <div id="transfer-items-list" class="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                            <p class="text-xs text-gray-400 text-center py-2">No items added</p>
+                        </div>
+                    </div>
+                    
+                    <div id="transfer-alert" class="hidden p-2 rounded-lg text-sm font-medium"></div>
+                </div>
+                <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
+                    <button type="button" onclick="closeTransferModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
+                    <button type="submit" id="transfer-submit-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 rounded-lg transition text-sm">📦 Create Transfer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- TRANSFER HISTORY MODAL -->
+    <div id="transfer-history-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <span class="bg-blue-100 p-1.5 rounded-lg">📋</span>
+                        Transfer History
+                    </h2>
+                    <p class="text-xs text-gray-500">View all stock transfers</p>
+                </div>
+                <button onclick="closeTransferHistoryModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto border rounded-xl relative">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                        <tr>
+                            <th class="p-2">Transfer #</th>
+                            <th class="p-2">From</th>
+                            <th class="p-2">To</th>
+                            <th class="p-2 text-center">Items</th>
+                            <th class="p-2 text-right">Total Cost</th>
+                            <th class="p-2">Date</th>
+                            <th class="p-2">Status</th>
+                            <th class="p-2 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transfer-history-body">
+                        <tr><td colspan="8" class="p-4 text-center text-gray-500">Loading transfers...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex justify-end border-t border-gray-100 pt-3">
+                <button onclick="closeTransferHistoryModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">Close</button>
+            </div>
+        </div>
+    </div>
+
+        <!-- TRANSFER DETAIL MODAL -->
+    <div id="transfer-detail-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <span class="bg-blue-100 p-1.5 rounded-lg">📄</span>
+                        Transfer Details
+                    </h2>
+                    <p id="transfer-detail-number" class="text-xs text-gray-500">#TRF-XXXXXXXX</p>
+                </div>
+                <button onclick="closeTransferDetailModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            
+            <!-- Transfer Info -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="transfer-detail-info">
+                <div class="bg-gray-50 p-3 rounded-xl text-center">
+                    <p class="text-xs text-gray-500">From</p>
+                    <p id="td-from-shop" class="font-semibold text-gray-800">-</p>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-xl text-center">
+                    <p class="text-xs text-gray-500">To</p>
+                    <p id="td-to-shop" class="font-semibold text-gray-800">-</p>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-xl text-center">
+                    <p class="text-xs text-gray-500">Date</p>
+                    <p id="td-date" class="font-semibold text-gray-800">-</p>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-xl text-center">
+                    <p class="text-xs text-gray-500">Status</p>
+                    <p id="td-status" class="font-semibold text-gray-800">-</p>
+                </div>
+            </div>
+            
+            <!-- Items List -->
+            <div class="flex-1 overflow-y-auto border rounded-xl relative">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                        <tr>
+                            <th class="p-2">Product</th>
+                            <th class="p-2">Barcode</th>
+                            <th class="p-2 text-center">Quantity</th>
+                            <th class="p-2 text-right">Cost Price</th>
+                            <th class="p-2 text-right">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transfer-detail-items">
+                        <tr><td colspan="5" class="p-4 text-center text-gray-500">Loading items...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Footer -->
+            <div class="flex justify-between items-center border-t border-gray-100 pt-3">
+                <div>
+                    <span class="text-xs text-gray-500">Total Items:</span>
+                    <span id="td-total-items" class="font-bold text-gray-800 ml-1">0</span>
+                    <span class="text-xs text-gray-500 ml-3">Total Cost:</span>
+                    <span id="td-total-cost" class="font-bold text-amber-700 ml-1">KES 0.00</span>
+                </div>
+                <button onclick="closeTransferDetailModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">Close</button>
             </div>
         </div>
     </div>
