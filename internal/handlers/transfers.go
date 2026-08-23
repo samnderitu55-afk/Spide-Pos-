@@ -3,125 +3,141 @@
 import (
     "encoding/json"
     "net/http"
-    "strconv"
     "spide-pos/internal/db"
+    "spide-pos/internal/middleware"
+    "strconv"
+    "time"
 )
+
+type TransferRequest struct {
+    ToShopID     int    `json:"to_shop_id"`
+    TransferDate string `json:"transfer_date"`
+    Notes        string `json:"notes"`
+    Items        []struct {
+        ProductID int     `json:"product_id"`
+        Quantity  int     `json:"quantity"`
+        CostPrice float64 `json:"cost_price"`
+    } `json:"items"`
+}
 
 func CreateTransferHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
-    if r.Method != http.MethodPost {
-        http.Error(w, `{"error":"Method not allowed"}`, http.StatusMethodNotAllowed)
-        return
-    }
-
-    username := GetUsernameFromCookie(r)
-    if username == "" {
+    
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
         http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
         return
     }
 
-    // For now, allow all authenticated users
-    // Later we'll add role-based checks
-
-    fromShopID := 1 // Default shop
-
-    var req db.StockTransferRequest
+    var req TransferRequest
     if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-        http.Error(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
+        http.Error(w, `{"error":"Invalid request body"}`, http.StatusBadRequest)
         return
     }
 
-    if len(req.Items) == 0 {
-        http.Error(w, `{"error":"At least one item is required"}`, http.StatusBadRequest)
-        return
-    }
+    // Validate
     if req.ToShopID == 0 {
         http.Error(w, `{"error":"Destination shop is required"}`, http.StatusBadRequest)
         return
     }
-    if req.ToShopID == fromShopID {
+    if len(req.Items) == 0 {
+        http.Error(w, `{"error":"At least one item is required"}`, http.StatusBadRequest)
+        return
+    }
+
+    // Use current shop as source
+    fromShopID := claims.ShopID
+    if fromShopID == 0 {
+        fromShopID = 1
+    }
+
+    // Can't transfer to the same shop
+    if fromShopID == req.ToShopID {
         http.Error(w, `{"error":"Cannot transfer to the same shop"}`, http.StatusBadRequest)
         return
     }
 
-    transfer, err := db.CreateStockTransfer(db.GetDB(), &req, fromShopID, username)
+    // Parse transfer date or use today
+    transferDate := time.Now().Format("2006-01-02")
+    if req.TransferDate != "" {
+        if parsed, err := time.Parse("2006-01-02", req.TransferDate); err == nil {
+            transferDate = parsed.Format("2006-01-02")
+        }
+    }
+
+    transfer := &db.StockTransfer{
+        FromShopID:   fromShopID,
+        ToShopID:     req.ToShopID,
+        TransferDate: transferDate,
+        Notes:        req.Notes,
+        CreatedBy:    claims.Username,
+        Status:       "completed",
+        Items:        req.Items,
+    }
+
+    err := db.CreateTransfer(db.GetDB(), transfer)
     if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+        http.Error(w, `{"error":"Failed to create transfer: `+err.Error()+`"}`, http.StatusInternalServerError)
         return
     }
 
-    items, err := db.GetStockTransferItems(db.GetDB(), transfer.ID)
-    if err != nil {
-        w.WriteHeader(http.StatusInternalServerError)
-        json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
-        return
-    }
-
-    w.WriteHeader(http.StatusCreated)
     json.NewEncoder(w).Encode(map[string]interface{}{
+        "success": true,
+        "message": "Transfer created successfully",
         "transfer": transfer,
-        "items":    items,
     })
 }
 
 func GetTransfersHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     
-    username := GetUsernameFromCookie(r)
-    if username == "" {
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
         http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
         return
     }
-    
-    shopID := 1 // Default shop
-    status := r.URL.Query().Get("status")
-    transfers, err := db.GetTransfersByShop(db.GetDB(), shopID, status)
+
+    // Get transfers for the user's shop (or all if director)
+    shopID := claims.ShopID
+    if shopID == 0 {
+        shopID = 1
+    }
+
+    transfers, err := db.GetTransfers(db.GetDB(), shopID)
     if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
+        http.Error(w, `{"error":"Failed to get transfers: `+err.Error()+`"}`, http.StatusInternalServerError)
         return
     }
-    if transfers == nil {
-        transfers = []db.StockTransfer{}
-    }
+
     json.NewEncoder(w).Encode(transfers)
 }
 
 func GetTransferDetailHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     
-    username := GetUsernameFromCookie(r)
-    if username == "" {
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
         http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
         return
     }
-    
-    transferIDStr := r.URL.Query().Get("id")
-    if transferIDStr == "" {
-        http.Error(w, `{"error":"Transfer ID is required"}`, http.StatusBadRequest)
+
+    idStr := r.URL.Query().Get("id")
+    if idStr == "" {
+        http.Error(w, `{"error":"Transfer ID required"}`, http.StatusBadRequest)
         return
     }
-    transferID, err := strconv.Atoi(transferIDStr)
+
+    id, err := strconv.Atoi(idStr)
     if err != nil {
         http.Error(w, `{"error":"Invalid transfer ID"}`, http.StatusBadRequest)
         return
     }
-    transfer, err := db.GetStockTransfer(db.GetDB(), transferID)
+
+    transfer, err := db.GetTransferDetail(db.GetDB(), id)
     if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
+        http.Error(w, `{"error":"Failed to get transfer detail: `+err.Error()+`"}`, http.StatusInternalServerError)
         return
     }
-    items, err := db.GetStockTransferItems(db.GetDB(), transferID)
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
-    json.NewEncoder(w).Encode(map[string]interface{}{
-        "transfer": transfer,
-        "items":    items,
-    })
+
+    json.NewEncoder(w).Encode(transfer)
 }
-
-
-
-

@@ -17,13 +17,10 @@ type Product struct {
 }
 
 func (p *Product) RenderRowHTML() string {
-    return fmt.Sprintf(`
-        <tr data-product-id="%d" data-retail-price="%.2f" data-wholesale-price="%.2f" data-wholesale-threshold="%d">
+    return fmt.Sprintf(`<tr data-product-id="%d" data-retail-price="%.2f" data-wholesale-price="%.2f" data-wholesale-threshold="%d">
             <td class="p-3 font-medium text-gray-800">%s</td>
             <td class="p-3 text-center font-mono">%d</td>
-            <td class="p-3 text-right">
-                <span class="price-badge">Retail</span>
-            </td>
+            <td class="p-3 text-right"><span class="price-badge">Retail</span></td>
             <td class="p-3 text-center">
                 <input type="number" class="cart-qty-input w-16 px-2 py-1 border rounded text-center focus:ring-2 focus:ring-purple-500 focus:outline-none" 
                        value="1" min="1" oninput="updateRowTotals(this, false)">
@@ -34,7 +31,7 @@ func (p *Product) RenderRowHTML() string {
             </td>
             <td class="subtotal-td p-3 text-right font-bold text-purple-900">KES %.2f</td>
             <td class="p-3 text-center">
-                <button onclick="this.closest('tr').remove(); updateCartTotals();" 
+                <button onclick="this.closest(\'tr\').remove(); updateCartTotals();" 
                         class="text-red-500 hover:text-red-700 font-bold">✕</button>
             </td>
         </tr>`,
@@ -91,9 +88,10 @@ type Expense struct {
     PaymentMethod string  `json:"payment_method"`
     Reference     string  `json:"reference"`
     Notes         string  `json:"notes"`
+    ShopID        int     `json:"shop_id"`
+    ShopName      string  `json:"shop_name"`
     CreatedBy     string  `json:"created_by"`
     CreatedAt     string  `json:"created_at"`
-    ShopID        int     `json:"shop_id"`
 }
 
 type ZReport struct {
@@ -246,5 +244,7 @@ type DashboardStats struct {
     RecentSales   []Sale               `json:"recent_sales"`
     LowStockItems []LowStockReportItem `json:"low_stock_items"`
 }
+
+
 
 
