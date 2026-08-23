@@ -6,21 +6,6 @@ import (
     "time"
 )
 
-// ============================================
-// DIRECTOR DASHBOARD STRUCTS
-// ============================================
-
-type OutletStats struct {
-    ShopID            int     `json:"shop_id"`
-    ShopName          string  `json:"shop_name"`
-    Location          string  `json:"location"`
-    TodayRevenue      float64 `json:"today_revenue"`
-    TodayTransactions int     `json:"today_transactions"`
-    TodayItems        int     `json:"today_items"`
-    MonthRevenue      float64 `json:"month_revenue"`
-    Status            string  `json:"status"`
-}
-
 type DirectorDashboard struct {
     TotalRevenueToday   float64          `json:"total_revenue_today"`
     TotalRevenueMonth   float64          `json:"total_revenue_month"`
@@ -55,14 +40,26 @@ type DirectorDashboard struct {
     } `json:"alerts"`
 }
 
-// GetDirectorDashboard fetches all data for the director dashboard
+type OutletStats struct {
+    ShopID          int     `json:"shop_id"`
+    ShopName        string  `json:"shop_name"`
+    Location        string  `json:"location"`
+    Manager         string  `json:"manager"`
+    TodayRevenue    float64 `json:"today_revenue"`
+    TodayTransactions int   `json:"today_transactions"`
+    TodayItems      int     `json:"today_items"`
+    MonthRevenue    float64 `json:"month_revenue"`
+    MonthTransactions int   `json:"month_transactions"`
+    Status          string  `json:"status"`
+}
+
 func GetDirectorDashboard(db *sql.DB) (*DirectorDashboard, error) {
     dashboard := &DirectorDashboard{}
     today := time.Now().Format("2006-01-02")
     monthStart := time.Now().AddDate(0, 0, -30).Format("2006-01-02")
 
     // Get total stores
-    err := db.QueryRow("SELECT COUNT(*) FROM shops").Scan(&dashboard.TotalStores)
+    err := db.QueryRow("SELECT COUNT(*) FROM branches WHERE is_active = 1").Scan(&dashboard.TotalStores)
     if err != nil && err != sql.ErrNoRows {
         return nil, fmt.Errorf("failed to get total stores: %w", err)
     }
@@ -70,9 +67,9 @@ func GetDirectorDashboard(db *sql.DB) (*DirectorDashboard, error) {
     // Get active stores (with sales today)
     err = db.QueryRow(`
         SELECT COUNT(DISTINCT s.id) 
-        FROM shops s
+        FROM branches s
         INNER JOIN sales sl ON sl.shop_id = s.id
-        WHERE DATE(sl.created_at) = ?
+        WHERE DATE(sl.created_at) = ? AND s.is_active = 1
     `, today).Scan(&dashboard.ActiveStores)
     if err != nil && err != sql.ErrNoRows {
         dashboard.ActiveStores = dashboard.TotalStores
@@ -110,16 +107,17 @@ func GetDirectorDashboard(db *sql.DB) (*DirectorDashboard, error) {
 
     // Get low stock items count
     err = db.QueryRow(`
-        SELECT COUNT(*)
-        FROM products
-        WHERE stock_quantity <= reorder_level AND stock_quantity > 0
+        SELECT COUNT(DISTINCT p.id)
+        FROM products p
+        LEFT JOIN shop_stock ss ON p.id = ss.product_id
+        WHERE p.is_active = 1 AND COALESCE(ss.quantity, 0) <= p.reorder_level
     `).Scan(&dashboard.LowStockItems)
     if err != nil && err != sql.ErrNoRows {
         return nil, fmt.Errorf("failed to get low stock items: %w", err)
     }
 
     // Get outlet stats
-    outletStats, err := getDirectorOutletStats(db, today, monthStart)
+    outletStats, err := getOutletStats(db, today, monthStart)
     if err != nil {
         return nil, fmt.Errorf("failed to get outlet stats: %w", err)
     }
@@ -133,42 +131,36 @@ func GetDirectorDashboard(db *sql.DB) (*DirectorDashboard, error) {
     dashboard.SalesTrend = salesTrend
 
     // Get top products (all outlets)
-    topProducts, err := getDirectorTopProducts(db, monthStart, today)
+    topProducts, err := getTopProductsAllOutlets(db, monthStart, today)
     if err != nil {
         return nil, fmt.Errorf("failed to get top products: %w", err)
     }
     dashboard.TopProducts = topProducts
 
     // Get recent transactions
-    recentTransactions, err := getDirectorRecentTransactions(db, 10)
+    recentTransactions, err := getRecentTransactions(db, 10)
     if err != nil {
         return nil, fmt.Errorf("failed to get recent transactions: %w", err)
     }
     dashboard.RecentTransactions = recentTransactions
 
     // Get alerts
-    alerts, err := getDirectorAlerts(db)
+    alerts, err := getAlerts(db)
     if err != nil {
-        // If alerts fail, just return empty alerts
-        dashboard.Alerts = []struct {
-            ShopName     string `json:"shop_name"`
-            ProductName  string `json:"product_name"`
-            StockLevel   int    `json:"stock_level"`
-            ReorderLevel int    `json:"reorder_level"`
-            Severity     string `json:"severity"`
-        }{}
+        return nil, fmt.Errorf("failed to get alerts: %w", err)
     }
     dashboard.Alerts = alerts
 
     return dashboard, nil
 }
 
-func getDirectorOutletStats(db *sql.DB, today, monthStart string) ([]OutletStats, error) {
+func getOutletStats(db *sql.DB, today, monthStart string) ([]OutletStats, error) {
     query := `
         SELECT 
             s.id,
             s.name,
             s.location,
+            COALESCE(s.manager, 'N/A') as manager,
             COALESCE((
                 SELECT SUM(total_amount) 
                 FROM sales 
@@ -190,6 +182,11 @@ func getDirectorOutletStats(db *sql.DB, today, monthStart string) ([]OutletStats
                 FROM sales 
                 WHERE shop_id = s.id AND DATE(created_at) >= ?
             ), 0) as month_revenue,
+            COALESCE((
+                SELECT COUNT(*) 
+                FROM sales 
+                WHERE shop_id = s.id AND DATE(created_at) >= ?
+            ), 0) as month_transactions,
             CASE 
                 WHEN EXISTS (
                     SELECT 1 FROM sales 
@@ -197,10 +194,11 @@ func getDirectorOutletStats(db *sql.DB, today, monthStart string) ([]OutletStats
                 ) THEN 'active'
                 ELSE 'inactive'
             END as status
-        FROM shops s
+        FROM branches s
+        WHERE s.is_active = 1
         ORDER BY today_revenue DESC
     `
-    rows, err := db.Query(query, today, today, today, monthStart, today)
+    rows, err := db.Query(query, today, today, today, monthStart, monthStart, today)
     if err != nil {
         return nil, err
     }
@@ -210,9 +208,9 @@ func getDirectorOutletStats(db *sql.DB, today, monthStart string) ([]OutletStats
     for rows.Next() {
         var stat OutletStats
         err := rows.Scan(
-            &stat.ShopID, &stat.ShopName, &stat.Location,
+            &stat.ShopID, &stat.ShopName, &stat.Location, &stat.Manager,
             &stat.TodayRevenue, &stat.TodayTransactions, &stat.TodayItems,
-            &stat.MonthRevenue, &stat.Status,
+            &stat.MonthRevenue, &stat.MonthTransactions, &stat.Status,
         )
         if err != nil {
             return nil, err
@@ -267,7 +265,7 @@ func getDirectorSalesTrend(db *sql.DB, startDate, endDate string) ([]struct {
     return trend, nil
 }
 
-func getDirectorTopProducts(db *sql.DB, startDate, endDate string) ([]struct {
+func getTopProductsAllOutlets(db *sql.DB, startDate, endDate string) ([]struct {
     ProductName string  `json:"product_name"`
     Category    string  `json:"category"`
     UnitsSold   int     `json:"units_sold"`
@@ -320,7 +318,7 @@ func getDirectorTopProducts(db *sql.DB, startDate, endDate string) ([]struct {
     return products, nil
 }
 
-func getDirectorRecentTransactions(db *sql.DB, limit int) ([]struct {
+func getRecentTransactions(db *sql.DB, limit int) ([]struct {
     SaleID      int     `json:"sale_id"`
     ShopName    string  `json:"shop_name"`
     Amount      float64 `json:"amount"`
@@ -330,12 +328,12 @@ func getDirectorRecentTransactions(db *sql.DB, limit int) ([]struct {
     query := `
         SELECT 
             s.id,
-            COALESCE(sh.name, 'Unknown Shop') as shop_name,
+            COALESCE(b.name, 'Unknown Shop') as shop_name,
             s.total_amount,
             s.payment_type,
             DATE_FORMAT(s.created_at, '%Y-%m-%d %H:%i') as created_at
         FROM sales s
-        LEFT JOIN shops sh ON s.shop_id = sh.id
+        LEFT JOIN branches b ON s.shop_id = b.id
         ORDER BY s.id DESC
         LIMIT ?
     `
@@ -374,7 +372,7 @@ func getDirectorRecentTransactions(db *sql.DB, limit int) ([]struct {
     return transactions, nil
 }
 
-func getDirectorAlerts(db *sql.DB) ([]struct {
+func getAlerts(db *sql.DB) ([]struct {
     ShopName     string `json:"shop_name"`
     ProductName  string `json:"product_name"`
     StockLevel   int    `json:"stock_level"`
@@ -383,32 +381,25 @@ func getDirectorAlerts(db *sql.DB) ([]struct {
 }, error) {
     query := `
         SELECT 
-            COALESCE(sh.name, 'Main Shop') as shop_name,
+            COALESCE(b.name, 'Main Shop') as shop_name,
             p.name as product_name,
-            p.stock_quantity as stock_level,
+            COALESCE(ss.quantity, 0) as stock_level,
             p.reorder_level,
             CASE 
-                WHEN p.stock_quantity = 0 THEN 'critical'
-                WHEN p.stock_quantity <= p.reorder_level/2 THEN 'high'
+                WHEN COALESCE(ss.quantity, 0) = 0 THEN 'critical'
+                WHEN COALESCE(ss.quantity, 0) <= p.reorder_level/2 THEN 'high'
                 ELSE 'medium'
             END as severity
         FROM products p
         LEFT JOIN shop_stock ss ON p.id = ss.product_id
-        LEFT JOIN shops sh ON ss.shop_id = sh.id
-        WHERE p.stock_quantity <= p.reorder_level
-        ORDER BY p.stock_quantity ASC
+        LEFT JOIN branches b ON ss.shop_id = b.id
+        WHERE p.is_active = 1 AND COALESCE(ss.quantity, 0) <= p.reorder_level
+        ORDER BY stock_level ASC
         LIMIT 20
     `
     rows, err := db.Query(query)
     if err != nil {
-        // Return empty alerts if the query fails (e.g., missing tables)
-        return []struct {
-            ShopName     string `json:"shop_name"`
-            ProductName  string `json:"product_name"`
-            StockLevel   int    `json:"stock_level"`
-            ReorderLevel int    `json:"reorder_level"`
-            Severity     string `json:"severity"`
-        }{}, nil
+        return nil, err
     }
     defer rows.Close()
 
@@ -440,5 +431,3 @@ func getDirectorAlerts(db *sql.DB) ([]struct {
 
     return alerts, nil
 }
-
-

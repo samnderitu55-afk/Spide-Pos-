@@ -32,11 +32,14 @@
             border: 1px solid rgba(255,255,255,0.2);
         }
         .shop-badge:hover { background: rgba(255,255,255,0.25); }
-        .spide-logo { font-size: 1.5rem; line-height: 1; }
+        #addProductModal { z-index: 9999 !important; }
+        #product-catalog-modal { z-index: 900 !important; }
+        #payment-modal { z-index: 100 !important; }
+        #recent-sales-modal { z-index: 100 !important; }
+        #shop-selector-modal { z-index: 100 !important; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans min-h-screen">
-    <!-- HEADER -->
     <header class="bg-purple-900 text-white p-4 shadow-md flex justify-between items-center">
         <div class="flex items-center gap-4">
             <div class="flex items-center gap-2">
@@ -50,15 +53,12 @@
             </div>
         </div>
         <div class="flex items-center gap-3 flex-wrap">
-            <!-- 🛒 SALES DROPDOWN -->
             <div class="group relative">
                 <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">🛒 Sales ▾</button>
                 <div class="dropdown-menu">
                     <a href="#" onclick="openRecentSalesModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 transition text-gray-800">📋 Recent Sales</a>
                 </div>
             </div>
-
-            <!-- 📦 INVENTORY DROPDOWN -->
             <div class="group relative">
                 <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">📦 Inventory ▾</button>
                 <div class="dropdown-menu">
@@ -68,8 +68,6 @@
                     <a href="#" onclick="openInventoryValuationModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition">💎 Inventory Valuation</a>
                 </div>
             </div>
-
-            <!-- 📊 REPORTS DROPDOWN -->
             <div class="group relative">
                 <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">📊 Reports ▾</button>
                 <div class="dropdown-menu">
@@ -77,8 +75,6 @@
                     <a href="#" onclick="openProductReportModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">📈 Product Sales & COGS</a>
                 </div>
             </div>
-
-            <!-- 💰 EXPENSES DROPDOWN -->
             <div class="group relative">
                 <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">💰 Expenses ▾</button>
                 <div class="dropdown-menu">
@@ -86,8 +82,6 @@
                     <a href="#" onclick="openExpenseReportModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">📊 Expense Reports</a>
                 </div>
             </div>
-
-            <!-- 🔄 TRANSFERS DROPDOWN -->
             <div class="group relative">
                 <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">🔄 Transfers ▾</button>
                 <div class="dropdown-menu">
@@ -95,8 +89,6 @@
                     <a href="#" onclick="openTransferHistoryModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">📋 Transfer History</a>
                 </div>
             </div>
-
-            <!-- 📦 PURCHASES DROPDOWN -->
             <div class="group relative">
                 <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">📦 Purchases ▾</button>
                 <div class="dropdown-menu">
@@ -104,7 +96,6 @@
                     <a href="#" onclick="openSuppliersModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">👥 Manage Suppliers</a>
                 </div>
             </div>
-
             <a href="/" class="bg-purple-700 hover:bg-purple-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">📊 Dashboard</a>
             <a href="/director" class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">📊 Director</a>
         </div>
@@ -199,12 +190,10 @@
                     <h2 class="text-xl font-bold text-gray-800">Recent Transactions Log</h2>
                     <button onclick="closeRecentSalesModal()" class="text-gray-400 hover:text-gray-600 font-bold text-xl">✕</button>
                 </div>
-                <div id="recent-sales-list" class="space-y-3">
-                    <p class="text-gray-500 text-center py-6">Loading past sales...</p>
-                </div>
+                <div id="recent-sales-list" class="space-y-3"><p class="text-gray-500 text-center py-6">Loading past sales...</p></div>
             </div>
             <div class="border-t pt-4">
-                <button onclick="closeRecentSalesModal()" class="w-full bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg hover:bg-gray-300 transition">Close Log</button>
+                <button onclick="closeRecentSalesModal()" class="w-full bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg hover:bg-gray-300">Close Log</button>
             </div>
         </div>
     </div>
@@ -221,6 +210,127 @@
             </div>
             <div class="border-t pt-4 mt-4">
                 <button onclick="closeShopSelector()" class="w-full bg-gray-200 text-gray-800 font-semibold py-2.5 rounded-lg hover:bg-gray-300 transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- ADD PRODUCT MODAL -->
+    <!-- ============================================ -->
+    <div id="addProductModal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-100 transform transition-all my-8">
+            <div class="bg-purple-900 text-white px-6 py-4 rounded-t-2xl flex justify-between items-center">
+                <h3 class="text-lg font-bold flex items-center gap-2">📦 Add New Stock Item</h3>
+                <button onclick="closeAddProductModal()" class="text-purple-200 hover:text-white hover:bg-purple-800 p-1 rounded-lg text-xl font-bold transition">✕</button>
+            </div>
+            <form id="addProductForm" onsubmit="saveProduct(event)" class="p-6 space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">SKU / Barcode *</label>
+                        <input type="text" id="prodSku" required placeholder="e.g. COSM-001" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Product Name *</label>
+                        <input type="text" id="prodName" required placeholder="e.g. Matte Lipstick - Ruby Red" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Category *</label>
+                        <select id="prodCategory" required onchange="handleCategoryChange(this)" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none text-sm bg-white">
+                            <option value="">-- Select Category --</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Buying Price (KES) *</label>
+                        <input type="number" step="0.01" id="prodBuyingPrice" required placeholder="0.00" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Selling Price (Retail) *</label>
+                        <input type="number" step="0.01" id="prodSellingPrice" required placeholder="0.00" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none text-sm">
+                    </div>
+                </div>
+                <div class="bg-purple-50/60 p-4 rounded-xl border border-purple-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-purple-900 uppercase mb-1">Wholesale Price (KES)</label>
+                        <input type="number" step="0.01" id="prodWholesalePrice" placeholder="0.00" class="w-full px-3 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none text-sm bg-white">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-purple-900 uppercase mb-1">Wholesale Min. Qty</label>
+                        <input type="number" id="prodWholesaleQty" placeholder="e.g. 12" class="w-full px-3 py-2 border border-purple-200 rounded-lg focus:ring-2 focus:ring-purple-600 outline-none text-sm bg-white">
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Initial Stock Qty *</label>
+                        <input type="number" id="prodStockQty" required placeholder="0" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Re-Order Level Alert *</label>
+                        <input type="number" id="prodReorderLevel" value="5" required placeholder="5" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none text-sm">
+                    </div>
+                </div>
+                <div id="modalAlert" class="hidden p-3 rounded-lg text-sm font-medium"></div>
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                    <button type="button" onclick="closeAddProductModal()" class="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition">Cancel</button>
+                    <button type="submit" id="saveProductBtn" class="px-5 py-2 text-sm font-semibold text-white bg-purple-800 hover:bg-purple-700 rounded-lg shadow-md transition flex items-center gap-2">💾 Save Product</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- PRODUCT CATALOG MODAL -->
+    <div id="product-catalog-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-6xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-3">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">📦 Product Catalog</h2>
+                    <p class="text-xs text-gray-500">Complete list of products in inventory</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="loadProducts()" class="bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">🔄 Refresh</button>
+                    <button onclick="closeProductCatalogModal()" class="text-gray-400 hover:text-gray-600 font-bold text-xl ml-2">✕</button>
+                </div>
+            </div>
+            <div class="overflow-y-auto flex-1 border rounded-xl relative">
+                <table class="w-full text-left border-collapse text-sm">
+                    <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                        <tr>
+                            <th class="p-3">Barcode / SKU</th>
+                            <th class="p-3">Product Name</th>
+                            <th class="p-3">Category</th>
+                            <th class="p-3 text-right">Retail Price</th>
+                            <th class="p-3 text-right">Wholesale Price</th>
+                            <th class="p-3 text-center">Stock</th>
+                            <th class="p-3 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="product-catalog-rows">
+                        <tr><td colspan="7" class="p-4 text-center text-gray-500">Loading products...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex justify-end border-t pt-3">
+                <button onclick="closeProductCatalogModal()" class="bg-gray-200 text-gray-800 font-semibold px-5 py-2 rounded-xl hover:bg-gray-300 transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- LOW STOCK MODAL -->
+    <div id="low-stock-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b pb-3">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2"><span class="text-amber-500">⚠️</span> Low Stock & Reorder Alerts</h2>
+                    <p class="text-xs text-gray-500">Products requiring immediate supplier reordering</p>
+                </div>
+                <button onclick="closeLowStockModal()" class="text-gray-400 hover:text-gray-600 font-bold text-xl">✕</button>
+            </div>
+            <div id="low-stock-content" class="overflow-y-auto flex-1 border rounded-xl relative p-4">
+                <p class="text-center text-gray-500 py-6">Loading stock status...</p>
+            </div>
+            <div class="flex justify-end border-t pt-3">
+                <button onclick="closeLowStockModal()" class="bg-gray-200 text-gray-800 font-semibold px-5 py-2 rounded-xl hover:bg-gray-300 transition">Close</button>
             </div>
         </div>
     </div>
@@ -553,23 +663,13 @@
             } catch (err) { alert('Network error.'); console.error(err); }
         }
 
-        // ============================================
-        // PRINT RECEIPT
-        // ============================================
         function printThermalReceipt(saleData, saleId, isReprint) {
-            console.log('🖨️ Printing receipt #' + saleId + (isReprint ? ' (Reprint)' : ''));
             const printWindow = window.open('', '_blank', 'width=350,height=600');
-            if (!printWindow) {
-                alert('Please allow popups for this site to print receipts.');
-                return;
-            }
             let itemsRowsHTML = '';
-            if (saleData.items && saleData.items.length > 0) {
-                saleData.items.forEach(function(item) {
-                    const productName = item.product_name || 'Item #' + item.product_id;
-                    itemsRowsHTML += '<tr><td style="padding: 2px 0; vertical-align: top;">' + productName + '<br/><span style="font-size: 10px; color: #555;">' + item.quantity + ' x KES ' + item.unit_price.toFixed(2) + '</span></td><td style="text-align: right; padding: 2px 0; vertical-align: top;">' + item.subtotal.toFixed(2) + '</td></tr>';
-                });
-            }
+            saleData.items.forEach(function(item) {
+                const productName = item.product_name || 'Item #' + item.product_id;
+                itemsRowsHTML += '<tr><td style="padding: 2px 0; vertical-align: top;">' + productName + '<br/><span style="font-size: 10px; color: #555;">' + item.quantity + ' x KES ' + item.unit_price.toFixed(2) + '</span></td><td style="text-align: right; padding: 2px 0; vertical-align: top;">' + item.subtotal.toFixed(2) + '</td></tr>';
+            });
             const now = new Date().toLocaleString('en-KE', { dateStyle: 'short', timeStyle: 'short' });
             const reprintHeader = isReprint ? '<div style="text-align:center; font-weight:bold; border: 1px dashed #000; padding: 4px; margin-bottom: 6px; font-size: 12px;">*** REPRINTED RECEIPT ***</div>' : '';
             const receiptHTML = '<!DOCTYPE html><html><head><title>Receipt #' + saleId + (isReprint ? ' (Reprint)' : '') + '</title>' +
@@ -594,39 +694,19 @@
         }
 
         // ============================================
-        // RECENT SALES - FIXED REPRINT
+        // RECENT SALES
         // ============================================
         function openRecentSalesModal() {
-            console.log('📋 Opening Recent Sales');
-            const modal = document.getElementById('recent-sales-modal');
-            if (modal) {
-                modal.classList.remove('hidden');
-                loadRecentSales();
-            } else {
-                console.error('Recent Sales modal not found!');
-            }
-        }
-
-        function closeRecentSalesModal() {
-            console.log('📋 Closing Recent Sales');
-            const modal = document.getElementById('recent-sales-modal');
-            if (modal) {
-                modal.classList.add('hidden');
-            }
+            document.getElementById('recent-sales-modal').classList.remove('hidden');
+            loadRecentSales();
         }
 
         async function loadRecentSales() {
-            console.log('📋 Loading recent sales...');
             const container = document.getElementById('recent-sales-list');
-            if (!container) {
-                console.error('Recent sales container not found!');
-                return;
-            }
             container.innerHTML = '<p class="text-gray-500 text-center py-6">Loading...</p>';
             try {
                 const res = await fetch('/api/sales/recent');
                 const data = await res.json();
-                console.log('📋 Sales data:', data);
                 if (!data || data.length === 0) {
                     container.innerHTML = '<p class="text-gray-500 text-center py-6">No sales recorded yet.</p>';
                     return;
@@ -649,19 +729,16 @@
                     </div>`;
                 });
                 container.innerHTML = html;
-                console.log('📋 Recent sales loaded successfully');
             } catch(e) {
-                console.error('Error loading sales:', e);
                 container.innerHTML = '<p class="text-red-500 text-center py-6">Error loading sales</p>';
             }
         }
 
-        // Store sale data for reprint
-        let saleDataCache = {};
+        function closeRecentSalesModal() {
+            document.getElementById('recent-sales-modal').classList.add('hidden');
+        }
 
         function reprintReceipt(saleId) {
-            console.log('🔄 Reprinting receipt #' + saleId);
-            // Fetch the sale data from the server
             fetch('/api/sales/recent')
                 .then(res => res.json())
                 .then(data => {
@@ -694,11 +771,292 @@
         }
 
         // ============================================
-        // OTHER MODAL FUNCTIONS (Placeholders)
+        // ADD PRODUCT - FULL CRUD
         // ============================================
-        function openAddProductModal() { alert('Add Product - Coming soon!'); }
-        function openProductCatalogModal() { alert('Product Catalog - Coming soon!'); }
-        function openLowStockModal() { alert('Low Stock - Coming soon!'); }
+        function openAddProductModal() {
+            const modal = document.getElementById('addProductModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            loadCategories();
+            document.getElementById('prodSku').focus();
+        }
+
+        function closeAddProductModal() {
+            const modal = document.getElementById('addProductModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+            document.getElementById('addProductForm').reset();
+            const alertBox = document.getElementById('modalAlert');
+            if (alertBox) alertBox.classList.add('hidden');
+            document.querySelector('#addProductModal h3').innerHTML = '📦 Add New Stock Item';
+            document.getElementById('saveProductBtn').innerText = '💾 Save Product';
+            delete document.getElementById('addProductForm').dataset.editId;
+        }
+
+        async function loadCategories() {
+            const select = document.getElementById('prodCategory');
+            if (!select) return;
+            select.innerHTML = '<option value="">Loading categories...</option>';
+
+            try {
+                const response = await fetch('/api/categories');
+                const categories = await response.json();
+
+                select.innerHTML = '<option value="">-- Select Category --</option>';
+                if (Array.isArray(categories)) {
+                    categories.forEach(cat => {
+                        const opt = document.createElement('option');
+                        opt.value = cat.name;
+                        opt.textContent = cat.name;
+                        select.appendChild(opt);
+                    });
+                }
+
+                const addOpt = document.createElement('option');
+                addOpt.value = 'NEW';
+                addOpt.textContent = '➕ Add New Category...';
+                addOpt.className = 'font-semibold text-purple-800 bg-purple-50';
+                select.appendChild(addOpt);
+
+            } catch (err) {
+                select.innerHTML = '<option value="">Failed to load categories</option>';
+            }
+        }
+
+        async function handleCategoryChange(selectElement) {
+            if (selectElement.value === 'NEW') {
+                const catName = prompt('Enter new category name:');
+                if (catName && catName.trim() !== '') {
+                    try {
+                        const res = await fetch('/api/categories/create', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name: catName.trim() })
+                        });
+                        if (res.ok) {
+                            const newCat = await res.json();
+                            await loadCategories();
+                            selectElement.value = newCat.name;
+                        } else {
+                            alert('Could not create category. It may already exist.');
+                            selectElement.value = '';
+                        }
+                    } catch (e) {
+                        alert('Network error while adding category.');
+                        selectElement.value = '';
+                    }
+                } else {
+                    selectElement.value = '';
+                }
+            }
+        }
+
+        async function saveProduct(event) {
+            event.preventDefault();
+            
+            const saveBtn = document.getElementById('saveProductBtn');
+            const alertBox = document.getElementById('modalAlert');
+            const editId = document.getElementById('addProductForm').dataset.editId;
+            const isEdit = editId && editId !== '';
+
+            const wholesalePrice = parseFloat(document.getElementById('prodWholesalePrice').value) || 0;
+            const wholesaleQty = parseInt(document.getElementById('prodWholesaleQty').value) || 0;
+
+            if (wholesalePrice > 0 && wholesaleQty <= 0) {
+                alertBox.className = 'p-3 rounded-lg text-sm font-medium bg-amber-100 text-amber-800 border border-amber-200';
+                alertBox.innerText = 'Minimum wholesale quantity must be greater than 0 when wholesale price is set.';
+                alertBox.classList.remove('hidden');
+                return;
+            }
+
+            const payload = {
+                id: isEdit ? parseInt(editId) : 0,
+                barcode: document.getElementById('prodSku').value.trim(),
+                name: document.getElementById('prodName').value.trim(),
+                category: document.getElementById('prodCategory').value.trim(),
+                cost_price: parseFloat(document.getElementById('prodBuyingPrice').value) || 0,
+                retail_price: parseFloat(document.getElementById('prodSellingPrice').value) || 0,
+                wholesale_price: wholesalePrice,
+                wholesale_min_qty: wholesaleQty,
+                stock_quantity: parseInt(document.getElementById('prodStockQty').value) || 0,
+                reorder_level: parseInt(document.getElementById('prodReorderLevel').value) || 5
+            };
+
+            const url = isEdit ? '/api/products/update' : '/api/products/create';
+            const method = isEdit ? 'PUT' : 'POST';
+
+            saveBtn.disabled = true;
+            saveBtn.innerText = 'Saving...';
+            alertBox.classList.add('hidden');
+
+            try {
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    alertBox.className = 'p-3 rounded-lg text-sm font-medium bg-green-100 text-green-800 border border-green-200';
+                    alertBox.innerText = 'Product "' + result.name + '" ' + (isEdit ? 'updated' : 'created') + ' successfully!';
+                    alertBox.classList.remove('hidden');
+
+                    document.getElementById('addProductForm').reset();
+                    await loadProducts();
+                    setTimeout(() => closeAddProductModal(), 1500);
+                } else {
+                    alertBox.className = 'p-3 rounded-lg text-sm font-medium bg-red-100 text-red-800 border border-red-200';
+                    alertBox.innerText = 'Error: ' + (result.error || 'Failed to ' + (isEdit ? 'update' : 'add') + ' product');
+                    alertBox.classList.remove('hidden');
+                }
+            } catch (error) {
+                alertBox.className = 'p-3 rounded-lg text-sm font-medium bg-red-100 text-red-800 border border-red-200';
+                alertBox.innerText = 'Network error. Please try again.';
+                alertBox.classList.remove('hidden');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.innerText = 'Save Product';
+                delete document.getElementById('addProductForm').dataset.editId;
+                document.querySelector('#addProductModal h3').innerHTML = '📦 Add New Stock Item';
+            }
+        }
+
+        // ============================================
+        // PRODUCT CATALOG
+        // ============================================
+        function openProductCatalogModal() {
+            document.getElementById('product-catalog-modal').classList.remove('hidden');
+            loadProducts();
+        }
+
+        function closeProductCatalogModal() {
+            document.getElementById('product-catalog-modal').classList.add('hidden');
+        }
+
+        async function loadProducts() {
+            const tbody = document.getElementById('product-catalog-rows');
+            if (!tbody) return;
+            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">Loading products...</td></tr>';
+
+            try {
+                const response = await fetch('/api/products');
+                if (!response.ok) throw new Error('Failed to load products');
+
+                const products = await response.json();
+                if (!products || products.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No products found.</td></tr>';
+                    return;
+                }
+
+                let html = '';
+                products.forEach(p => {
+                    const isLowStock = p.stock_quantity <= p.reorder_level;
+                    const stockBadge = isLowStock
+                        ? '<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">' + p.stock_quantity + ' (Low)</span>'
+                        : '<span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full">' + p.stock_quantity + '</span>';
+
+                    html += `<tr class="border-b hover:bg-purple-50/50 transition">
+                        <td class="p-3 font-mono text-xs text-gray-500 font-semibold">${p.barcode || 'N/A'}</td>
+                        <td class="p-3 font-semibold text-gray-900">${p.name}</td>
+                        <td class="p-3 text-gray-500 text-xs">${p.category || 'General'}</td>
+                        <td class="p-3 text-right font-mono font-bold text-purple-900">KES ${(p.retail_price ? p.retail_price.toFixed(2) : '0.00')}</td>
+                        <td class="p-3 text-right font-mono text-gray-700">KES ${(p.wholesale_price ? p.wholesale_price.toFixed(2) : '0.00')}</td>
+                        <td class="p-3 text-center">${stockBadge}</td>
+                        <td class="p-3 text-center"><button onclick='editProduct(${JSON.stringify(p)})' class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-lg transition">✏️ Edit</button></td>
+                    </tr>`;
+                });
+
+                tbody.innerHTML = html;
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-600 font-mono text-xs">⚠️ ' + err.message + '</td></tr>';
+            }
+        }
+
+        function editProduct(product) {
+            closeProductCatalogModal();
+            setTimeout(function() {
+                document.getElementById('prodSku').value = product.barcode || '';
+                document.getElementById('prodName').value = product.name || '';
+                document.getElementById('prodCategory').value = product.category || '';
+                document.getElementById('prodBuyingPrice').value = product.cost_price || 0;
+                document.getElementById('prodSellingPrice').value = product.retail_price || 0;
+                document.getElementById('prodWholesalePrice').value = product.wholesale_price || 0;
+                document.getElementById('prodWholesaleQty').value = product.wholesale_min_qty || 0;
+                document.getElementById('prodStockQty').value = product.stock_quantity || 0;
+                document.getElementById('prodReorderLevel').value = product.reorder_level || 5;
+
+                document.getElementById('addProductForm').dataset.editId = product.id;
+                document.querySelector('#addProductModal h3').innerHTML = '✏️ Edit Product';
+                document.getElementById('saveProductBtn').innerText = '💾 Update Product';
+                openAddProductModal();
+            }, 300);
+        }
+
+        // ============================================
+        // LOW STOCK ALERTS - WORKING
+        // ============================================
+        function openLowStockModal() {
+            document.getElementById('low-stock-modal').classList.remove('hidden');
+            document.getElementById('low-stock-content').innerHTML = '<p class="text-center text-gray-500 py-6">Loading stock status...</p>';
+            fetchLowStockData();
+        }
+
+        function closeLowStockModal() {
+            document.getElementById('low-stock-modal').classList.add('hidden');
+        }
+
+        async function fetchLowStockData() {
+            try {
+                const response = await fetch('/api/reports/low-stock?threshold=5');
+                const data = await response.json();
+                const container = document.getElementById('low-stock-content');
+                
+                if (!data || data.length === 0) {
+                    container.innerHTML = '<div class="text-center text-emerald-600 font-semibold py-6">🎉 All stock levels are healthy!</div>';
+                    return;
+                }
+
+                let html = `<table class="w-full text-left text-sm"><thead class="bg-gray-100 border-b"><tr>
+                    <th class="p-2">Product</th>
+                    <th class="p-2">Category</th>
+                    <th class="p-2 text-center">Stock</th>
+                    <th class="p-2 text-center">Reorder Level</th>
+                    <th class="p-2 text-right">Est. Restock Cost</th>
+                </tr></thead><tbody>`;
+                data.forEach(item => {
+                    const isCritical = item.stock_quantity === 0;
+                    const statusClass = isCritical ? 'text-red-600 font-bold' : 'text-amber-600 font-bold';
+                    html += `<tr class="border-b">
+                        <td class="p-2 font-semibold">${item.product_name}</td>
+                        <td class="p-2 text-gray-500">${item.category || 'General'}</td>
+                        <td class="p-2 text-center ${statusClass}">${item.stock_quantity}</td>
+                        <td class="p-2 text-center">${item.reorder_level}</td>
+                        <td class="p-2 text-right font-mono">KES ${(item.restock_cost || 0).toFixed(2)}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                
+                const totalRestock = data.reduce((sum, item) => sum + (item.restock_cost || 0), 0);
+                html += `<div class="bg-amber-50 border-t border-amber-200 p-3 mt-2">
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-amber-900">Total Restock Cost:</span>
+                        <span class="font-bold text-amber-900">KES ${totalRestock.toFixed(2)}</span>
+                    </div>
+                    <div class="text-xs text-amber-700 mt-1">${data.length} items need reordering</div>
+                </div>`;
+                
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = '<p class="text-center text-red-500 py-6">Error loading stock data</p>';
+                console.error('Low stock error:', err);
+            }
+        }
+
+        // ============================================
+        // OTHER FUNCTIONS (Placeholders)
+        // ============================================
         function openInventoryValuationModal() { alert('Inventory Valuation - Coming soon!'); }
         function openZReportModal() { alert('Z-Report - Coming soon!'); }
         function openProductReportModal() { alert('Product Report - Coming soon!'); }
@@ -714,14 +1072,9 @@
             updateShopDisplay();
             updateCartTotals();
             console.log('🕷️ Spide POS Ready!');
-            
-            // Test modal functions
-            console.log('📋 Recent Sales modal functions:');
-            console.log('  openRecentSalesModal:', typeof openRecentSalesModal);
-            console.log('  closeRecentSalesModal:', typeof closeRecentSalesModal);
-            console.log('  loadRecentSales:', typeof loadRecentSales);
-            console.log('  reprintReceipt:', typeof reprintReceipt);
         });
     </script>
 </body>
 </html>
+
+

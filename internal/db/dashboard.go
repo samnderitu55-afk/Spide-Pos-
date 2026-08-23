@@ -81,6 +81,7 @@ func getQuickStats(db *sql.DB, stats *DashboardStats) error {
             COUNT(*),
             COALESCE(SUM(stock_quantity * cost_price), 0)
         FROM products
+        WHERE is_active = 1
     `
     err := db.QueryRow(query).Scan(
         &stats.QuickStats.TotalProducts,
@@ -191,21 +192,38 @@ func getRecentSalesForDashboard(db *sql.DB, stats *DashboardStats) error {
 }
 
 func getLowStockForDashboard(db *sql.DB, stats *DashboardStats) error {
-    // Get low stock items directly
-    query := `
+    // Count low stock items
+    countQuery := `
+        SELECT COUNT(*)
+        FROM products p
+        LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = 1
+        WHERE p.is_active = 1 
+          AND COALESCE(ss.quantity, 0) <= p.reorder_level
+          AND COALESCE(ss.quantity, 0) >= 0
+    `
+    var count int
+    err := db.QueryRow(countQuery).Scan(&count)
+    if err != nil {
+        stats.LowStockItems = []LowStockReportItem{}
+        return nil
+    }
+
+    // Get the actual items
+    itemsQuery := `
         SELECT 
-            name as product_name,
-            category,
-            stock_quantity,
-            reorder_level,
-            cost_price,
-            (reorder_level - stock_quantity) * cost_price as restock_cost
-        FROM products
-        WHERE stock_quantity <= reorder_level
+            p.name as product_name,
+            p.category,
+            COALESCE(ss.quantity, 0) as stock_quantity,
+            p.reorder_level,
+            p.cost_price,
+            (p.reorder_level - COALESCE(ss.quantity, 0)) * p.cost_price as restock_cost
+        FROM products p
+        LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = 1
+        WHERE p.is_active = 1 AND COALESCE(ss.quantity, 0) <= p.reorder_level
         ORDER BY stock_quantity ASC
         LIMIT 10
     `
-    rows, err := db.Query(query)
+    rows, err := db.Query(itemsQuery)
     if err != nil {
         stats.LowStockItems = []LowStockReportItem{}
         return nil
@@ -234,5 +252,3 @@ func getLowStockForDashboard(db *sql.DB, stats *DashboardStats) error {
     stats.LowStockItems = items
     return nil
 }
-
-

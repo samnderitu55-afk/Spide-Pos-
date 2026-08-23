@@ -27,13 +27,21 @@ func GetProductByBarcode(db *sql.DB, barcode string, qty int) (*Product, error) 
 }
 
 func CreateProduct(db *sql.DB, p *Product) (int64, error) {
+    // Start a transaction
+    tx, err := db.Begin()
+    if err != nil {
+        return 0, fmt.Errorf("failed to begin transaction: %w", err)
+    }
+    defer tx.Rollback()
+
+    // Insert into products table
     query := `
         INSERT INTO products 
         (barcode, name, category, cost_price, retail_price, wholesale_price, 
          wholesale_min_qty, reorder_level, is_active, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())
     `
-    result, err := db.Exec(query,
+    result, err := tx.Exec(query,
         p.Barcode, p.Name, p.Category,
         p.CostPrice, p.RetailPrice, p.WholesalePrice,
         p.WholesaleMinQty, p.ReorderLevel,
@@ -47,20 +55,33 @@ func CreateProduct(db *sql.DB, p *Product) (int64, error) {
         return 0, fmt.Errorf("failed to get product ID: %w", err)
     }
 
-    // Also create shop_stock entries for all shops
+    // Insert into shop_stock for all active branches
     shopQuery := `
-        INSERT INTO shop_stock (shop_id, product_id, quantity) 
-        SELECT id, ?, 0 FROM branches WHERE is_active = 1
+        INSERT INTO shop_stock (shop_id, product_id, quantity, created_at, updated_at)
+        SELECT id, ?, ?, NOW(), NOW() FROM branches WHERE is_active = 1
     `
-    _, err = db.Exec(shopQuery, id)
+    _, err = tx.Exec(shopQuery, id, p.StockQuantity)
     if err != nil {
         return 0, fmt.Errorf("failed to create shop stock: %w", err)
+    }
+
+    // Commit transaction
+    if err := tx.Commit(); err != nil {
+        return 0, fmt.Errorf("failed to commit transaction: %w", err)
     }
 
     return id, nil
 }
 
 func UpdateProduct(db *sql.DB, p *Product) error {
+    // Start a transaction
+    tx, err := db.Begin()
+    if err != nil {
+        return fmt.Errorf("failed to begin transaction: %w", err)
+    }
+    defer tx.Rollback()
+
+    // Update products table
     query := `
         UPDATE products 
         SET barcode = ?, name = ?, category = ?, cost_price = ?, retail_price = ?,
@@ -68,13 +89,33 @@ func UpdateProduct(db *sql.DB, p *Product) error {
             updated_at = NOW()
         WHERE id = ?
     `
-    _, err := db.Exec(query,
+    _, err = tx.Exec(query,
         p.Barcode, p.Name, p.Category,
         p.CostPrice, p.RetailPrice, p.WholesalePrice,
         p.WholesaleMinQty, p.ReorderLevel,
         p.ID,
     )
-    return err
+    if err != nil {
+        return fmt.Errorf("failed to update product: %w", err)
+    }
+
+    // Update stock in shop_stock for the current shop
+    stockQuery := `
+        UPDATE shop_stock 
+        SET quantity = ?, updated_at = NOW()
+        WHERE shop_id = 1 AND product_id = ?
+    `
+    _, err = tx.Exec(stockQuery, p.StockQuantity, p.ID)
+    if err != nil {
+        return fmt.Errorf("failed to update stock: %w", err)
+    }
+
+    // Commit transaction
+    if err := tx.Commit(); err != nil {
+        return fmt.Errorf("failed to commit transaction: %w", err)
+    }
+
+    return nil
 }
 
 func GetAllProducts(db *sql.DB) ([]Product, error) {

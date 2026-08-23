@@ -1,24 +1,38 @@
 ﻿package handlers
 
 import (
-    "database/sql"
     "encoding/json"
     "net/http"
     "strconv"
     "spide-pos/internal/db"
+    "spide-pos/internal/middleware"
 )
 
+type LowStockItem struct {
+    ProductName   string  `json:"product_name"`
+    Category      string  `json:"category"`
+    StockQuantity int     `json:"stock_quantity"`
+    ReorderLevel  int     `json:"reorder_level"`
+    CostPrice     float64 `json:"cost_price"`
+    RestockCost   float64 `json:"restock_cost"`
+}
+
+// ZReportHandler - Daily Z-Report
 func ZReportHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     
-    username := GetUsernameFromCookie(r)
-    if username == "" {
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
         http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
         return
     }
     
     dateParam := r.URL.Query().Get("date")
-    shopID := 1 // Default shop
+    shopID := claims.ShopID
+    if shopID == 0 {
+        shopID = 1
+    }
+    
     report, err := db.GetDailyZReportWithExpenses(db.GetDB(), dateParam, shopID)
     if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -27,18 +41,23 @@ func ZReportHandler(w http.ResponseWriter, r *http.Request) {
     json.NewEncoder(w).Encode(report)
 }
 
+// ProductSalesReportHandler - Product Sales Report
 func ProductSalesReportHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     
-    username := GetUsernameFromCookie(r)
-    if username == "" {
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
         http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
         return
     }
     
     startDate := r.URL.Query().Get("start")
     endDate := r.URL.Query().Get("end")
-    shopID := 1 // Default shop
+    shopID := claims.ShopID
+    if shopID == 0 {
+        shopID = 1
+    }
+    
     report, err := db.GetProductSalesReport(db.GetDB(), startDate, endDate, shopID)
     if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -47,15 +66,15 @@ func ProductSalesReportHandler(w http.ResponseWriter, r *http.Request) {
     if report == nil {
         report = []db.ProductSalesReportItem{}
     }
-    w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(report)
 }
 
+// LowStockReportHandler - Low Stock Alerts
 func LowStockReportHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     
-    username := GetUsernameFromCookie(r)
-    if username == "" {
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
         http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
         return
     }
@@ -68,142 +87,85 @@ func LowStockReportHandler(w http.ResponseWriter, r *http.Request) {
         }
     }
     
-    report, err := getLowStockReport(db.GetDB(), threshold)
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
+    shopID := claims.ShopID
+    if shopID == 0 {
+        shopID = 1
     }
-    if report == nil {
-        report = []LowStockItem{}
-    }
-    w.Header().Set("Content-Type", "application/json")
-    json.NewEncoder(w).Encode(report)
-}
-
-type LowStockItem struct {
-    ProductName   string  `json:"product_name"`
-    Category      string  `json:"category"`
-    StockQuantity int     `json:"stock_quantity"`
-    ReorderLevel  int     `json:"reorder_level"`
-    CostPrice     float64 `json:"cost_price"`
-    RestockCost   float64 `json:"restock_cost"`
-}
-
-func getLowStockReport(db *sql.DB, threshold int) ([]LowStockItem, error) {
+    
     query := `
         SELECT 
-            name as product_name,
-            category,
-            stock_quantity,
-            reorder_level,
-            cost_price,
-            (reorder_level - stock_quantity) * cost_price as restock_cost
-        FROM products
-        WHERE stock_quantity <= ?
-        ORDER BY stock_quantity ASC
+            p.name,
+            p.category,
+            COALESCE(ss.quantity, 0) as stock_qty,
+            p.reorder_level,
+            p.cost_price,
+            (p.reorder_level - COALESCE(ss.quantity, 0)) * p.cost_price as restock_cost
+        FROM products p
+        LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ?
+        WHERE p.is_active = 1 
+          AND COALESCE(ss.quantity, 0) <= ?
+        ORDER BY stock_qty ASC
+        LIMIT 50
     `
-    rows, err := db.Query(query, threshold)
+    
+    rows, err := db.GetDB().Query(query, shopID, threshold)
     if err != nil {
-        return nil, err
+        http.Error(w, `{"error":"Database error: `+err.Error()+`"}`, http.StatusInternalServerError)
+        return
     }
     defer rows.Close()
-
+    
     var items []LowStockItem
     for rows.Next() {
         var item LowStockItem
         err := rows.Scan(
-            &item.ProductName, &item.Category,
-            &item.StockQuantity, &item.ReorderLevel,
-            &item.CostPrice, &item.RestockCost,
+            &item.ProductName,
+            &item.Category,
+            &item.StockQuantity,
+            &item.ReorderLevel,
+            &item.CostPrice,
+            &item.RestockCost,
         )
         if err != nil {
-            return nil, err
+            continue
         }
         items = append(items, item)
     }
-
-    if err := rows.Err(); err != nil {
-        return nil, err
+    
+    if items == nil {
+        items = []LowStockItem{}
     }
-
-    return items, nil
+    
+    json.NewEncoder(w).Encode(items)
 }
 
+// InventoryValuationHandler - Inventory Valuation Report
 func InventoryValuationHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     
-    username := GetUsernameFromCookie(r)
-    if username == "" {
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
         http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
         return
     }
     
-    report, err := getInventoryValuationReport(db.GetDB())
+    report, err := db.GetInventoryValuationReport(db.GetDB())
     if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
         return
     }
     if report == nil {
-        report = []InventoryValuationItem{}
+        report = []db.InventoryValuationItem{}
     }
-    w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(report)
 }
 
-type InventoryValuationItem struct {
-    Category        string  `json:"category"`
-    TotalItems      int     `json:"total_items"`
-    TotalQuantity   int     `json:"total_quantity"`
-    TotalCost       float64 `json:"total_cost"`
-    TotalRetail     float64 `json:"total_retail"`
-    PotentialProfit float64 `json:"potential_profit"`
-}
-
-func getInventoryValuationReport(db *sql.DB) ([]InventoryValuationItem, error) {
-    query := `
-        SELECT 
-            category,
-            COUNT(*) as total_items,
-            SUM(stock_quantity) as total_quantity,
-            SUM(stock_quantity * cost_price) as total_cost,
-            SUM(stock_quantity * retail_price) as total_retail,
-            SUM(stock_quantity * (retail_price - cost_price)) as potential_profit
-        FROM products
-        WHERE stock_quantity > 0
-        GROUP BY category
-        ORDER BY total_cost DESC
-    `
-    rows, err := db.Query(query)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
-
-    var items []InventoryValuationItem
-    for rows.Next() {
-        var item InventoryValuationItem
-        err := rows.Scan(
-            &item.Category, &item.TotalItems, &item.TotalQuantity,
-            &item.TotalCost, &item.TotalRetail, &item.PotentialProfit,
-        )
-        if err != nil {
-            return nil, err
-        }
-        items = append(items, item)
-    }
-
-    if err := rows.Err(); err != nil {
-        return nil, err
-    }
-
-    return items, nil
-}
-
+// CategoryDrilldownHandler - Category Drilldown for Valuation
 func CategoryDrilldownHandler(w http.ResponseWriter, r *http.Request) {
     w.Header().Set("Content-Type", "application/json")
     
-    username := GetUsernameFromCookie(r)
-    if username == "" {
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
         http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
         return
     }
@@ -213,57 +175,20 @@ func CategoryDrilldownHandler(w http.ResponseWriter, r *http.Request) {
         http.Error(w, "Category parameter is required", http.StatusBadRequest)
         return
     }
-    details, err := getCategoryValuationDetails(db.GetDB(), category)
+    
+    details, err := db.GetCategoryValuationDetails(db.GetDB(), category)
     if err != nil {
         http.Error(w, err.Error(), http.StatusInternalServerError)
         return
     }
     if details == nil {
-        details = []CategoryProductDetail{}
+        details = []struct {
+            ProductName string  `json:"product_name"`
+            InStock     int     `json:"in_stock"`
+            CostPrice   float64 `json:"cost_price"`
+            RetailPrice float64 `json:"retail_price"`
+            TotalCost   float64 `json:"total_cost"`
+        }{}
     }
-    w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(details)
 }
-
-type CategoryProductDetail struct {
-    ProductName string  `json:"product_name"`
-    InStock     int     `json:"in_stock"`
-    CostPrice   float64 `json:"cost_price"`
-    RetailPrice float64 `json:"retail_price"`
-    TotalCost   float64 `json:"total_cost"`
-}
-
-func getCategoryValuationDetails(db *sql.DB, category string) ([]CategoryProductDetail, error) {
-    query := `
-        SELECT name, stock_quantity, cost_price, retail_price, 
-               stock_quantity * cost_price as total_cost
-        FROM products
-        WHERE category = ? AND stock_quantity > 0
-        ORDER BY name ASC
-    `
-    rows, err := db.Query(query, category)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
-
-    var details []CategoryProductDetail
-    for rows.Next() {
-        var d CategoryProductDetail
-        err := rows.Scan(&d.ProductName, &d.InStock, &d.CostPrice, &d.RetailPrice, &d.TotalCost)
-        if err != nil {
-            return nil, err
-        }
-        details = append(details, d)
-    }
-
-    if err := rows.Err(); err != nil {
-        return nil, err
-    }
-
-    return details, nil
-}
-
-
-
-

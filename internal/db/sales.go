@@ -12,9 +12,13 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
     }
     defer tx.Rollback()
 
-    // Set default shop_id if not provided
     if req.ShopID == 0 {
         req.ShopID = 1
+    }
+
+    var calculatedTotal float64
+    for _, item := range req.Items {
+        calculatedTotal += item.Subtotal
     }
 
     saleQuery := `
@@ -23,7 +27,7 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
         VALUES (?, ?, ?, ?, ?, ?, NOW())
     `
     result, err := tx.Exec(saleQuery,
-        req.TotalAmount, req.CashAmount, req.MpesaAmount,
+        calculatedTotal, req.CashAmount, req.MpesaAmount,
         req.MpesaCode, req.PaymentType, req.ShopID,
     )
     if err != nil {
@@ -36,7 +40,6 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
     }
 
     for _, item := range req.Items {
-        // Insert sale item
         itemQuery := `
             INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
             VALUES (?, ?, ?, ?, ?)
@@ -46,21 +49,14 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
             return 0, fmt.Errorf("failed to insert sale item: %w", err)
         }
 
-        // Update shop_stock (not products!)
         stockQuery := `
             UPDATE shop_stock 
             SET quantity = quantity - ?, updated_at = NOW()
             WHERE shop_id = ? AND product_id = ? AND quantity >= ?
         `
-        result, err := tx.Exec(stockQuery, item.Quantity, req.ShopID, item.ProductID, item.Quantity)
+        _, err = tx.Exec(stockQuery, item.Quantity, req.ShopID, item.ProductID, item.Quantity)
         if err != nil {
             return 0, fmt.Errorf("failed to update shop stock: %w", err)
-        }
-
-        // Check if stock was updated
-        rowsAffected, _ := result.RowsAffected()
-        if rowsAffected == 0 {
-            return 0, fmt.Errorf("insufficient stock for product %d in shop %d", item.ProductID, req.ShopID)
         }
     }
 
@@ -69,51 +65,6 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
     }
 
     return saleID, nil
-}
-
-// GetRecentSalesForShop - filter by shop_id
-func GetRecentSalesForShop(db *sql.DB, shopID int, limit int) ([]Sale, error) {
-    query := `
-        SELECT id, total_amount, cash_amount, mpesa_amount, mpesa_code, 
-               payment_type, shop_id, created_at
-        FROM sales
-        WHERE shop_id = ?
-        ORDER BY id DESC
-        LIMIT ?
-    `
-    rows, err := db.Query(query, shopID, limit)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
-
-    var sales []Sale
-    for rows.Next() {
-        var s Sale
-        err := rows.Scan(
-            &s.ID, &s.TotalAmount, &s.CashAmount, &s.MpesaAmount,
-            &s.MpesaCode, &s.PaymentType, &s.ShopID, &s.CreatedAt,
-        )
-        if err != nil {
-            return nil, err
-        }
-        sales = append(sales, s)
-    }
-
-    if err := rows.Err(); err != nil {
-        return nil, fmt.Errorf("error iterating sales: %w", err)
-    }
-
-    // Get items for each sale
-    for i := range sales {
-        items, err := getSaleItems(db, sales[i].ID)
-        if err != nil {
-            continue
-        }
-        sales[i].Items = items
-    }
-
-    return sales, nil
 }
 
 func GetRecentSales(db *sql.DB, limit int) ([]Sale, error) {
@@ -148,6 +99,49 @@ func GetRecentSales(db *sql.DB, limit int) ([]Sale, error) {
     }
 
     // Get items for each sale
+    for i := range sales {
+        items, err := getSaleItems(db, sales[i].ID)
+        if err != nil {
+            continue
+        }
+        sales[i].Items = items
+    }
+
+    return sales, nil
+}
+
+func GetRecentSalesForShop(db *sql.DB, shopID int, limit int) ([]Sale, error) {
+    query := `
+        SELECT id, total_amount, cash_amount, mpesa_amount, mpesa_code, 
+               payment_type, shop_id, created_at
+        FROM sales
+        WHERE shop_id = ?
+        ORDER BY id DESC
+        LIMIT ?
+    `
+    rows, err := db.Query(query, shopID, limit)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var sales []Sale
+    for rows.Next() {
+        var s Sale
+        err := rows.Scan(
+            &s.ID, &s.TotalAmount, &s.CashAmount, &s.MpesaAmount,
+            &s.MpesaCode, &s.PaymentType, &s.ShopID, &s.CreatedAt,
+        )
+        if err != nil {
+            return nil, err
+        }
+        sales = append(sales, s)
+    }
+
+    if err := rows.Err(); err != nil {
+        return nil, fmt.Errorf("error iterating sales: %w", err)
+    }
+
     for i := range sales {
         items, err := getSaleItems(db, sales[i].ID)
         if err != nil {

@@ -110,6 +110,9 @@ func main() {
     mux.HandleFunc("/api/categories", middleware.AuthMiddleware(handlers.GetCategoriesHandler))
     mux.HandleFunc("/api/categories/create", middleware.AuthMiddleware(handlers.CreateCategoryHandler))
 
+        // Director Dashboard
+    mux.HandleFunc("/api/director/dashboard", middleware.AuthMiddleware(handlers.DirectorDashboardHandler))
+
     // User management (protected - director only)
     mux.HandleFunc("/api/users", middleware.AuthMiddleware(handlers.GetUsersHandler))
     mux.HandleFunc("/api/users/create", middleware.AuthMiddleware(handlers.CreateUserHandler))
@@ -158,3 +161,5 @@ func getEnv(key, defaultValue string) string {
     }
     return defaultValue
 }
+
+

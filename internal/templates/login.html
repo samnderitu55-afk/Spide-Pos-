@@ -31,8 +31,20 @@
             transition: all 0.3s;
         }
         .login-btn:hover { transform: scale(1.02); box-shadow: 0 10px 25px -5px rgba(124,58,237,0.4); }
-        .login-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .hidden { display: none; }
+        .success { color: #059669; background: #d1fae5; border: 1px solid #34d399; }
+        .error { color: #dc2626; background: #fee2e2; border: 1px solid #f87171; }
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 0.8s ease-in-out infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
 <body>
@@ -42,6 +54,10 @@
                 <img src="/favicon.ico" alt="Spide POS" class="w-20 h-20 mx-auto mb-2" onerror="this.style.display='none'; this.outerHTML='<span class=\'spide-logo\'>🕷️</span>'">
                 <h1 class="text-3xl font-bold text-gray-800">Spide POS</h1>
                 <p class="text-sm text-gray-500 mt-1">Point of Sale System</p>
+            </div>
+
+            <div id="message-container">
+                <div id="message" class="hidden p-3 rounded-xl text-sm font-medium"></div>
             </div>
 
             <form id="loginForm" class="mt-8 space-y-5" onsubmit="handleLogin(event)">
@@ -57,66 +73,49 @@
                            class="input-field w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition">
                 </div>
 
-                <div id="error-message" class="hidden text-sm text-red-600 bg-red-50 p-3 rounded-xl border border-red-200"></div>
-                <div id="success-message" class="hidden text-sm text-emerald-600 bg-emerald-50 p-3 rounded-xl border border-emerald-200"></div>
-
-                <button type="submit" id="loginBtn" class="login-btn w-full text-white font-bold py-3 rounded-xl text-lg transition">
+                <button type="submit" id="loginBtn" class="login-btn w-full text-white font-bold py-3 rounded-xl text-lg transition flex items-center justify-center gap-2">
                     🚀 Login
                 </button>
-
-                <div class="text-center text-xs text-gray-400 mt-4">
-                    <p>Demo: admin / admin123</p>
-                </div>
             </form>
+
+            <div class="text-center text-xs text-gray-400 mt-4">
+                <p>Demo: admin / admin123</p>
+            </div>
         </div>
     </div>
 
     <script>
+        function showMessage(text, type) {
+            const msg = document.getElementById('message');
+            msg.textContent = text;
+            msg.className = 'p-3 rounded-xl text-sm font-medium ' + type;
+            msg.classList.remove('hidden');
+        }
+
+        function hideMessage() {
+            document.getElementById('message').classList.add('hidden');
+        }
+
         document.addEventListener('DOMContentLoaded', function() {
-            // Check for token in cookie
-            const token = getCookie('spide_token');
-            if (token) {
-                window.location.href = '/';
-            }
             document.getElementById('username').focus();
         });
-
-        function getCookie(name) {
-            const value = `; ${document.cookie}`;
-            const parts = value.split(`; ${name}=`);
-            if (parts.length === 2) return parts.pop().split(';').shift();
-        }
-
-        function setCookie(name, value, days) {
-            const expires = new Date();
-            expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
-            document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
-        }
-
-        function deleteCookie(name) {
-            document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 UTC;path=/`;
-        }
 
         async function handleLogin(event) {
             event.preventDefault();
             
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value.trim();
-            const errorDiv = document.getElementById('error-message');
-            const successDiv = document.getElementById('success-message');
             const loginBtn = document.getElementById('loginBtn');
 
-            errorDiv.classList.add('hidden');
-            successDiv.classList.add('hidden');
+            hideMessage();
 
             if (!username || !password) {
-                errorDiv.textContent = '❌ Please enter both username and password';
-                errorDiv.classList.remove('hidden');
+                showMessage('❌ Please enter both username and password', 'error');
                 return;
             }
 
             loginBtn.disabled = true;
-            loginBtn.textContent = '⏳ Logging in...';
+            loginBtn.innerHTML = '<span class="spinner"></span> Logging in...';
 
             try {
                 const response = await fetch('/api/login', {
@@ -128,29 +127,31 @@
                 const data = await response.json();
 
                 if (response.ok && data.success) {
-                    // Set cookie instead of localStorage
-                    setCookie('spide_token', data.token, 1);
-                    setCookie('spide_user', JSON.stringify(data.user), 1);
-                    setCookie('currentShopId', data.user.shop_id || 1, 1);
-                    setCookie('currentShopName', data.user.shop_name || 'Store #1 - Main', 1);
+                    // Save to localStorage
+                    localStorage.setItem('spide_token', data.token);
+                    localStorage.setItem('spide_user', JSON.stringify(data.user));
+                    localStorage.setItem('currentShopId', data.user.shop_id || 1);
+                    localStorage.setItem('currentShopName', data.user.shop_name || 'Store #1 - Main');
                     
-                    successDiv.textContent = '✅ Login successful! Redirecting...';
-                    successDiv.classList.remove('hidden');
+                    showMessage('✅ Login successful! Redirecting...', 'success');
                     
+                    // Redirect based on role
                     setTimeout(function() {
-                        window.location.href = data.user.role === 'director' ? '/director' : '/';
+                        if (data.user.role === 'director' || data.user.role === 'admin') {
+                            window.location.href = '/director';
+                        } else {
+                            window.location.href = '/';
+                        }
                     }, 500);
                 } else {
-                    errorDiv.textContent = '❌ ' + (data.error || 'Invalid username or password');
-                    errorDiv.classList.remove('hidden');
+                    showMessage('❌ ' + (data.error || 'Invalid username or password'), 'error');
                     loginBtn.disabled = false;
-                    loginBtn.textContent = '🚀 Login';
+                    loginBtn.innerHTML = '🚀 Login';
                 }
             } catch (error) {
-                errorDiv.textContent = '❌ Network error. Please try again.';
-                errorDiv.classList.remove('hidden');
+                showMessage('❌ Network error. Please try again.', 'error');
                 loginBtn.disabled = false;
-                loginBtn.textContent = '🚀 Login';
+                loginBtn.innerHTML = '🚀 Login';
                 console.error('Login error:', error);
             }
         }

@@ -142,6 +142,93 @@ func GetProductSalesReport(db *sql.DB, startDate, endDate string, shopID int) ([
     return items, nil
 }
 
-// ... rest of functions remain the same ...
+// GetInventoryValuationReport - returns inventory valuation by category
+func GetInventoryValuationReport(db *sql.DB) ([]InventoryValuationItem, error) {
+    query := `
+        SELECT 
+            category,
+            COUNT(*) as total_items,
+            SUM(stock_quantity) as total_quantity,
+            SUM(stock_quantity * cost_price) as total_cost,
+            SUM(stock_quantity * retail_price) as total_retail,
+            SUM(stock_quantity * (retail_price - cost_price)) as potential_profit
+        FROM products
+        WHERE is_active = 1 AND stock_quantity > 0
+        GROUP BY category
+        ORDER BY total_cost DESC
+    `
+    rows, err := db.Query(query)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
 
+    var items []InventoryValuationItem
+    for rows.Next() {
+        var item InventoryValuationItem
+        err := rows.Scan(
+            &item.Category, &item.TotalItems, &item.TotalQuantity,
+            &item.TotalCost, &item.TotalRetail, &item.PotentialProfit,
+        )
+        if err != nil {
+            return nil, err
+        }
+        items = append(items, item)
+    }
 
+    if err := rows.Err(); err != nil {
+        return nil, fmt.Errorf("error iterating inventory valuation: %w", err)
+    }
+
+    return items, nil
+}
+
+// GetCategoryValuationDetails - returns detailed product list for a category
+func GetCategoryValuationDetails(db *sql.DB, category string) ([]struct {
+    ProductName string  `json:"product_name"`
+    InStock     int     `json:"in_stock"`
+    CostPrice   float64 `json:"cost_price"`
+    RetailPrice float64 `json:"retail_price"`
+    TotalCost   float64 `json:"total_cost"`
+}, error) {
+    query := `
+        SELECT name, stock_quantity, cost_price, retail_price, 
+               stock_quantity * cost_price as total_cost
+        FROM products
+        WHERE is_active = 1 AND category = ? AND stock_quantity > 0
+        ORDER BY name ASC
+    `
+    rows, err := db.Query(query, category)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var details []struct {
+        ProductName string  `json:"product_name"`
+        InStock     int     `json:"in_stock"`
+        CostPrice   float64 `json:"cost_price"`
+        RetailPrice float64 `json:"retail_price"`
+        TotalCost   float64 `json:"total_cost"`
+    }
+    for rows.Next() {
+        var d struct {
+            ProductName string  `json:"product_name"`
+            InStock     int     `json:"in_stock"`
+            CostPrice   float64 `json:"cost_price"`
+            RetailPrice float64 `json:"retail_price"`
+            TotalCost   float64 `json:"total_cost"`
+        }
+        err := rows.Scan(&d.ProductName, &d.InStock, &d.CostPrice, &d.RetailPrice, &d.TotalCost)
+        if err != nil {
+            return nil, err
+        }
+        details = append(details, d)
+    }
+
+    if err := rows.Err(); err != nil {
+        return nil, fmt.Errorf("error iterating category details: %w", err)
+    }
+
+    return details, nil
+}
