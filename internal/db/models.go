@@ -192,6 +192,12 @@ type Purchase struct {
     Notes          string  `json:"notes"`
     CreatedBy      string  `json:"created_by"`
     CreatedAt      string  `json:"created_at"`
+    ShopID         int     `json:"shop_id"`
+    Items          []struct {
+        ProductID int     `json:"product_id"`
+        Quantity  int     `json:"quantity"`
+        CostPrice float64 `json:"cost_price"`
+    } `json:"items,omitempty"`
 }
 
 type Supplier struct {
@@ -249,6 +255,7 @@ type DashboardStats struct {
     RecentSales   []Sale               `json:"recent_sales"`
     LowStockItems []LowStockReportItem `json:"low_stock_items"`
 }
+
 
 
 

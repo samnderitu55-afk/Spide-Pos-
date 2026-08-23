@@ -90,15 +90,16 @@
                 </div>
             </div>
             <div class="group relative">
-                <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">📦 Purchases ▾</button>
-                <div class="dropdown-menu">
-                    <a href="#" onclick="openPurchaseModal()" class="block px-4 py-2.5 text-sm font-semibold text-purple-900 hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition">➕ New Purchase</a>
-                    <a href="#" onclick="openSuppliersModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">👥 Manage Suppliers</a>
-                </div>
+                    <button class="bg-purple-800 hover:bg-purple-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition">📦 Purchases ▾</button>
+                    <div class="dropdown-menu">
+                      <a href="#" onclick="openPurchaseModal()" class="block px-3 py-1.5 text-xs font-semibold text-purple-900 hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition">➕ New Purchase</a>
+                      <a href="#" onclick="openPurchaseReportModal()" class="block px-3 py-1.5 text-xs hover:bg-purple-50 hover:text-purple-700 transition">📊 Purchase Report</a>
+                      <a href="#" onclick="openSupplierModal()" class="block px-3 py-1.5 text-xs hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">👥 Manage Suppliers</a>
+                    </div>
+                    </div>
+                    <a href="/" class="bg-purple-700 hover:bg-purple-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">📊 Dashboard</a>
+                    <a href="/director" class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">📊 Director</a>
             </div>
-            <a href="/" class="bg-purple-700 hover:bg-purple-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">📊 Dashboard</a>
-            <a href="/director" class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">📊 Director</a>
-        </div>
     </header>
 
     <!-- MAIN POS CONTENT -->
@@ -2209,12 +2210,628 @@ function renderTransferDetail(transfer) {
     });
     tbody.innerHTML = html;
 } 
+
+// ============================================
+// PURCHASES & SUPPLIERS
+// ============================================
+let purchaseItems = [];
+let purchaseSearchResults = [];
+let purchaseSelectedIndex = -1;
+let purchaseSearchTimeout = null;
+
+function openPurchaseModal() {
+    document.getElementById('purchase-modal').classList.remove('hidden');
+    document.getElementById('purchase-date').value = new Date().toISOString().split('T')[0];
+    purchaseItems = [];
+    document.getElementById('purchase-items-list').innerHTML = '<p class="text-xs text-gray-400 text-center py-2">No items added</p>';
+    document.getElementById('purchase-alert').classList.add('hidden');
+    document.getElementById('purchase-product-search').value = '';
+    loadSuppliers();
+}
+
+function closePurchaseModal() {
+    document.getElementById('purchase-modal').classList.add('hidden');
+}
+
+async function loadSuppliers() {
+    try {
+        console.log('Loading suppliers...');
+        const token = getCookie('spide_token');
+        console.log('Token:', token ? 'Found' : 'Not found');
+        
+        if (!token) {
+            console.error('No token found');
+            return;
+        }
+        
+        const response = await fetch('/api/suppliers', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error response:', errorText);
+            throw new Error('Failed to load suppliers: ' + response.status);
+        }
+        
+        const suppliers = await response.json();
+        console.log('Suppliers loaded:', suppliers);
+        
+        const select = document.getElementById('purchase-supplier');
+        if (!select) {
+            console.error('Supplier select element not found!');
+            return;
+        }
+        
+        select.innerHTML = '<option value="">Select Supplier</option>';
+        if (suppliers && suppliers.length > 0) {
+            suppliers.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name;
+                select.appendChild(opt);
+            });
+            console.log('✅ Suppliers loaded:', suppliers.length);
+        } else {
+            console.log('No suppliers found');
+            select.innerHTML = '<option value="">No suppliers available</option>';
+        }
+    } catch(e) {
+        console.error('Error loading suppliers:', e);
+        const select = document.getElementById('purchase-supplier');
+        if (select) {
+            select.innerHTML = '<option value="">Error loading suppliers</option>';
+        }
+    }
+}
+
+// Search products for purchase
+function handlePurchaseSearch(query) {
+    clearTimeout(purchaseSearchTimeout);
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+        document.getElementById('purchase-search-results').classList.add('hidden');
+        return;
+    }
+    purchaseSearchTimeout = setTimeout(() => {
+        fetchPurchaseSearchResults(trimmed);
+    }, 300);
+}
+
+async function fetchPurchaseSearchResults(query) {
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/products/search?q=' + encodeURIComponent(query), {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) return;
+        purchaseSearchResults = await response.json();
+        renderPurchaseSearchResults(purchaseSearchResults);
+    } catch(err) {
+        console.error('Search error:', err);
+    }
+}
+
+function renderPurchaseSearchResults(items) {
+    const dropdown = document.getElementById('purchase-search-results');
+    purchaseSelectedIndex = -1;
+    
+    if (!items || items.length === 0) {
+        dropdown.innerHTML = '<div class="p-3 text-center text-sm text-gray-500">No products found</div>';
+        dropdown.classList.remove('hidden');
+        return;
+    }
+    
+    let html = '';
+    items.forEach((item, index) => {
+        html += `<div id="purchase-search-item-${index}" 
+                      onclick="selectPurchaseSearchResult(${index})"
+                      class="p-3 hover:bg-emerald-50 cursor-pointer flex justify-between items-center transition border-b last:border-b-0">
+            <div>
+                <div class="font-bold text-gray-900 text-sm">${item.name}</div>
+                <div class="text-xs text-gray-500">
+                    ${item.barcode ? '📱 ' + item.barcode : ''} 
+                    ${item.category ? ' • ' + item.category : ''}
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="font-bold text-emerald-700 text-sm">KES ${(item.retail_price || 0).toFixed(2)}</div>
+                <span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">Add</span>
+            </div>
+        </div>`;
+    });
+    dropdown.innerHTML = html;
+    dropdown.classList.remove('hidden');
+}
+
+function handlePurchaseSearchKeydown(e) {
+    const dropdown = document.getElementById('purchase-search-results');
+    const isVisible = !dropdown.classList.contains('hidden');
+    if (!isVisible || purchaseSearchResults.length === 0) return;
+    
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (purchaseSelectedIndex < purchaseSearchResults.length - 1) {
+            purchaseSelectedIndex++;
+            updatePurchaseSearchHighlight();
+        }
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (purchaseSelectedIndex > 0) {
+            purchaseSelectedIndex--;
+            updatePurchaseSearchHighlight();
+        }
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (purchaseSelectedIndex >= 0 && purchaseSelectedIndex < purchaseSearchResults.length) {
+            selectPurchaseSearchResult(purchaseSelectedIndex);
+        }
+    } else if (e.key === 'Escape') {
+        document.getElementById('purchase-search-results').classList.add('hidden');
+    }
+}
+
+function updatePurchaseSearchHighlight() {
+    purchaseSearchResults.forEach((_, index) => {
+        const el = document.getElementById('purchase-search-item-' + index);
+        if (el) {
+            if (index === purchaseSelectedIndex) {
+                el.classList.add('bg-emerald-100');
+            } else {
+                el.classList.remove('bg-emerald-100');
+            }
+        }
+    });
+}
+
+function selectPurchaseSearchResult(index) {
+    const product = purchaseSearchResults[index];
+    if (!product) return;
+    
+    document.getElementById('purchase-product-search').value = product.name;
+    document.getElementById('purchase-search-results').classList.add('hidden');
+    document.getElementById('purchase-product-search').dataset.productId = product.id;
+    document.getElementById('purchase-product-search').dataset.productName = product.name;
+    document.getElementById('purchase-product-search').dataset.barcode = product.barcode || '';
+    document.getElementById('purchase-product-search').dataset.costPrice = product.cost_price || 0;
+    document.getElementById('purchase-product-search').dataset.retailPrice = product.retail_price || 0;
+    
+    // Auto-fill cost price
+    document.getElementById('purchase-cost').value = product.cost_price || 0;
+}
+
+function addPurchaseItem() {
+    const searchInput = document.getElementById('purchase-product-search');
+    const qtyInput = document.getElementById('purchase-qty');
+    const costInput = document.getElementById('purchase-cost');
+    
+    const productName = searchInput.value.trim();
+    const productId = parseInt(searchInput.dataset.productId) || 0;
+    const barcode = searchInput.dataset.barcode || '';
+    const qty = parseInt(qtyInput.value) || 1;
+    const costPrice = parseFloat(costInput.value) || 0;
+    
+    if (!productName) {
+        alert('Please search and select a product first');
+        return;
+    }
+    
+    if (qty <= 0) {
+        alert('Quantity must be greater than 0');
+        return;
+    }
+    
+    if (costPrice <= 0) {
+        alert('Cost price must be greater than 0');
+        return;
+    }
+    
+    // Check if product already in list
+    const existing = purchaseItems.find(item => item.product_id === productId);
+    if (existing) {
+        existing.quantity += qty;
+        // Weighted average cost
+        existing.cost_price = (existing.cost_price * existing.quantity + costPrice * qty) / (existing.quantity + qty);
+    } else {
+        purchaseItems.push({
+            product_id: productId,
+            name: productName,
+            barcode: barcode,
+            quantity: qty,
+            cost_price: costPrice
+        });
+    }
+    
+    renderPurchaseItems();
+    searchInput.value = '';
+    searchInput.dataset.productId = '';
+    searchInput.dataset.productName = '';
+    searchInput.dataset.barcode = '';
+    searchInput.dataset.costPrice = '';
+    searchInput.dataset.retailPrice = '';
+    qtyInput.value = 1;
+    costInput.value = '0.00';
+    document.getElementById('purchase-search-results').classList.add('hidden');
+    document.getElementById('purchase-product-search').focus();
+}
+
+function renderPurchaseItems() {
+    const container = document.getElementById('purchase-items-list');
+    if (purchaseItems.length === 0) {
+        container.innerHTML = '<p class="text-xs text-gray-400 text-center py-2">No items added</p>';
+        return;
+    }
+    
+    let html = '';
+    let totalCost = 0;
+    purchaseItems.forEach((item, index) => {
+        const subtotal = item.quantity * item.cost_price;
+        totalCost += subtotal;
+        html += `<div class="flex items-center justify-between bg-gray-50 p-2 rounded-lg border border-gray-100">
+            <div>
+                <span class="font-medium text-gray-800">${item.name}</span>
+                ${item.barcode ? '<span class="text-xs text-gray-400 ml-1">(' + item.barcode + ')</span>' : ''}
+                <span class="text-xs text-gray-500 ml-2">x${item.quantity}</span>
+                <span class="text-xs text-emerald-700 ml-2">@ KES ${item.cost_price.toFixed(2)}</span>
+                <span class="text-xs font-bold text-emerald-800 ml-2">KES ${subtotal.toFixed(2)}</span>
+            </div>
+            <button type="button" onclick="removePurchaseItem(${index})" class="text-red-400 hover:text-red-600 text-xs font-bold px-2">✕</button>
+        </div>`;
+    });
+    
+    // Add total
+    html += `<div class="flex justify-end text-sm font-bold text-emerald-800 pt-2 border-t border-gray-200">
+        Total: KES ${totalCost.toFixed(2)}
+    </div>`;
+    
+    container.innerHTML = html;
+}
+
+function removePurchaseItem(index) {
+    purchaseItems.splice(index, 1);
+    renderPurchaseItems();
+}
+
+async function submitPurchase(event) {
+    event.preventDefault();
+    
+    const alertBox = document.getElementById('purchase-alert');
+    const submitBtn = document.getElementById('purchase-submit-btn');
+    const token = getCookie('spide_token');
+    
+    const supplierId = document.getElementById('purchase-supplier').value;
+    const purchaseDate = document.getElementById('purchase-date').value;
+    const notes = document.getElementById('purchase-notes').value;
+    
+    if (!supplierId) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Please select a supplier';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    if (purchaseItems.length === 0) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Please add at least one item to purchase';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    const payload = {
+        supplier_id: parseInt(supplierId),
+        purchase_date: purchaseDate,
+        notes: notes,
+        items: purchaseItems.map(item => ({
+            product_id: item.product_id,
+            quantity: item.quantity,
+            cost_price: item.cost_price
+        }))
+    };
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating...';
+    alertBox.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/api/purchases/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-green-100 text-green-700 border border-green-200';
+            alertBox.textContent = '✅ Purchase created successfully! Stock updated.';
+            alertBox.classList.remove('hidden');
+            setTimeout(() => closePurchaseModal(), 1500);
+        } else {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+            alertBox.textContent = 'Error: ' + (result.error || 'Failed to create purchase');
+            alertBox.classList.remove('hidden');
+        }
+    } catch(error) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Network error: ' + error.message;
+        alertBox.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '📦 Create Purchase';
+    }
+}
+
+// Supplier functions
+function openSupplierModal() {
+    document.getElementById('supplier-modal').classList.remove('hidden');
+    document.getElementById('supplier-form').reset();
+    document.getElementById('supplier-alert').classList.add('hidden');
+}
+
+function closeSupplierModal() {
+    document.getElementById('supplier-modal').classList.add('hidden');
+}
+
+async function submitSupplier(event) {
+    event.preventDefault();
+    
+    const alertBox = document.getElementById('supplier-alert');
+    const submitBtn = document.getElementById('supplier-submit-btn');
+    const token = getCookie('spide_token');
+    
+    const data = {
+        name: document.getElementById('supplier-name').value.trim(),
+        contact_person: document.getElementById('supplier-contact').value.trim(),
+        phone: document.getElementById('supplier-phone').value.trim(),
+        email: document.getElementById('supplier-email').value.trim(),
+        address: document.getElementById('supplier-address').value.trim(),
+        notes: document.getElementById('supplier-notes').value.trim()
+    };
+    
+    if (!data.name) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Supplier name is required';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving...';
+    alertBox.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/api/suppliers/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-green-100 text-green-700 border border-green-200';
+            alertBox.textContent = '✅ Supplier created successfully!';
+            alertBox.classList.remove('hidden');
+            setTimeout(() => {
+                closeSupplierModal();
+                loadSuppliers();
+            }, 1500);
+        } else {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+            alertBox.textContent = 'Error: ' + (result.error || 'Failed to create supplier');
+            alertBox.classList.remove('hidden');
+        }
+    } catch(error) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Network error: ' + error.message;
+        alertBox.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '💾 Save Supplier';
+    }
+}
+
+// ============================================
+// PURCHASE REPORT
+// ============================================
+function openPurchaseReportModal() {
+    document.getElementById('purchase-report-modal').classList.remove('hidden');
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    document.getElementById('purchase-report-start').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('purchase-report-end').value = now.toISOString().split('T')[0];
+    loadPurchaseReportSuppliers();
+    loadPurchaseReport();
+}
+
+function closePurchaseReportModal() {
+    document.getElementById('purchase-report-modal').classList.add('hidden');
+}
+
+async function loadPurchaseReportSuppliers() {
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/suppliers', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) return;
+        const suppliers = await response.json();
+        const select = document.getElementById('purchase-report-supplier');
+        select.innerHTML = '<option value="0">All Suppliers</option>';
+        suppliers.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.name;
+            select.appendChild(opt);
+        });
+    } catch(e) {
+        console.error('Error loading suppliers:', e);
+    }
+}
+
+async function loadPurchaseReport() {
+    const startDate = document.getElementById('purchase-report-start').value;
+    const endDate = document.getElementById('purchase-report-end').value;
+    const supplierId = document.getElementById('purchase-report-supplier').value;
+    
+    const tbody = document.getElementById('purchase-report-body');
+    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">Loading...</td></tr>';
+    
+    try {
+        const token = getCookie('spide_token');
+        const url = '/api/purchases/report?start_date=' + startDate + '&end_date=' + endDate + '&supplier_id=' + supplierId;
+        const response = await fetch(url, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load purchase report');
+        }
+        
+        const data = await response.json();
+        renderPurchaseReport(data);
+    } catch(error) {
+        console.error('Purchase report error:', error);
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-500">Error: ' + error.message + '</td></tr>';
+    }
+}
+
+function renderPurchaseReport(data) {
+    const purchases = data.purchases || [];
+    const total = data.total || 0;
+    const count = data.count || 0;
+    
+    document.getElementById('purchase-report-total').textContent = 'KES ' + total.toFixed(2);
+    document.getElementById('purchase-report-count').textContent = count;
+    
+    const tbody = document.getElementById('purchase-report-body');
+    
+    if (purchases.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No purchases found for this period</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    purchases.forEach(p => {
+        html += '<tr class="border-b hover:bg-emerald-50/50 transition">' +
+            '<td class="p-2 font-mono text-emerald-600">' + (p.purchase_number || '#' + p.id) + '</td>' +
+            '<td class="p-2 font-medium text-gray-800">' + p.supplier_name + '</td>' +
+            '<td class="p-2 text-center font-bold">' + (p.total_items || 0) + '</td>' +
+            '<td class="p-2 text-right font-bold text-emerald-700">KES ' + (p.total_cost || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-gray-500">' + (p.purchase_date || p.created_at || '') + '</td>' +
+            '<td class="p-2 text-gray-500">' + (p.created_by || '-') + '</td>' +
+            '<td class="p-2 text-center"><button onclick="viewPurchaseDetail(' + p.id + ')" class="text-blue-400 hover:text-blue-600 text-xs font-bold">📄 View</button></td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+}
+
+function openPurchaseDetailModal() {
+    document.getElementById('purchase-detail-modal').classList.remove('hidden');
+}
+
+function closePurchaseDetailModal() {
+    document.getElementById('purchase-detail-modal').classList.add('hidden');
+}
+
+async function viewPurchaseDetail(id) {
+    // Show loading state
+    document.getElementById('purchase-detail-items').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">Loading items...</td></tr>';
+    document.getElementById('pd-supplier').textContent = '...';
+    document.getElementById('pd-date').textContent = '...';
+    document.getElementById('pd-created-by').textContent = '...';
+    document.getElementById('pd-total-cost').textContent = 'KES 0.00';
+    document.getElementById('pd-total-items').textContent = '0';
+    document.getElementById('pd-grand-total').textContent = 'KES 0.00';
+    document.getElementById('purchase-detail-number').textContent = '#PO-' + id;
+    
+    openPurchaseDetailModal();
+    
+    try {
+        const token = getCookie('spide_token');
+        
+        // First get the purchase header info
+        const reportResponse = await fetch('/api/purchases/report?start_date=2020-01-01&end_date=2030-12-31&supplier_id=0', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        if (!reportResponse.ok) {
+            throw new Error('Failed to load purchase details');
+        }
+        
+        const reportData = await reportResponse.json();
+        const purchase = reportData.purchases.find(p => p.id === id);
+        
+        if (purchase) {
+            document.getElementById('pd-supplier').textContent = purchase.supplier_name || '-';
+            document.getElementById('pd-date').textContent = purchase.purchase_date || purchase.created_at || '-';
+            document.getElementById('pd-created-by').textContent = purchase.created_by || '-';
+            document.getElementById('pd-total-cost').textContent = 'KES ' + (purchase.total_cost || 0).toFixed(2);
+            document.getElementById('purchase-detail-number').textContent = purchase.purchase_number || '#PO-' + id;
+        }
+        
+        // Get the items
+        const itemsResponse = await fetch('/api/purchases/items?id=' + id, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        if (!itemsResponse.ok) {
+            throw new Error('Failed to load purchase items');
+        }
+        
+        const items = await itemsResponse.json();
+        renderPurchaseDetailItems(items);
+        
+    } catch(error) {
+        console.error('Purchase detail error:', error);
+        document.getElementById('purchase-detail-items').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500">Error: ' + error.message + '</td></tr>';
+    }
+}
+
+function renderPurchaseDetailItems(items) {
+    const tbody = document.getElementById('purchase-detail-items');
+    
+    if (!items || items.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">No items in this purchase</td></tr>';
+        return;
+    }
+    
+    let totalItems = 0;
+    let grandTotal = 0;
+    let html = '';
+    
+    items.forEach(item => {
+        totalItems += item.quantity || 0;
+        grandTotal += item.subtotal || 0;
+        
+        html += '<tr class="border-b hover:bg-emerald-50/50 transition">' +
+            '<td class="p-2 font-medium text-gray-800">' + (item.product_name || 'Unknown') + '</td>' +
+            '<td class="p-2 font-mono text-gray-500">' + (item.barcode || '-') + '</td>' +
+            '<td class="p-2 text-center font-bold">' + (item.quantity || 0) + '</td>' +
+            '<td class="p-2 text-right font-mono">KES ' + (item.cost_price || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-right font-mono text-emerald-700 font-bold">KES ' + (item.subtotal || 0).toFixed(2) + '</td>' +
+        '</tr>';
+    });
+    
+    tbody.innerHTML = html;
+    document.getElementById('pd-total-items').textContent = totalItems;
+    document.getElementById('pd-grand-total').textContent = 'KES ' + grandTotal.toFixed(2);
+}
+
         // ============================================
         // OTHER FUNCTIONS (Placeholders)
         // ============================================
         //function openTransferModal() { alert('New Transfer - Coming soon!'); }
         //function openTransferHistoryModal() { alert('Transfer History - Coming soon!'); }
-        function openPurchaseModal() { alert('New Purchase - Coming soon!'); }
+        //function openPurchaseModal() { alert('New Purchase - Coming soon!'); }
         function openSuppliersModal() { alert('Manage Suppliers - Coming soon!'); }
 
         // Initialize
@@ -2702,6 +3319,245 @@ function renderTransferDetail(transfer) {
                     <span id="td-total-cost" class="font-bold text-amber-700 ml-1">KES 0.00</span>
                 </div>
                 <button onclick="closeTransferDetailModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW PURCHASE MODAL -->
+    <div id="purchase-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <span class="bg-emerald-100 p-1.5 rounded-lg">📦</span>
+                    New Purchase Order
+                </h2>
+                <button onclick="closePurchaseModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            
+            <form id="purchase-form" onsubmit="submitPurchase(event)" class="flex-1 flex flex-col">
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Supplier *</label>
+                        <select id="purchase-supplier" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                            <option value="">Select Supplier</option>
+                        </select>
+                        <button type="button" onclick="openSupplierModal()" class="text-xs text-emerald-600 hover:text-emerald-800 mt-1">➕ Add New Supplier</button>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Purchase Date</label>
+                        <input type="date" id="purchase-date" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Notes (Optional)</label>
+                        <textarea id="purchase-notes" rows="2" placeholder="Additional notes..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"></textarea>
+                    </div>
+                    
+                    <!-- Purchase Items Section -->
+                    <div class="border-t pt-3">
+                        <h3 class="text-sm font-semibold text-gray-700 mb-2">📋 Items to Purchase</h3>
+                        <div id="purchase-items-container" class="space-y-2">
+                            <div class="flex gap-2 items-center">
+                                <div class="flex-1 relative">
+                                    <input type="text" 
+                                           id="purchase-product-search" 
+                                           placeholder="Search by barcode or product name..." 
+                                           class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                                           autocomplete="off"
+                                           oninput="handlePurchaseSearch(this.value)"
+                                           onkeydown="handlePurchaseSearchKeydown(event)">
+                                    <div id="purchase-search-results" class="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl hidden z-50 max-h-48 overflow-y-auto"></div>
+                                </div>
+                                <input type="number" id="purchase-qty" placeholder="Qty" class="w-20 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none" value="1" min="1">
+                                <input type="number" id="purchase-cost" placeholder="Cost" class="w-28 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none" value="0.00" step="0.01">
+                                <button type="button" onclick="addPurchaseItem()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-lg text-sm whitespace-nowrap">➕ Add</button>
+                            </div>
+                        </div>
+                        <div id="purchase-items-list" class="mt-2 space-y-1 max-h-32 overflow-y-auto">
+                            <p class="text-xs text-gray-400 text-center py-2">No items added</p>
+                        </div>
+                    </div>
+                    
+                    <div id="purchase-alert" class="hidden p-2 rounded-lg text-sm font-medium"></div>
+                </div>
+                <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
+                    <button type="button" onclick="closePurchaseModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
+                    <button type="submit" id="purchase-submit-btn" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 rounded-lg transition text-sm">📦 Create Purchase</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- NEW SUPPLIER MODAL -->
+    <div id="supplier-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <span class="bg-emerald-100 p-1.5 rounded-lg">👥</span>
+                    Add Supplier
+                </h2>
+                <button onclick="closeSupplierModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            
+            <form id="supplier-form" onsubmit="submitSupplier(event)">
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Supplier Name *</label>
+                        <input type="text" id="supplier-name" required placeholder="e.g. ABC Distributors" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Contact Person</label>
+                        <input type="text" id="supplier-contact" placeholder="e.g. John Doe" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Phone</label>
+                        <input type="text" id="supplier-phone" placeholder="e.g. 0712345678" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Email</label>
+                        <input type="email" id="supplier-email" placeholder="e.g. info@abc.co.ke" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Address</label>
+                        <textarea id="supplier-address" rows="2" placeholder="Physical address..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Notes</label>
+                        <textarea id="supplier-notes" rows="2" placeholder="Additional notes..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"></textarea>
+                    </div>
+                    <div id="supplier-alert" class="hidden p-2 rounded-lg text-sm font-medium"></div>
+                </div>
+                <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
+                    <button type="button" onclick="closeSupplierModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
+                    <button type="submit" id="supplier-submit-btn" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 rounded-lg transition text-sm">💾 Save Supplier</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- PURCHASE REPORT MODAL -->
+    <div id="purchase-report-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <span class="bg-emerald-100 p-1.5 rounded-lg">📊</span>
+                        Purchase Report
+                    </h2>
+                    <p class="text-xs text-gray-500">View all purchase orders</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
+                        <span class="text-xs text-gray-500">📅</span>
+                        <input type="date" id="purchase-report-start" class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-28">
+                        <span class="text-xs text-gray-400">to</span>
+                        <input type="date" id="purchase-report-end" class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-28">
+                    </div>
+                    <select id="purchase-report-supplier" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
+                        <option value="0">All Suppliers</option>
+                    </select>
+                    <button onclick="loadPurchaseReport()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition">⟳ Refresh</button>
+                    <button onclick="closePurchaseReportModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+                </div>
+            </div>
+            
+            <!-- Summary -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-emerald-50 p-3 rounded-xl text-center border border-emerald-200/50">
+                    <p class="text-xs font-medium text-emerald-600 uppercase tracking-wider">Total Purchases</p>
+                    <p id="purchase-report-total" class="text-xl font-bold text-emerald-900">KES 0.00</p>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-xl text-center border border-blue-200/50">
+                    <p class="text-xs font-medium text-blue-600 uppercase tracking-wider">Number of Orders</p>
+                    <p id="purchase-report-count" class="text-xl font-bold text-blue-900">0</p>
+                </div>
+            </div>
+
+            <!-- Purchase List -->
+            <div class="flex-1 overflow-y-auto border rounded-xl relative">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                        <tr>
+                            <th class="p-2">PO #</th>
+                            <th class="p-2">Supplier</th>
+                            <th class="p-2 text-center">Items</th>
+                            <th class="p-2 text-right">Total Cost</th>
+                            <th class="p-2">Date</th>
+                            <th class="p-2">Created By</th>
+                            <th class="p-2 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchase-report-body">
+                        <tr><td colspan="7" class="p-4 text-center text-gray-500">Select date range and click Refresh</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex justify-end border-t border-gray-100 pt-3">
+                <button onclick="closePurchaseReportModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">Close</button>
+            </div>
+        </div>
+    </div>    
+    
+    <!-- PURCHASE DETAIL MODAL -->
+    <div id="purchase-detail-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <span class="bg-emerald-100 p-1.5 rounded-lg">📄</span>
+                        Purchase Details
+                    </h2>
+                    <p id="purchase-detail-number" class="text-xs text-gray-500">#PO-XXXXXXXX</p>
+                </div>
+                <button onclick="closePurchaseDetailModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            
+            <!-- Purchase Info -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="purchase-detail-info">
+                <div class="bg-gray-50 p-3 rounded-xl text-center">
+                    <p class="text-xs text-gray-500">Supplier</p>
+                    <p id="pd-supplier" class="font-semibold text-gray-800">-</p>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-xl text-center">
+                    <p class="text-xs text-gray-500">Date</p>
+                    <p id="pd-date" class="font-semibold text-gray-800">-</p>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-xl text-center">
+                    <p class="text-xs text-gray-500">Created By</p>
+                    <p id="pd-created-by" class="font-semibold text-gray-800">-</p>
+                </div>
+                <div class="bg-gray-50 p-3 rounded-xl text-center">
+                    <p class="text-xs text-gray-500">Total Cost</p>
+                    <p id="pd-total-cost" class="font-semibold text-emerald-700">KES 0.00</p>
+                </div>
+            </div>
+            
+            <!-- Items List -->
+            <div class="flex-1 overflow-y-auto border rounded-xl relative">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                        <tr>
+                            <th class="p-2">Product</th>
+                            <th class="p-2">Barcode</th>
+                            <th class="p-2 text-center">Quantity</th>
+                            <th class="p-2 text-right">Cost Price</th>
+                            <th class="p-2 text-right">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody id="purchase-detail-items">
+                        <tr><td colspan="5" class="p-4 text-center text-gray-500">Loading items...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Footer -->
+            <div class="flex justify-between items-center border-t border-gray-100 pt-3">
+                <div>
+                    <span class="text-xs text-gray-500">Total Items:</span>
+                    <span id="pd-total-items" class="font-bold text-gray-800 ml-1">0</span>
+                    <span class="text-xs text-gray-500 ml-3">Total Cost:</span>
+                    <span id="pd-grand-total" class="font-bold text-emerald-700 ml-1">KES 0.00</span>
+                </div>
+                <button onclick="closePurchaseDetailModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">Close</button>
             </div>
         </div>
     </div>

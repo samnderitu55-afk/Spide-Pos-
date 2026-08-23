@@ -105,6 +105,8 @@ func main() {
 	mux.HandleFunc("/api/transfers", middleware.AuthMiddleware(handlers.GetTransfersHandler))
 	mux.HandleFunc("/api/transfers/detail", middleware.AuthMiddleware(handlers.GetTransferDetailHandler))
 	mux.HandleFunc("/api/purchases/create", middleware.AuthMiddleware(handlers.CreatePurchaseHandler))
+	mux.HandleFunc("/api/purchases/report", middleware.AuthMiddleware(handlers.PurchaseReportHandler))
+	mux.HandleFunc("/api/purchases/items", middleware.AuthMiddleware(handlers.GetPurchaseItemsHandler))
 	mux.HandleFunc("/api/suppliers", middleware.AuthMiddleware(handlers.GetSuppliersHandler))
 	mux.HandleFunc("/api/suppliers/create", middleware.AuthMiddleware(handlers.CreateSupplierHandler))
 	mux.HandleFunc("/api/categories", middleware.AuthMiddleware(handlers.GetCategoriesHandler))
