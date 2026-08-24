@@ -60,6 +60,13 @@
                 </div>
             </div>
             <div class="group relative">
+                <button class="bg-purple-800 hover:bg-purple-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition">📝 Credit ▾</button>
+                <div class="dropdown-menu">
+                    <a href="#" onclick="openCreditSaleModal()" class="block px-3 py-1.5 text-xs font-semibold text-purple-900 hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition">➕ New Credit Sale</a>
+                    <a href="#" onclick="openCreditDashboard()" class="block px-3 py-1.5 text-xs hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">📊 Credit Dashboard</a>
+                </div>
+            </div>
+            <div class="group relative">
                 <button class="bg-purple-800 hover:bg-purple-700 text-white text-sm font-semibold px-4 py-2 rounded-lg flex items-center gap-2 transition">📦 Inventory ▾</button>
                 <div class="dropdown-menu">
                     <a href="#" onclick="openAddProductModal()" class="block px-4 py-2.5 text-sm font-semibold text-purple-900 hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition">➕ Add / Edit Product</a>
@@ -89,17 +96,26 @@
                     <a href="#" onclick="openTransferHistoryModal()" class="block px-4 py-2.5 text-sm hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">📋 Transfer History</a>
                 </div>
             </div>
+                        <div class="group relative">
+                <button class="bg-purple-800 hover:bg-purple-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition">📦 Purchases ▾</button>
+                <div class="dropdown-menu">
+                    <a href="#" onclick="openPurchaseModal()" class="block px-3 py-1.5 text-xs font-semibold text-purple-900 hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition">➕ New Purchase</a>
+                    <a href="#" onclick="openPurchaseReportModal()" class="block px-3 py-1.5 text-xs hover:bg-purple-50 hover:text-purple-700 transition">📊 Purchase Report</a>
+                    <a href="#" onclick="openSupplierModal()" class="block px-3 py-1.5 text-xs hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">👥 Manage Suppliers</a>
+                </div>
+            </div>
             <div class="group relative">
-                    <button class="bg-purple-800 hover:bg-purple-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition">📦 Purchases ▾</button>
-                    <div class="dropdown-menu">
-                      <a href="#" onclick="openPurchaseModal()" class="block px-3 py-1.5 text-xs font-semibold text-purple-900 hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition">➕ New Purchase</a>
-                      <a href="#" onclick="openPurchaseReportModal()" class="block px-3 py-1.5 text-xs hover:bg-purple-50 hover:text-purple-700 transition">📊 Purchase Report</a>
-                      <a href="#" onclick="openSupplierModal()" class="block px-3 py-1.5 text-xs hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">👥 Manage Suppliers</a>
-                    </div>
-                    </div>
+                <button class="bg-purple-800 hover:bg-purple-700 text-white text-xs font-semibold px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 transition">👤 Customers ▾</button>
+                <div class="dropdown-menu">
+                    <a href="#" onclick="openCustomerListModal()" class="block px-3 py-1.5 text-xs font-semibold text-purple-900 hover:bg-purple-50 hover:text-purple-700 rounded-t-lg transition">👥 Manage Customers</a>
+                    <a href="#" onclick="openAddCustomerModal()" class="block px-3 py-1.5 text-xs hover:bg-purple-50 hover:text-purple-700 rounded-b-lg transition text-gray-800">➕ Add Customer</a>
+                </div>
+            </div>
+            
+                  </div>
                     <a href="/" class="bg-purple-700 hover:bg-purple-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">📊 Dashboard</a>
                     <a href="/director" class="bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-lg transition">📊 Director</a>
-            </div>
+                  </div>
     </header>
 
     <!-- MAIN POS CONTENT -->
@@ -2826,13 +2842,502 @@ function renderPurchaseDetailItems(items) {
     document.getElementById('pd-grand-total').textContent = 'KES ' + grandTotal.toFixed(2);
 }
 
+// ============================================
+// CUSTOMER MANAGEMENT
+// ============================================
+function openCustomerListModal() {
+    document.getElementById('customer-list-modal').classList.remove('hidden');
+    loadCustomers();
+}
+
+function closeCustomerListModal() {
+    document.getElementById('customer-list-modal').classList.add('hidden');
+}
+
+function openAddCustomerModal() {
+    document.getElementById('customer-modal-title').textContent = 'Add Customer';
+    document.getElementById('customer-id').value = '0';
+    document.getElementById('customer-form').reset();
+    document.getElementById('customer-balance').value = '0.00';
+    document.getElementById('customer-alert').classList.add('hidden');
+    document.getElementById('customer-modal').classList.remove('hidden');
+}
+
+function openEditCustomerModal(customer) {
+    document.getElementById('customer-modal-title').textContent = 'Edit Customer';
+    document.getElementById('customer-id').value = customer.id;
+    document.getElementById('customer-name').value = customer.name || '';
+    document.getElementById('customer-phone').value = customer.phone || '';
+    document.getElementById('customer-email').value = customer.email || '';
+    document.getElementById('customer-idnumber').value = customer.id_number || '';
+    document.getElementById('customer-address').value = customer.address || '';
+    document.getElementById('customer-credit-limit').value = customer.credit_limit || 0;
+    document.getElementById('customer-balance').value = (customer.balance || 0).toFixed(2);
+    document.getElementById('customer-notes').value = customer.notes || '';
+    document.getElementById('customer-alert').classList.add('hidden');
+    document.getElementById('customer-modal').classList.remove('hidden');
+}
+
+function closeCustomerModal() {
+    document.getElementById('customer-modal').classList.add('hidden');
+}
+
+async function loadCustomers() {
+    const tbody = document.getElementById('customer-list-body');
+    tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">Loading...</td></tr>';
+    
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/customers', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load customers');
+        }
+        
+        const customers = await response.json();
+        renderCustomers(customers);
+    } catch(error) {
+        console.error('Customer load error:', error);
+        tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-red-500">Error loading customers</td></tr>';
+    }
+}
+
+function renderCustomers(customers) {
+     const tbody = document.getElementById('customer-list-body');
+    
+    if (!customers || customers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No customers found</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    customers.forEach(c => {
+        const balanceColor = c.balance > 0 ? 'text-amber-600' : 'text-emerald-600';
+        const depositColor = c.deposit_balance > 0 ? 'text-green-600' : 'text-gray-400';
+        html += '<tr class="border-b hover:bg-indigo-50/50 transition">' +
+            '<td class="p-2 font-medium text-gray-800">' + c.name + '</td>' +
+            '<td class="p-2 text-gray-500">' + (c.phone || '-') + '</td>' +
+            '<td class="p-2 text-gray-500">' + (c.email || '-') + '</td>' +
+            '<td class="p-2 text-right font-bold ' + balanceColor + '">KES ' + (c.balance || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-right font-bold ' + depositColor + '">KES ' + (c.deposit_balance || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-right font-bold text-gray-700">KES ' + (c.credit_limit || 0).toFixed(2) + '</td>' +
+            '<td class="p-2 text-center space-x-1">' +
+                '<button onclick="openEditCustomerModal(' + JSON.stringify(c).replace(/"/g, '&quot;') + ')" class="text-blue-400 hover:text-blue-600 text-xs font-bold">✏️</button>' +
+                '<button onclick="viewCustomerTransactions(' + c.id + ')" class="text-green-400 hover:text-green-600 text-xs font-bold">📋</button>' +
+                '<button onclick="deleteCustomer(' + c.id + ')" class="text-red-400 hover:text-red-600 text-xs font-bold">🗑️</button>' +
+            '</td>' +
+        '</tr>';
+    });
+    tbody.innerHTML = html;
+
+}
+
+async function saveCustomer(event) {
+    event.preventDefault();
+    
+    const alertBox = document.getElementById('customer-alert');
+    const submitBtn = document.getElementById('customer-submit-btn');
+    const token = getCookie('spide_token');
+    const customerId = document.getElementById('customer-id').value;
+    const isEdit = customerId && customerId !== '0';
+    
+    const data = {
+        id: parseInt(customerId) || 0,
+        name: document.getElementById('customer-name').value.trim(),
+        phone: document.getElementById('customer-phone').value.trim(),
+        email: document.getElementById('customer-email').value.trim(),
+        id_number: document.getElementById('customer-idnumber').value.trim(),
+        address: document.getElementById('customer-address').value.trim(),
+        credit_limit: parseFloat(document.getElementById('customer-credit-limit').value) || 0,
+        notes: document.getElementById('customer-notes').value.trim()
+    };
+    
+    if (!data.name) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Please enter the customer name';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving...';
+    alertBox.classList.add('hidden');
+    
+    try {
+        const url = isEdit ? '/api/customers/update' : '/api/customers/create';
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-green-100 text-green-700 border border-green-200';
+            alertBox.textContent = '✅ ' + (isEdit ? 'Customer updated' : 'Customer created') + ' successfully!';
+            alertBox.classList.remove('hidden');
+            
+            // After closing the customer modal, check if we should reopen credit modal
+             setTimeout(() => {
+             closeCustomerModal();
+            // If we came from credit sale, reopen it
+             if (document.getElementById('credit-sale-modal').classList.contains('hidden') === false) {
+                // It should already be open, but just in case
+                loadCreditCustomers();
+                } else {
+                  // Refresh customer list if open
+                  const listModal = document.getElementById('customer-list-modal');
+                  if (!listModal.classList.contains('hidden')) {
+                    loadCustomers();
+                     }
+               }
+            }, 1000);
+
+            // Close the add modal and refresh the list
+            setTimeout(() => {
+                closeCustomerModal();
+                // Make sure the customer list modal is open and refreshed
+                const listModal = document.getElementById('customer-list-modal');
+                if (listModal.classList.contains('hidden')) {
+                    // If list modal is closed, open it
+                    openCustomerListModal();
+                } else {
+                    // If list modal is open, just refresh
+                    loadCustomers();
+                }
+            }, 1000);
+        } else {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+            alertBox.textContent = 'Error: ' + (result.error || 'Failed to save customer');
+            alertBox.classList.remove('hidden');
+        }
+    } catch(error) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Network error: ' + error.message;
+        alertBox.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '💾 Save Customer';
+    }
+}
+
+async function deleteCustomer(id) {
+    if (!confirm('Are you sure you want to delete this customer?')) return;
+    
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/customers/delete?id=' + id, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        if (response.ok) {
+            loadCustomers();
+        } else {
+            const result = await response.json();
+            alert('Error: ' + (result.error || 'Failed to delete customer'));
+        }
+    } catch(error) {
+        console.error('Delete error:', error);
+        alert('Network error');
+    }
+}
+
+function viewCustomerCredit(id) {
+    alert('Credit history for customer ID: ' + id + ' - Coming soon!');
+}
+
+// ============================================
+// CREDIT SALE
+// ============================================
+let creditCustomers = [];
+
+function openCreditSaleModal() {
+    document.getElementById('credit-sale-modal').classList.remove('hidden');
+    document.getElementById('credit-sale-form').reset();
+    document.getElementById('credit-alert').classList.add('hidden');
+    document.getElementById('credit-due-date').value = new Date().toISOString().split('T')[0];
+    updateCreditBalance();
+    loadCreditCustomers();
+}
+
+function closeCreditSaleModal() {
+    document.getElementById('credit-sale-modal').classList.add('hidden');
+}
+
+async function loadCreditCustomers() {
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/customers', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) return;
+        creditCustomers = await response.json();
+        const select = document.getElementById('credit-customer');
+        select.innerHTML = '<option value="">Select Customer</option>';
+        creditCustomers.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name + ' (Balance: KES ' + (c.balance || 0).toFixed(2) + ')';
+            select.appendChild(opt);
+        });
+    } catch(e) {
+        console.error('Error loading customers:', e);
+    }
+}
+
+function updateCreditBalance() {
+    const total = parseFloat(document.getElementById('credit-total-amount').value) || 0;
+    const paid = parseFloat(document.getElementById('credit-amount-paid').value) || 0;
+    const balance = Math.max(0, total - paid);
+    document.getElementById('credit-balance').value = balance.toFixed(2);
+}
+
+function openAddCustomerFromCredit() {
+    closeCreditSaleModal();
+    openAddCustomerModal();
+    // Re-open credit modal after customer is added
+    // We'll handle this in the saveCustomer success callback
+}
+
+async function submitCreditSale(event) {
+    event.preventDefault();
+    
+    const alertBox = document.getElementById('credit-alert');
+    const submitBtn = document.getElementById('credit-submit-btn');
+    const token = getCookie('spide_token');
+    
+    const customerId = document.getElementById('credit-customer').value;
+    const totalAmount = parseFloat(document.getElementById('credit-total-amount').value) || 0;
+    const amountPaid = parseFloat(document.getElementById('credit-amount-paid').value) || 0;
+    const balance = parseFloat(document.getElementById('credit-balance').value) || 0;
+    const dueDate = document.getElementById('credit-due-date').value;
+    const notes = document.getElementById('credit-notes').value;
+    
+    if (!customerId) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Please select a customer';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    if (totalAmount <= 0) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Total amount must be greater than 0';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    if (balance <= 0) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Balance must be greater than 0';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    const data = {
+        customer_id: parseInt(customerId),
+        total_amount: totalAmount,
+        amount_paid: amountPaid,
+        balance: balance,
+        due_date: dueDate,
+        notes: notes
+    };
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating...';
+    alertBox.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/api/credit-sales/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-green-100 text-green-700 border border-green-200';
+            alertBox.textContent = '✅ Credit sale created successfully! Balance: KES ' + balance.toFixed(2);
+            alertBox.classList.remove('hidden');
+            setTimeout(() => {
+                closeCreditSaleModal();
+                // Refresh customer list if open
+                if (!document.getElementById('customer-list-modal').classList.contains('hidden')) {
+                    loadCustomers();
+                }
+            }, 1500);
+        } else {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+            alertBox.textContent = 'Error: ' + (result.error || 'Failed to create credit sale');
+            alertBox.classList.remove('hidden');
+        }
+    } catch(error) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Network error: ' + error.message;
+        alertBox.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '📝 Create Credit Sale';
+    }
+}
+
+// ============================================
+// CUSTOMER DEPOSITS
+// ============================================
+let depositCustomers = [];
+
+function openDepositModal() {
+    document.getElementById('deposit-modal').classList.remove('hidden');
+    document.getElementById('deposit-form').reset();
+    document.getElementById('deposit-alert').classList.add('hidden');
+    loadDepositCustomers();
+}
+
+function closeDepositModal() {
+    document.getElementById('deposit-modal').classList.add('hidden');
+}
+
+async function loadDepositCustomers() {
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/customers', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) return;
+        depositCustomers = await response.json();
+        const select = document.getElementById('deposit-customer');
+        select.innerHTML = '<option value="">Select Customer</option>';
+        depositCustomers.forEach(c => {
+            const opt = document.createElement('option');
+            opt.value = c.id;
+            opt.textContent = c.name + ' (Balance: KES ' + (c.deposit_balance || 0).toFixed(2) + ')';
+            select.appendChild(opt);
+        });
+        
+        // Show balance when customer selected
+        select.onchange = async function() {
+            if (this.value) {
+                await loadCustomerDepositBalance(this.value);
+            }
+        };
+    } catch(e) {
+        console.error('Error loading customers:', e);
+    }
+}
+
+async function loadCustomerDepositBalance(customerId) {
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/customers/balance?customer_id=' + customerId, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        document.getElementById('deposit-balance-display').textContent = 'Balance: KES ' + (data.balance || 0).toFixed(2);
+    } catch(e) {
+        console.error('Error loading balance:', e);
+    }
+}
+
+async function submitDeposit(event) {
+    event.preventDefault();
+    
+    const alertBox = document.getElementById('deposit-alert');
+    const submitBtn = document.getElementById('deposit-submit-btn');
+    const token = getCookie('spide_token');
+    
+    const customerId = document.getElementById('deposit-customer').value;
+    const amount = parseFloat(document.getElementById('deposit-amount').value) || 0;
+    const paymentMethod = document.getElementById('deposit-payment-method').value;
+    const reference = document.getElementById('deposit-reference').value.trim();
+    const notes = document.getElementById('deposit-notes').value.trim();
+    
+    if (!customerId) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Please select a customer';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    if (amount <= 0) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Amount must be greater than 0';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    const data = {
+        customer_id: parseInt(customerId),
+        amount: amount,
+        payment_method: paymentMethod,
+        reference: reference,
+        notes: notes
+    };
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Processing...';
+    alertBox.classList.add('hidden');
+    
+    try {
+        const response = await fetch('/api/customers/deposit', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-green-100 text-green-700 border border-green-200';
+            alertBox.textContent = '✅ Deposit added! New balance: KES ' + (result.new_balance || 0).toFixed(2);
+            alertBox.classList.remove('hidden');
+            
+            // Reset form
+            document.getElementById('deposit-form').reset();
+            document.getElementById('deposit-amount').value = '';
+            
+            // Refresh customer list
+            loadDepositCustomers();
+            
+            setTimeout(() => {
+                closeDepositModal();
+            }, 2000);
+        } else {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+            alertBox.textContent = 'Error: ' + (result.error || 'Failed to add deposit');
+            alertBox.classList.remove('hidden');
+        }
+    } catch(error) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Network error: ' + error.message;
+        alertBox.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '💰 Add Deposit';
+    }
+}
+
         // ============================================
         // OTHER FUNCTIONS (Placeholders)
         // ============================================
         //function openTransferModal() { alert('New Transfer - Coming soon!'); }
         //function openTransferHistoryModal() { alert('Transfer History - Coming soon!'); }
         //function openPurchaseModal() { alert('New Purchase - Coming soon!'); }
-        function openSuppliersModal() { alert('Manage Suppliers - Coming soon!'); }
+        //function openSuppliersModal() { alert('Manage Suppliers - Coming soon!'); }
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
@@ -3496,7 +4001,7 @@ function renderPurchaseDetailItems(items) {
             </div>
         </div>
     </div>    
-    
+
     <!-- PURCHASE DETAIL MODAL -->
     <div id="purchase-detail-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-3xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
@@ -3562,7 +4067,211 @@ function renderPurchaseDetailItems(items) {
         </div>
     </div>
 
+        <!-- CUSTOMER MANAGEMENT MODAL -->
+    <div id="customer-modal" class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <span class="bg-indigo-100 p-1.5 rounded-lg">👤</span>
+                    <span id="customer-modal-title">Add Customer</span>
+                </h2>
+                <button onclick="closeCustomerModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            
+            <form id="customer-form" onsubmit="saveCustomer(event)" class="flex-1 flex flex-col overflow-y-auto">
+                <input type="hidden" id="customer-id" value="0">
+                <div class="space-y-3">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Full Name *</label>
+                            <input type="text" id="customer-name" required placeholder="e.g. John Kamau" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Phone</label>
+                            <input type="text" id="customer-phone" placeholder="e.g. 0712345678" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Email</label>
+                            <input type="email" id="customer-email" placeholder="e.g. john@example.com" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">ID Number</label>
+                            <input type="text" id="customer-idnumber" placeholder="e.g. 12345678" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Address</label>
+                        <input type="text" id="customer-address" placeholder="e.g. Nairobi, Kenya" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Credit Limit (KES)</label>
+                            <input type="number" id="customer-credit-limit" value="0" step="0.01" placeholder="0.00" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Current Balance (KES)</label>
+                            <input type="text" id="customer-balance" value="0.00" readonly class="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50 text-gray-700">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Notes</label>
+                        <textarea id="customer-notes" rows="2" placeholder="Additional notes about this customer..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
+                    </div>
+                    <div id="customer-alert" class="hidden p-2 rounded-lg text-sm font-medium"></div>
+                </div>
+                <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
+                    <button type="button" onclick="closeCustomerModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
+                    <button type="submit" id="customer-submit-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg transition text-sm">💾 Save Customer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- CUSTOMER LIST MODAL -->
+    <div id="customer-list-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <span class="bg-indigo-100 p-1.5 rounded-lg">👥</span>
+                        Customers
+                    </h2>
+                    <p class="text-xs text-gray-500">Manage your customers and their credit</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button onclick="openAddCustomerModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition">➕ Add Customer</button>
+                    <button onclick="closeCustomerListModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+                </div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto border rounded-xl relative">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                        <tr>
+                           <th class="p-2">Name</th>
+                           <th class="p-2">Phone</th>
+                           <th class="p-2">Email</th>
+                           <th class="p-2 text-right">Credit Balance</th>
+                           <th class="p-2 text-right">Deposit Balance</th>
+                           <th class="p-2 text-right">Credit Limit</th>
+                           <th class="p-2 text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="customer-list-body">
+                        <tr><td colspan="6" class="p-4 text-center text-gray-500">Loading customers...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="flex justify-end border-t border-gray-100 pt-3">
+                <button onclick="closeCustomerListModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">Close</button>
+            </div>
+        </div>
+    </div>
+
+        <!-- CREDIT SALE MODAL -->
+    <div id="credit-sale-modal" class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl p-6 space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <span class="bg-purple-100 p-1.5 rounded-lg">📝</span>
+                    Credit Sale
+                </h2>
+                <button onclick="closeCreditSaleModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            
+            <form id="credit-sale-form" onsubmit="submitCreditSale(event)">
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Customer *</label>
+                        <select id="credit-customer" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                            <option value="">Select Customer</option>
+                        </select>
+                        <button type="button" onclick="openAddCustomerFromCredit()" class="text-xs text-purple-600 hover:text-purple-800 mt-1">➕ Add New Customer</button>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Total Amount (KES) *</label>
+                        <input type="number" id="credit-total-amount" required step="0.01" placeholder="0.00" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Amount Paid Today</label>
+                        <input type="number" id="credit-amount-paid" step="0.01" value="0" placeholder="0.00" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none" oninput="updateCreditBalance()">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Remaining Balance *</label>
+                        <input type="number" id="credit-balance" required step="0.01" placeholder="0.00" class="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50 text-gray-700 focus:ring-2 focus:ring-purple-500 focus:outline-none" readonly>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Due Date</label>
+                        <input type="date" id="credit-due-date" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Notes</label>
+                        <textarea id="credit-notes" rows="2" placeholder="Additional notes..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none"></textarea>
+                    </div>
+                    <div id="credit-alert" class="hidden p-2 rounded-lg text-sm font-medium"></div>
+                </div>
+                <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
+                    <button type="button" onclick="closeCreditSaleModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
+                    <button type="submit" id="credit-submit-btn" class="flex-1 bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 rounded-lg transition text-sm">📝 Create Credit Sale</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- DEPOSIT MODAL -->
+    <div id="deposit-modal" class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <span class="bg-green-100 p-1.5 rounded-lg">💰</span>
+                    Customer Deposit
+                </h2>
+                <button onclick="closeDepositModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            
+            <form id="deposit-form" onsubmit="submitDeposit(event)">
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Customer *</label>
+                        <select id="deposit-customer" required class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:outline-none">
+                            <option value="">Select Customer</option>
+                        </select>
+                        <div id="deposit-balance-display" class="text-xs text-gray-500 mt-1">Balance: KES 0.00</div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Amount (KES) *</label>
+                        <input type="number" id="deposit-amount" required step="0.01" min="0.01" placeholder="0.00" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Payment Method</label>
+                        <select id="deposit-payment-method" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:outline-none">
+                            <option value="cash">Cash</option>
+                            <option value="mpesa">M-Pesa</option>
+                            <option value="bank">Bank Transfer</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Reference (Optional)</label>
+                        <input type="text" id="deposit-reference" placeholder="e.g. M-Pesa code" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-700 mb-1">Notes</label>
+                        <textarea id="deposit-notes" rows="2" placeholder="Additional notes..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-green-500 focus:outline-none"></textarea>
+                    </div>
+                    <div id="deposit-alert" class="hidden p-2 rounded-lg text-sm font-medium"></div>
+                </div>
+                <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
+                    <button type="button" onclick="closeDepositModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
+                    <button type="submit" id="deposit-submit-btn" class="flex-1 bg-green-600 hover:bg-green-700 text-white font-medium py-2 rounded-lg transition text-sm">💰 Add Deposit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
 </html>
+
 
 
 

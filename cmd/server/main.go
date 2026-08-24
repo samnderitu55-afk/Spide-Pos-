@@ -122,6 +122,25 @@ func main() {
 	mux.HandleFunc("/api/users/update", middleware.AuthMiddleware(handlers.UpdateUserHandler))
 	mux.HandleFunc("/api/users/delete", middleware.AuthMiddleware(handlers.DeleteUserHandler))
 
+	// Customer deposit routes
+	mux.HandleFunc("/api/customers/deposit", middleware.AuthMiddleware(handlers.AddCustomerDepositHandler))
+	mux.HandleFunc("/api/customers/balance", middleware.AuthMiddleware(handlers.GetCustomerBalanceHandler))
+	mux.HandleFunc("/api/customers/transactions", middleware.AuthMiddleware(handlers.GetCustomerTransactionsHandler))
+
+	// Customer routes
+	mux.HandleFunc("/api/customers", middleware.AuthMiddleware(handlers.GetCustomersHandler))
+	mux.HandleFunc("/api/customers/get", middleware.AuthMiddleware(handlers.GetCustomerHandler))
+	mux.HandleFunc("/api/customers/create", middleware.AuthMiddleware(handlers.CreateCustomerHandler))
+	mux.HandleFunc("/api/customers/update", middleware.AuthMiddleware(handlers.UpdateCustomerHandler))
+	mux.HandleFunc("/api/customers/delete", middleware.AuthMiddleware(handlers.DeleteCustomerHandler))
+	mux.HandleFunc("/api/customers/search", middleware.AuthMiddleware(handlers.SearchCustomersHandler))
+
+	// Credit sales routes
+	mux.HandleFunc("/api/credit-sales", middleware.AuthMiddleware(handlers.GetCreditSalesHandler))
+	mux.HandleFunc("/api/credit-sales/create", middleware.AuthMiddleware(handlers.CreateCreditSaleHandler))
+	mux.HandleFunc("/api/credit-sales/payments", middleware.AuthMiddleware(handlers.GetCreditPaymentsHandler))
+	mux.HandleFunc("/api/credit-sales/add-payment", middleware.AuthMiddleware(handlers.AddCreditPaymentHandler))
+
 	// Server configuration
 	port := getEnv("PORT", "8081")
 	server := &http.Server{
