@@ -1,10 +1,12 @@
 ﻿package handlers
 
 import (
+    "fmt"
+    "log"
+    "spide-pos/internal/middleware"
     "encoding/json"
     "net/http"
     "strconv"
-    "strings"
     "spide-pos/internal/db"
 )
 
@@ -70,43 +72,104 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func SearchProductsHandler(w http.ResponseWriter, r *http.Request) {
-    q := r.URL.Query().Get("q")
-    if strings.TrimSpace(q) == "" {
-        w.Header().Set("Content-Type", "application/json")
-        json.NewEncoder(w).Encode([]db.Product{})
-        return
-    }
-
-    products, err := db.SearchProducts(db.GetDB(), q)
-    if err != nil {
-        http.Error(w, err.Error(), http.StatusInternalServerError)
-        return
-    }
-    if products == nil {
-        products = []db.Product{}
-    }
-
     w.Header().Set("Content-Type", "application/json")
+    
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
+        http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+        return
+    }
+
+    query := r.URL.Query().Get("q")
+    if query == "" {
+        http.Error(w, `{"error":"Search query required"}`, http.StatusBadRequest)
+        return
+    }
+
+    // Get shop_id from query param, default to user's shop
+    shopID := claims.ShopID
+    if shopIDParam := r.URL.Query().Get("shop_id"); shopIDParam != "" {
+        if id, err := strconv.Atoi(shopIDParam); err == nil && id > 0 {
+            shopID = id
+        }
+    }
+
+    products, err := db.SearchProductsByShop(db.GetDB(), query, shopID)
+    if err != nil {
+        http.Error(w, `{"error":"Failed to search products: `+err.Error()+`"}`, http.StatusInternalServerError)
+        return
+    }
+
     json.NewEncoder(w).Encode(products)
 }
 
 func ScanProductHandler(w http.ResponseWriter, r *http.Request) {
-    barcode := r.URL.Query().Get("barcode")
-    qtyStr := r.URL.Query().Get("qty")
-
-    qty := 1
-    if parsedQty, err := strconv.Atoi(qtyStr); err == nil && parsedQty > 0 {
-        qty = parsedQty
-    }
-
-    product, err := db.GetProductByBarcode(db.GetDB(), barcode, qty)
-    if err != nil {
-        w.WriteHeader(http.StatusNotFound)
-        w.Write([]byte(`<tr><td colspan="7" class="p-3 text-center text-red-500 font-medium">⚠️ Product not found</td></tr>`))
+    w.Header().Set("Content-Type", "text/html")
+    
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
+        http.Error(w, `Unauthorized`, http.StatusUnauthorized)
         return
     }
 
-    w.Header().Set("Content-Type", "text/html")
+    barcode := r.URL.Query().Get("barcode")
+    if barcode == "" {
+        http.Error(w, `<div class="text-red-500 text-center p-2">❌ Barcode required</div>`, http.StatusBadRequest)
+        return
+    }
+    
+    qty := 1
+    if qtyParam := r.URL.Query().Get("qty"); qtyParam != "" {
+        if q, err := strconv.Atoi(qtyParam); err == nil && q > 0 {
+            qty = q
+        }
+    }
+    
+    shopID := claims.ShopID
+    if shopIDParam := r.URL.Query().Get("shop_id"); shopIDParam != "" {
+        if id, err := strconv.Atoi(shopIDParam); err == nil && id > 0 {
+            shopID = id
+        }
+    }
+
+    log.Printf("🔍 Scanning barcode: %s, shop: %d, qty: %d", barcode, shopID, qty)
+
+    product, err := db.GetProductByBarcodeAndShop(db.GetDB(), barcode, shopID)
+    if err != nil {
+        log.Printf("❌ Database error: %v", err)
+        http.Error(w, `<div class="text-red-500 text-center p-2">❌ Product not found</div>`, http.StatusNotFound)
+        return
+    }
+    
+    if product == nil {
+        log.Printf("❌ Product not found for barcode: %s", barcode)
+        http.Error(w, `<div class="text-red-500 text-center p-2">❌ Product not found</div>`, http.StatusNotFound)
+        return
+    }
+
+    log.Printf("✅ Product found: %s, stock: %d", product.Name, product.StockQuantity)
+
+    // Check if stock is available
+    if product.StockQuantity <= 0 {
+        http.Error(w, `<div class="text-red-500 text-center p-2 font-bold">❌ Out of Stock!</div>`, http.StatusBadRequest)
+        return
+    }
+
+    if product.StockQuantity < qty {
+        msg := fmt.Sprintf(`<div class="text-amber-500 text-center p-2 font-bold">⚠️ Only %d items available</div>`, product.StockQuantity)
+        http.Error(w, msg, http.StatusBadRequest)
+        return
+    }
+
+    // Render HTML row for the product
     w.Write([]byte(product.RenderRowHTML()))
 }
+
+
+
+
+
+
+
+
 

@@ -1,27 +1,44 @@
 ﻿package db
 
 import (
+    "log"
     "database/sql"
     "fmt"
 )
 
 // Add deposit to customer account
 func AddCustomerDeposit(db *sql.DB, customerID int, amount float64, paymentMethod, reference, notes, createdBy string) error {
+    log.Printf("💰 Adding deposit: customerID=%d, amount=%.2f, paymentMethod=%s", customerID, amount, paymentMethod)
+    
+    // Get user ID from username
+    var userID int
+    err := db.QueryRow("SELECT id FROM users WHERE username = ?", createdBy).Scan(&userID)
+    if err != nil {
+        log.Printf("⚠️ User not found: %s, defaulting to 1", createdBy)
+        userID = 1
+    }
+    log.Printf("Using user_id: %d for created_by", userID)
+    
     tx, err := db.Begin()
     if err != nil {
+        log.Printf("❌ Failed to begin transaction: %v", err)
         return fmt.Errorf("failed to begin transaction: %w", err)
     }
     defer tx.Rollback()
 
-    // Add deposit record
+    // Add deposit record with user ID
     query := `
         INSERT INTO customer_deposits (customer_id, amount, payment_method, reference, notes, created_by, created_at)
         VALUES (?, ?, ?, ?, ?, ?, NOW())
     `
-    _, err = tx.Exec(query, customerID, amount, paymentMethod, reference, notes, createdBy)
+    log.Printf("Inserting deposit: customer_id=%d, amount=%.2f", customerID, amount)
+    
+    _, err = tx.Exec(query, customerID, amount, paymentMethod, reference, notes, userID)
     if err != nil {
+        log.Printf("❌ Failed to create deposit: %v", err)
         return fmt.Errorf("failed to create deposit: %w", err)
     }
+    log.Printf("✅ Deposit record inserted")
 
     // Update customer deposit balance
     _, err = tx.Exec(`
@@ -30,24 +47,17 @@ func AddCustomerDeposit(db *sql.DB, customerID int, amount float64, paymentMetho
         WHERE id = ?
     `, amount, customerID)
     if err != nil {
+        log.Printf("❌ Failed to update customer balance: %v", err)
         return fmt.Errorf("failed to update customer balance: %w", err)
     }
-
-    // Record in credit_sales as a deposit transaction
-    _, err = tx.Exec(`
-        INSERT INTO credit_sales (customer_id, total_amount, amount_paid, balance, 
-                                  due_date, status, notes, created_by, transaction_type, reference, created_at)
-        VALUES (?, ?, ?, ?, NULL, 'completed', ?, ?, 'deposit', ?, NOW())
-    `, customerID, amount, amount, 0, notes, createdBy, reference)
-
-    if err != nil {
-        return fmt.Errorf("failed to record deposit transaction: %w", err)
-    }
+    log.Printf("✅ Customer balance updated")
 
     if err := tx.Commit(); err != nil {
+        log.Printf("❌ Failed to commit deposit: %v", err)
         return fmt.Errorf("failed to commit deposit: %w", err)
     }
-
+    
+    log.Printf("✅ Deposit completed successfully for customer %d", customerID)
     return nil
 }
 
@@ -80,17 +90,6 @@ func DeductCustomerBalance(db *sql.DB, customerID int, amount float64, saleID in
         return fmt.Errorf("failed to update customer balance: %w", err)
     }
 
-    // Record in credit_sales as a purchase transaction
-    _, err = tx.Exec(`
-        INSERT INTO credit_sales (customer_id, sale_id, total_amount, amount_paid, balance, 
-                                  due_date, status, notes, created_by, transaction_type, created_at)
-        VALUES (?, ?, ?, ?, ?, NULL, 'completed', ?, ?, 'purchase', NOW())
-    `, customerID, saleID, amount, amount, 0, notes, createdBy)
-
-    if err != nil {
-        return fmt.Errorf("failed to record purchase transaction: %w", err)
-    }
-
     if err := tx.Commit(); err != nil {
         return fmt.Errorf("failed to commit deduction: %w", err)
     }
@@ -115,9 +114,7 @@ func GetCustomerBalance(db *sql.DB, customerID int) (float64, error) {
 func GetCustomerTransactions(db *sql.DB, customerID int) ([]CreditSale, error) {
     query := `
         SELECT id, customer_id, shop_id, sale_id, total_amount, amount_paid, balance,
-               due_date, status, notes, created_by, created_at, updated_at, 
-               COALESCE(transaction_type, 'purchase') as transaction_type,
-               COALESCE(reference, '') as reference
+               due_date, status, notes, created_by, created_at, updated_at
         FROM credit_sales
         WHERE customer_id = ?
         ORDER BY created_at DESC
@@ -145,8 +142,6 @@ func GetCustomerTransactions(db *sql.DB, customerID int) ([]CreditSale, error) {
             &t.CreatedBy,
             &t.CreatedAt,
             &t.UpdatedAt,
-            &t.TransactionType,
-            &t.Reference,
         )
         if err != nil {
             return nil, err
@@ -160,3 +155,6 @@ func GetCustomerTransactions(db *sql.DB, customerID int) ([]CreditSale, error) {
 
     return transactions, nil
 }
+
+
+

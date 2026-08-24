@@ -202,3 +202,84 @@ func RestoreProduct(db *sql.DB, id int64) error {
     _, err := db.Exec("UPDATE products SET is_active = 1, updated_at = NOW() WHERE id = ?", id)
     return err
 }
+
+func GetProductByBarcodeAndShop(db *sql.DB, barcode string, shopID int) (*Product, error) {
+    var product Product
+    query := `
+        SELECT p.id, p.barcode, p.name, p.category, p.cost_price, p.retail_price, 
+               p.wholesale_price, p.wholesale_min_qty, 
+               COALESCE(ss.quantity, 0) as stock_quantity,
+               p.reorder_level, p.is_active
+        FROM products p
+        LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ?
+        WHERE p.barcode = ? AND p.is_active = 1
+    `
+    err := db.QueryRow(query, shopID, barcode).Scan(
+        &product.ID,
+        &product.Barcode,
+        &product.Name,
+        &product.Category,
+        &product.CostPrice,
+        &product.RetailPrice,
+        &product.WholesalePrice,
+        &product.WholesaleMinQty,
+        &product.StockQuantity,
+        &product.ReorderLevel,
+        &product.IsActive,
+    )
+    if err != nil {
+        if err == sql.ErrNoRows {
+            return nil, nil
+        }
+        return nil, err
+    }
+    return &product, nil
+}
+
+func SearchProductsByShop(db *sql.DB, query string, shopID int) ([]Product, error) {
+    searchTerm := "%" + query + "%"
+    sqlQuery := `
+        SELECT p.id, p.barcode, p.name, p.category, p.cost_price, p.retail_price, 
+               p.wholesale_price, p.wholesale_min_qty, 
+               COALESCE(ss.quantity, 0) as stock_quantity,
+               p.reorder_level, p.is_active
+        FROM products p
+        LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ?
+        WHERE p.is_active = 1 AND (p.name LIKE ? OR p.barcode LIKE ?)
+        ORDER BY p.name
+        LIMIT 20
+    `
+    rows, err := db.Query(sqlQuery, shopID, searchTerm, searchTerm)
+    if err != nil {
+        return nil, fmt.Errorf("failed to search products: %w", err)
+    }
+    defer rows.Close()
+
+    var products []Product
+    for rows.Next() {
+        var p Product
+        err := rows.Scan(
+            &p.ID,
+            &p.Barcode,
+            &p.Name,
+            &p.Category,
+            &p.CostPrice,
+            &p.RetailPrice,
+            &p.WholesalePrice,
+            &p.WholesaleMinQty,
+            &p.StockQuantity,
+            &p.ReorderLevel,
+            &p.IsActive,
+        )
+        if err != nil {
+            return nil, err
+        }
+        products = append(products, p)
+    }
+
+    if err := rows.Err(); err != nil {
+        return nil, fmt.Errorf("error iterating products: %w", err)
+    }
+
+    return products, nil
+}

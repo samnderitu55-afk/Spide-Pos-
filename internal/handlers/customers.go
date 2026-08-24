@@ -101,7 +101,7 @@ func CreateCustomerHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    req.CreatedBy = claims.Username // Store username, DB will convert to ID
+    req.CreatedBy = claims.Username
 
     err := db.CreateCustomer(db.GetDB(), &req)
     if err != nil {
@@ -112,8 +112,8 @@ func CreateCustomerHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     json.NewEncoder(w).Encode(map[string]interface{}{
-        "success": true,
-        "message": "Customer created successfully",
+        "success":  true,
+        "message":  "Customer created successfully",
         "customer": req,
     })
 }
@@ -160,8 +160,8 @@ func UpdateCustomerHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     json.NewEncoder(w).Encode(map[string]interface{}{
-        "success": true,
-        "message": "Customer updated successfully",
+        "success":  true,
+        "message":  "Customer updated successfully",
         "customer": req,
     })
 }
@@ -279,7 +279,7 @@ func CreateCreditSaleHandler(w http.ResponseWriter, r *http.Request) {
     if req.ShopID == 0 {
         req.ShopID = 1
     }
-    req.CreatedBy = claims.Username // Store username, DB will convert to ID
+    req.CreatedBy = claims.Username
     req.Status = "pending"
 
     err := db.CreateCreditSale(db.GetDB(), &req)
@@ -291,8 +291,8 @@ func CreateCreditSaleHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     json.NewEncoder(w).Encode(map[string]interface{}{
-        "success": true,
-        "message": "Credit sale created successfully",
+        "success":     true,
+        "message":     "Credit sale created successfully",
         "credit_sale": req,
     })
 }
@@ -396,7 +396,7 @@ func AddCreditPaymentHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    req.CreatedBy = claims.Username // Store username, DB will convert to ID
+    req.CreatedBy = claims.Username
 
     err := db.AddCreditPayment(db.GetDB(), &req)
     if err != nil {
@@ -413,4 +413,145 @@ func AddCreditPaymentHandler(w http.ResponseWriter, r *http.Request) {
     })
 }
 
+// ============================================
+// CUSTOMER DEPOSIT HANDLERS
+// ============================================
 
+// Add deposit to customer account
+func AddCustomerDepositHandler(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+    
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Unauthorized",
+        })
+        return
+    }
+
+    var req struct {
+        CustomerID    int     `json:"customer_id"`
+        Amount        float64 `json:"amount"`
+        PaymentMethod string  `json:"payment_method"`
+        Reference     string  `json:"reference"`
+        Notes         string  `json:"notes"`
+    }
+
+    if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Invalid request body: " + err.Error(),
+        })
+        return
+    }
+
+    if req.CustomerID == 0 {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Customer is required",
+        })
+        return
+    }
+
+    if req.Amount <= 0 {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Amount must be greater than 0",
+        })
+        return
+    }
+
+    err := db.AddCustomerDeposit(db.GetDB(), req.CustomerID, req.Amount, req.PaymentMethod, req.Reference, req.Notes, claims.Username)
+    if err != nil {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Failed to add deposit: " + err.Error(),
+        })
+        return
+    }
+
+    balance, _ := db.GetCustomerBalance(db.GetDB(), req.CustomerID)
+
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "success":     true,
+        "message":     "Deposit added successfully",
+        "new_balance": balance,
+    })
+}
+
+// Get customer balance
+func GetCustomerBalanceHandler(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+    
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Unauthorized",
+        })
+        return
+    }
+
+    customerIDStr := r.URL.Query().Get("customer_id")
+    if customerIDStr == "" {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Customer ID required",
+        })
+        return
+    }
+
+    customerID, err := strconv.Atoi(customerIDStr)
+    if err != nil {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Invalid customer ID",
+        })
+        return
+    }
+
+    balance, err := db.GetCustomerBalance(db.GetDB(), customerID)
+    if err != nil {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Failed to get balance: " + err.Error(),
+        })
+        return
+    }
+
+    json.NewEncoder(w).Encode(map[string]interface{}{
+        "customer_id": customerID,
+        "balance":     balance,
+    })
+}
+
+// Get customer transactions
+func GetCustomerTransactionsHandler(w http.ResponseWriter, r *http.Request) {
+    w.Header().Set("Content-Type", "application/json")
+    
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Unauthorized",
+        })
+        return
+    }
+
+    customerIDStr := r.URL.Query().Get("customer_id")
+    if customerIDStr == "" {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Customer ID required",
+        })
+        return
+    }
+
+    customerID, err := strconv.Atoi(customerIDStr)
+    if err != nil {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Invalid customer ID",
+        })
+        return
+    }
+
+    transactions, err := db.GetCustomerTransactions(db.GetDB(), customerID)
+    if err != nil {
+        json.NewEncoder(w).Encode(map[string]interface{}{
+            "error": "Failed to get transactions: " + err.Error(),
+        })
+        return
+    }
+
+    json.NewEncoder(w).Encode(transactions)
+}

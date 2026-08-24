@@ -21,28 +21,134 @@
         .hidden-role { display: none !important; }
         .refresh-spinner { display: inline-block; animation: spin 1s linear infinite; }
         @keyframes spin { 100% { transform: rotate(360deg); } }
+
+        /* Mega Menu Animation */
+        #mega-menu {
+            animation: slideDown 0.25s ease-out;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .backdrop-blur-xl {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        #mega-menu a {
+            transition: all 0.2s ease;
+        }
+        #mega-menu a:hover {
+            padding-left: 14px;
+        }
     </style>
 </head>
 <body class="bg-gray-100 font-sans min-h-screen">
-    <header class="bg-purple-900 text-white p-4 shadow-md flex justify-between items-center sticky top-0 z-40">
-        <div class="flex items-center gap-4">
-            <div class="flex items-center gap-2">
-                <img src="/favicon.ico" alt="Spide POS" class="w-8 h-8" onerror="this.style.display='none'; this.parentElement.innerHTML='🕷️'">
-                <h1 class="text-xl font-bold tracking-wide">Spide POS</h1>
-            </div>
-            <span class="bg-amber-600 text-xs px-2 py-1 rounded-full">Director View</span>
-        </div>
+    
+    <!-- HEADER - Same as POS -->
+    <header class="bg-gradient-to-r from-purple-900 to-purple-800 text-white p-2 shadow-lg flex justify-between items-center sticky top-0 z-40 border-b border-purple-700/30">
+        <!-- LEFT: Brand + Shop -->
         <div class="flex items-center gap-3">
-            <button onclick="refreshDashboard()" class="bg-purple-700 hover:bg-purple-600 px-3 py-1.5 rounded-lg text-sm transition flex items-center gap-1">
-                <span id="refresh-icon">🔄</span> Refresh
+            <div class="flex items-center gap-2 bg-purple-800/50 px-3 py-1.5 rounded-xl border border-purple-700/30">
+                <span class="text-xl">🕷️</span>
+                <span class="font-bold text-sm tracking-wider">SPIDE</span>
+                <span class="text-purple-300 text-xs font-light">POS</span>
+            </div>
+            <div class="flex items-center gap-2 bg-purple-800/30 px-3 py-1.5 rounded-xl border border-purple-700/20">
+                <span class="text-sm">🏪</span>
+                <span id="shop-name-display" class="text-sm font-medium">All Branches</span>
+                <span class="text-xs text-amber-400 font-semibold bg-amber-500/20 px-2 py-0.5 rounded-full">Director</span>
+            </div>
+            <div class="hidden md:flex items-center gap-2 text-purple-300 text-xs border-l border-purple-700/30 pl-3">
+                <div class="w-6 h-6 rounded-full bg-purple-700 flex items-center justify-center text-white text-xs font-bold">
+                    <span id="user-initial">D</span>
+                </div>
+                <span id="logged-in-user" class="font-medium text-white text-sm">Director</span>
+            </div>
+        </div>
+
+        <!-- RIGHT: Navigation -->
+        <div class="flex items-center gap-1">
+            <div class="flex items-center gap-1 bg-purple-800/30 rounded-xl p-1 border border-purple-700/20">
+                <button onclick="window.location.href='/pos'" class="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition flex items-center gap-1.5 text-white bg-emerald-600/80">
+                    <span>🛒</span>
+                    <span class="hidden sm:inline">POS</span>
+                </button>
+                <button onclick="window.location.href='/'" class="px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition text-purple-200 hover:text-white flex items-center gap-1">
+                    <span>📊</span>
+                    <span class="hidden sm:inline">Dashboard</span>
+                </button>
+                <button onclick="window.location.href='/director'" class="px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition text-amber-300 hover:text-white flex items-center gap-1 bg-amber-500/20 rounded-lg">
+                    <span>👑</span>
+                    <span class="hidden sm:inline">Director</span>
+                </button>
+            </div>
+
+            <button onclick="toggleMegaMenu()" class="bg-purple-700/50 hover:bg-purple-600 text-white p-2 rounded-xl transition border border-purple-700/30 flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                </svg>
+                <span class="text-xs font-medium hidden sm:inline">Menu</span>
             </button>
-            <a href="/" class="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg text-sm font-semibold transition">📊 Dashboard</a>
-            <a href="/pos" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-sm font-semibold transition">🛒 POS</a>
-            <button onclick="logout()" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-sm font-semibold transition">🚪 Logout</button>
+
+            <button onclick="logout()" class="hover:bg-red-600/50 p-2 rounded-xl transition text-red-300 hover:text-white">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                </svg>
+            </button>
         </div>
     </header>
 
+    <!-- MEGA MENU -->
+    <div id="mega-menu" class="hidden fixed top-[60px] left-4 right-4 bg-white/95 backdrop-blur-xl shadow-2xl rounded-2xl border border-gray-100 z-50 max-h-[85vh] overflow-y-auto">
+        <div class="p-6">
+            <button onclick="toggleMegaMenu()" class="float-right text-gray-400 hover:text-gray-600 transition p-1">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-2">
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2"><span class="text-lg">🛒</span> Sales</div>
+                    <a href="#" onclick="openRecentSalesModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📋</span> Recent Sales<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openZReportModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📊</span> Z-Report<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openProductSalesModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📈</span> Product Sales<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                </div>
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2"><span class="text-lg">📦</span> Inventory</div>
+                    <a href="#" onclick="openAddProductModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">➕</span> Add Product<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openProductCatalogModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📋</span> Catalog<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openLowStockModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">⚠️</span> Low Stock<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openInventoryValuationModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">💎</span> Valuation<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                </div>
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2"><span class="text-lg">🔗</span> Supply Chain</div>
+                    <a href="#" onclick="openPurchaseModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📥</span> New Purchase<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openPurchaseReportModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📊</span> Purchase Report<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openSupplierModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">👥</span> Suppliers<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openTransferModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">🔄</span> New Transfer<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openTransferHistoryModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📋</span> Transfer History<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                </div>
+                <div class="space-y-1">
+                    <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2"><span class="text-lg">💰</span> Finance</div>
+                    <a href="#" onclick="openExpenseModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">➕</span> Add Expense<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openExpenseReportModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📊</span> Expense Report<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openCustomerListModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">👥</span> Customers<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openDepositModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">💰</span> Deposits<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                </div>
+            </div>
+            <div class="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-400">
+                <span>🕷️ Spide POS v2.0</span>
+                <span id="menu-clock" class="font-mono"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
     <div class="max-w-7xl mx-auto p-6 space-y-6">
+        
         <!-- KPI Cards -->
         <div class="stat-grid" id="kpi-cards">
             <div class="stat-card bg-white rounded-xl shadow-sm p-5 border border-gray-200">
@@ -71,7 +177,7 @@
         <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="font-bold text-gray-800">🏪 Outlet Performance</h3>
-                <span class="text-xs text-gray-400">Today's data</span>
+                <button onclick="refreshDashboard()" class="text-xs text-purple-600 hover:text-purple-800 font-medium">🔄 Refresh</button>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -108,24 +214,23 @@
             </div>
         </div>
 
-        <!-- Recent Transactions -->
-        <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
-            <h3 class="font-bold text-gray-800 mb-4">🕐 Recent Transactions</h3>
-            <div id="recent-transactions" class="space-y-2">
-                <p class="text-sm text-gray-500 text-center py-4">No transactions yet</p>
-            </div>
-        </div>
-
-        <!-- Alerts -->
+        <!-- Stock Alerts -->
         <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
             <h3 class="font-bold text-gray-800 mb-4">⚠️ Stock Alerts</h3>
             <div id="alerts-list">
                 <p class="text-sm text-gray-500 text-center py-4">No alerts</p>
             </div>
         </div>
+
     </div>
 
+    <!-- Include all the modals from POS -->
+    <!-- (Copy the modal HTML from pos.html - you can keep them in a separate include or copy them here) -->
+
     <script>
+        // ============================================
+        // COOKIE FUNCTIONS
+        // ============================================
         function getCookie(name) {
             const value = `; ${document.cookie}`;
             const parts = value.split(`; ${name}=`);
@@ -156,11 +261,67 @@
             window.location.href = '/login';
         }
 
-        async function refreshDashboard() {
-            const refreshIcon = document.getElementById('refresh-icon');
-            refreshIcon.textContent = '⟳';
-            refreshIcon.className = 'refresh-spinner';
+        // ============================================
+        // MEGA MENU
+        // ============================================
+        function toggleMegaMenu() {
+            const menu = document.getElementById('mega-menu');
+            menu.classList.toggle('hidden');
+        }
 
+        document.addEventListener('click', function(event) {
+            const menu = document.getElementById('mega-menu');
+            const toggle = document.querySelector('.bg-purple-700\\/50');
+            if (menu && !menu.classList.contains('hidden')) {
+                if (!menu.contains(event.target) && !toggle?.contains(event.target)) {
+                    menu.classList.add('hidden');
+                }
+            }
+        });
+
+        document.querySelectorAll('#mega-menu a').forEach(link => {
+            link.addEventListener('click', function() {
+                document.getElementById('mega-menu').classList.add('hidden');
+            });
+        });
+
+        function updateMenuClock() {
+            const clock = document.getElementById('menu-clock');
+            if (clock) {
+                const now = new Date();
+                clock.textContent = now.toLocaleTimeString('en-KE', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            }
+        }
+        setInterval(updateMenuClock, 1000);
+        updateMenuClock();
+
+        // ============================================
+        // USER DISPLAY
+        // ============================================
+        const userCookie = getCookie('spide_user');
+        let user = {};
+        if (userCookie) {
+            try {
+                const decoded = decodeURIComponent(userCookie);
+                user = JSON.parse(decoded);
+            } catch(e) {}
+        }
+
+        const userEl = document.getElementById('logged-in-user');
+        if (userEl && user.username) {
+            userEl.textContent = user.username;
+        }
+
+        const initialEl = document.getElementById('user-initial');
+        if (initialEl) {
+            const name = user.username || 'D';
+            initialEl.textContent = name.charAt(0).toUpperCase();
+        }
+
+        // ============================================
+        // DASHBOARD DATA
+        // ============================================
+        async function refreshDashboard() {
             try {
                 const response = await fetch('/api/director/dashboard', {
                     headers: { 'Authorization': 'Bearer ' + token }
@@ -178,27 +339,23 @@
                 }
 
                 const data = await response.json();
-                console.log('📊 Director data:', data);
                 renderDashboard(data);
             } catch (error) {
                 console.error('Dashboard error:', error);
                 document.querySelector('#outlet-rows').innerHTML = '<tr><td colspan="6" class="p-4 text-center text-red-500">Error loading data: ' + error.message + '</td></tr>';
                 document.querySelector('#alerts-list').innerHTML = '<p class="text-sm text-red-500 text-center py-4">Error loading alerts</p>';
-            } finally {
-                refreshIcon.textContent = '🔄';
-                refreshIcon.className = '';
             }
         }
 
         function renderDashboard(data) {
-            // KPI Cards - using the field names from your struct
+            // KPI Cards
             document.getElementById('kpi-revenue').textContent = formatCurrency(data.total_revenue_today || 0);
             document.getElementById('kpi-month').textContent = formatCurrency(data.total_revenue_month || 0);
             document.getElementById('kpi-stores').textContent = (data.active_stores || 0) + ' / ' + (data.total_stores || 0);
             document.getElementById('kpi-sales').textContent = data.today_transactions || 0;
             document.getElementById('kpi-lowstock').textContent = data.low_stock_items || 0;
 
-            // Outlet Stats - using outlet_stats field
+            // Outlet Stats
             const outletContainer = document.getElementById('outlet-rows');
             if (!data.outlet_stats || data.outlet_stats.length === 0) {
                 outletContainer.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No outlet data available</td></tr>';
@@ -218,7 +375,7 @@
                 outletContainer.innerHTML = html;
             }
 
-            // Sales Trend - using sales_trend field
+            // Sales Trend
             const trendContainer = document.getElementById('trend-chart');
             if (!data.sales_trend || data.sales_trend.length === 0) {
                 trendContainer.innerHTML = '<div class="text-center text-xs text-gray-400 w-full py-4">No sales data yet</div>';
@@ -262,29 +419,6 @@
                 productsContainer.innerHTML = html;
             }
 
-            // Recent Transactions
-            const transactionsContainer = document.getElementById('recent-transactions');
-            if (!data.recent_transactions || data.recent_transactions.length === 0) {
-                transactionsContainer.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No transactions yet</p>';
-            } else {
-                let html = '';
-                const paymentEmojis = { 'cash': '💵', 'mpesa': '📱', 'split': '💳', 'card': '💳' };
-                data.recent_transactions.forEach(tx => {
-                    const emoji = paymentEmojis[tx.payment_type] || '💰';
-                    html += `<div class="flex items-center justify-between p-2 bg-gray-50 hover:bg-gray-100 rounded-lg transition">
-                        <div class="flex items-center gap-2">
-                            <span>${emoji}</span>
-                            <div>
-                                <div class="text-xs font-semibold text-gray-800">Sale #${tx.sale_id} • ${tx.shop_name || 'Unknown'}</div>
-                                <div class="text-xs text-gray-500">${tx.created_at || ''}</div>
-                            </div>
-                        </div>
-                        <div class="font-bold text-purple-900 text-sm">${formatCurrency(tx.amount)}</div>
-                    </div>`;
-                });
-                transactionsContainer.innerHTML = html;
-            }
-
             // Alerts
             const alertsContainer = document.getElementById('alerts-list');
             if (!data.alerts || data.alerts.length === 0) {
@@ -312,8 +446,9 @@
         // Initial load and auto-refresh
         document.addEventListener('DOMContentLoaded', function() {
             refreshDashboard();
-            setInterval(refreshDashboard, 30000); // Refresh every 30 seconds
+            setInterval(refreshDashboard, 30000);
         });
     </script>
+
 </body>
 </html>
