@@ -673,41 +673,16 @@
         }
 
         function selectSearchResult(index) {
-                        const product = currentSearchResults[index];
-                if (!product) return;
-                
-                console.log('🔍 Selected product:', product);
-                
-                const barcodeInput = document.getElementById('barcode-input');
-                if (barcodeInput && product.barcode) {
-                    barcodeInput.value = product.barcode;
-                    
-                    // Check if product already exists in cart (same as barcode scan)
-                    const existingRow = document.querySelector(`#cart-items tr[data-barcode="${product.barcode}"]`);
-                    if (existingRow) {
-                        const qtyInput = existingRow.querySelector('.cart-qty-input');
-                        const currentQty = parseInt(qtyInput.value) || 1;
-                        const qty = parseInt(document.getElementById('qty-input').value) || 1;
-                        qtyInput.value = currentQty + qty;
-                        qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
-                        document.getElementById('barcode-input').value = '';
-                        document.getElementById('qty-input').value = 1;
-                        closeSearchDropdown();
-                        document.getElementById('barcode-input').focus();
-                        return;
-                    }
-                    
-                    // Add new product
-                    const qty = parseInt(document.getElementById('qty-input').value) || 1;
-                    fetchProductByBarcode(product.barcode, qty);
-                }
-                
-                const input = document.getElementById('scan-input');
-                if (input) { 
-                    input.value = ''; 
-                    input.focus(); 
-                }
-                closeSearchDropdown();     
+            const product = currentSearchResults[index];
+            if (!product) return;
+            const barcodeInput = document.getElementById('barcode-input');
+            if (barcodeInput && product.barcode) {
+                barcodeInput.value = product.barcode;
+                handleAddToCart();
+            }
+            const input = document.getElementById('scan-input');
+            if (input) { input.value = ''; input.focus(); }
+            closeSearchDropdown();
         }
 
         function closeSearchDropdown() {
@@ -723,92 +698,65 @@
         let totalAmount = 0;
 
         async function handleAddToCart() {
-                const barcode = document.getElementById('barcode-input').value.trim();
-                const qty = parseInt(document.getElementById('qty-input').value) || 1;
-                
-                if (!barcode) { 
-                    alert('Please enter a barcode or search for a product.'); 
-                    return; 
-                }
-                
-                // Check if product already exists in cart
-                const existingRow = document.querySelector(`#cart-items tr[data-barcode="${barcode}"]`);
-                if (existingRow) {
-                    const qtyInput = existingRow.querySelector('.cart-qty-input');
-                    const currentQty = parseInt(qtyInput.value) || 1;
-                    qtyInput.value = currentQty + qty;
-                    qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
-                    document.getElementById('barcode-input').value = '';
-                    document.getElementById('qty-input').value = 1;
-                    document.getElementById('barcode-input').focus();
-                    return;
-                }
-                
-                // Fetch and add new product
-                await fetchProductByBarcode(barcode, qty);
-                    }
+            const barcode = document.getElementById('barcode-input').value.trim();
+            const qty = parseInt(document.getElementById('qty-input').value) || 1;
+            if (!barcode) { alert('Please enter a barcode or search for a product.'); return; }
+            const existingRow = document.querySelector(`#cart-items tr[data-barcode="${barcode}"]`);
+            if (existingRow) {
+                const qtyInput = existingRow.querySelector('.cart-qty-input');
+                const currentQty = parseInt(qtyInput.value) || 1;
+                qtyInput.value = currentQty + qty;
+                qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+                document.getElementById('barcode-input').value = '';
+                document.getElementById('qty-input').value = 1;
+                document.getElementById('barcode-input').focus();
+                return;
+            }
+            await fetchProductByBarcode(barcode, qty);
+        }
 
         async function fetchProductByBarcode(barcode, qty) {
-                   try {
+                      try {
                         const url = '/api/products/scan-html?barcode=' + encodeURIComponent(barcode) + '&qty=' + qty + '&shop_id=' + currentShop.id;
-                        console.log('🔍 Fetching:', url);
-                        
                         const response = await fetch(url);
+                        
                         const html = await response.text();
-                        console.log('📄 Response status:', response.status);
-                        console.log('📄 Response HTML:', html);
                         
                         if (!response.ok) {
-                            // Try to extract error message from HTML
-                            const errorMatch = html.match(/<div[^>]*>([^<]*)<\/div>/);
-                            const errorMsg = errorMatch ? errorMatch[1].trim() : 'Cannot add product';
+                            // Show the error message from the server
+                            const tempDiv = document.createElement('div');
+                            tempDiv.innerHTML = html;
+                            const errorMsg = tempDiv.textContent || 'Cannot add product';
                             alert('❌ ' + errorMsg);
                             document.getElementById('barcode-input').focus();
                             return;
                         }
                         
-                        // Check if response contains a valid table row
-                        if (!html.includes('<tr')) {
-                            console.error('No <tr> found in response');
-                            alert('Error: Invalid product data received');
-                            document.getElementById('barcode-input').focus();
-                            return;
-                        }
-                        
-                        // Extract the row using a different approach
-                        const rowStart = html.indexOf('<tr');
-                        const rowEnd = html.indexOf('</tr>', rowStart) + 5;
-                        if (rowStart === -1 || rowEnd === -1) {
-                            alert('Error: Could not parse product data');
-                            document.getElementById('barcode-input').focus();
-                            return;
-                        }
-                        
-                        const rowHTML = html.substring(rowStart, rowEnd);
-                        console.log('📄 Extracted row:', rowHTML);
-                        
-                        // Create a temporary container and append the row
-                        const tempContainer = document.createElement('tbody');
-                        tempContainer.innerHTML = rowHTML;
-                        const newRow = tempContainer.querySelector('tr');
-                        
+                        const tempDiv = document.createElement('div');
+                        tempDiv.innerHTML = html;
+                        const newRow = tempDiv.querySelector('tr');
                         if (newRow) {
-                            console.log('✅ Row found, adding to cart');
                             newRow.setAttribute('data-barcode', barcode);
                             document.getElementById('cart-items').appendChild(newRow);
                             updateCartTotals();
-                            document.getElementById('barcode-input').value = '';
-                            document.getElementById('qty-input').value = 1;
-                            document.getElementById('barcode-input').focus();
                         } else {
-                            console.error('No row found after parsing');
                             alert('Error adding product to cart. Please try again.');
                         }
+                        document.getElementById('barcode-input').value = '';
+                        document.getElementById('qty-input').value = 1;
+                        document.getElementById('barcode-input').focus();
                     } catch (error) {
                         console.error('Error adding product:', error);
                         alert('Error adding product: ' + error.message);
                     }
-              };
+                        }
+
+                        document.getElementById('barcode-input').addEventListener('keydown', function(e) {
+                            if (e.key === 'Enter') { e.preventDefault(); handleAddToCart(); }
+                        });
+                        document.getElementById('qty-input').addEventListener('keydown', function(e) {
+                            if (e.key === 'Enter') { e.preventDefault(); handleAddToCart(); }
+              });
 
         // ============================================
         // CART FUNCTIONS
@@ -3593,41 +3541,8 @@ async function submitDeposit(event) {
              initialEl.textContent = name.charAt(0).toUpperCase();
             }
 
-            // ============================================
-            // BARCODE & QTY INPUT HANDLERS - ADD THIS
-            // ============================================
-            // Barcode input handler
-            const barcodeInput = document.getElementById('barcode-input');
-            if (barcodeInput) {
-                barcodeInput.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const barcode = this.value.trim();
-                        if (barcode) {
-                            handleAddToCart();
-                        }
-                    }
-                });
-            }
-            
-            // Quantity input handler
-            const qtyInput = document.getElementById('qty-input');
-            if (qtyInput) {
-                qtyInput.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const barcode = document.getElementById('barcode-input').value.trim();
-                        if (barcode) {
-                            handleAddToCart();
-                        } else {
-                            document.getElementById('barcode-input').focus();
-                        }
-                    }
-                });
-                } 
-
             console.log('🕷️ Spide POS Ready!');
-        }) ;
+        });
 
 // ============================================
 // MEGA MENU
@@ -4593,3 +4508,12 @@ updateMenuClock();
     </div>
 
 </html>
+
+
+
+
+
+
+
+
+
