@@ -1,8 +1,9 @@
 ﻿package db
 
 import (
-    "database/sql"
-    "fmt"
+	"database/sql"
+	"fmt"
+	"log"
 )
 
 func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
@@ -12,9 +13,13 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
     }
     defer tx.Rollback()
 
-    if req.ShopID == 0 {
-        req.ShopID = 1
+    // Use shop_id from request or default to 1
+    shopID := req.ShopID
+    if shopID == 0 {
+        shopID = 1
     }
+
+    log.Printf("📝 Creating sale for shop: %d, total: %.2f", shopID, req.TotalAmount)
 
     var calculatedTotal float64
     for _, item := range req.Items {
@@ -23,12 +28,12 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
 
     saleQuery := `
         INSERT INTO sales (total_amount, cash_amount, mpesa_amount, mpesa_code, 
-                           payment_type, shop_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, NOW())
+                           payment_type, change_given, shop_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
     `
     result, err := tx.Exec(saleQuery,
         calculatedTotal, req.CashAmount, req.MpesaAmount,
-        req.MpesaCode, req.PaymentType, req.ShopID,
+        req.MpesaCode, req.PaymentType, req.ChangeGiven, shopID,
     )
     if err != nil {
         return 0, fmt.Errorf("failed to insert sale: %w", err)
@@ -49,12 +54,13 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
             return 0, fmt.Errorf("failed to insert sale item: %w", err)
         }
 
+        // Deduct stock from the correct shop
         stockQuery := `
             UPDATE shop_stock 
             SET quantity = quantity - ?, updated_at = NOW()
             WHERE shop_id = ? AND product_id = ? AND quantity >= ?
         `
-        _, err = tx.Exec(stockQuery, item.Quantity, req.ShopID, item.ProductID, item.Quantity)
+        _, err = tx.Exec(stockQuery, item.Quantity, shopID, item.ProductID, item.Quantity)
         if err != nil {
             return 0, fmt.Errorf("failed to update shop stock: %w", err)
         }
@@ -63,6 +69,8 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
     if err := tx.Commit(); err != nil {
         return 0, fmt.Errorf("failed to commit transaction: %w", err)
     }
+
+    log.Printf("✅ Sale %d created for shop %d", saleID, shopID)
 
     return saleID, nil
 }

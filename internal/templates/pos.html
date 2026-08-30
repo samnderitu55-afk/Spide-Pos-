@@ -923,7 +923,9 @@
                 }
             });
             if (items.length === 0) { alert('No valid products found in cart.'); return; }
-            const payload = { total_amount: totalAmount, cash_amount: cash, mpesa_amount: mpesa, mpesa_code: mpesaCode, payment_type: paymentType, items: items };
+            console.log('🛒 Current Shop ID:', currentShop.id);
+            console.log('🛒 Current Shop Name:', currentShop.name);
+            const payload = { total_amount: totalAmount, cash_amount: cash, mpesa_amount: mpesa, mpesa_code: mpesaCode, payment_type: paymentType, items: items, shop_id: currentShop.id };
             try {
                 const response = await fetch('/api/sales/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 if (response.ok) {

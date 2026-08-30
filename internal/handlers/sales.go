@@ -1,10 +1,12 @@
 ﻿package handlers
 
 import (
-    "encoding/json"
-    "net/http"
-    "strconv"
-    "spide-pos/internal/db"
+	"encoding/json"
+	"log"
+	"net/http"
+	"spide-pos/internal/db"
+	"spide-pos/internal/middleware"
+	"strconv"
 )
 
 func CheckoutHandler(w http.ResponseWriter, r *http.Request) {
@@ -19,15 +21,28 @@ func CheckoutHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // Get shop_id from cookie or use default
-    shopID := 1
-    cookie, err := r.Cookie("current_shop")
-    if err == nil && cookie.Value != "" {
-        if id, parseErr := strconv.Atoi(cookie.Value); parseErr == nil && id > 0 {
-            shopID = id
+   // ✅ Get the shop_id from the request
+    shopID := req.ShopID
+    
+    // If not in request, try to get from user claims
+    if shopID == 0 {
+        claims := middleware.GetUserFromContext(r)
+        if claims != nil {
+            shopID = claims.ShopID
+            log.Printf("⚠️ Using user's shop_id: %d", shopID)
         }
     }
+    
+    // If still 0, default to main shop
+    if shopID == 0 {
+        shopID = 1
+        log.Printf("⚠️ Using default shop_id: %d", shopID)
+    }
+    
+    // Set the shop_id back to the request
     req.ShopID = shopID
+
+    log.Printf("💰 Sale - Shop ID: %d, Total: %.2f", shopID, req.TotalAmount)
 
     // Calculate change
     switch req.PaymentType {
