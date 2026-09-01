@@ -102,7 +102,7 @@
 
         <div class="flex items-center gap-1">
             <div class="flex items-center gap-1 bg-purple-800/30 rounded-xl p-1 border border-purple-700/20">
-                <button onclick="window.location.href='/pos'" class="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition flex items-center gap-1.5 text-white bg-emerald-600/80">
+                <button onclick="goToPOS()" class="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition flex items-center gap-1.5 text-white bg-emerald-600/80">
                     <span>🛒</span><span class="hidden sm:inline">POS</span>
                 </button>
                 <button onclick="window.location.href='/'" class="px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition text-amber-300 hover:text-white flex items-center gap-1 bg-amber-500/20 rounded-lg">
@@ -122,6 +122,7 @@
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
             </button>
         </div>
+        <div id="live-clock" class="text-sm font-mono bg-purple-800 px-3 py-1.5 rounded-lg border border-purple-700">Loading...</div>
     </header>
 
     <!-- MEGA MENU -->
@@ -222,7 +223,10 @@
                 <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
                     <h3 class="font-bold text-gray-800 mb-4">⚡ Quick Actions</h3>
                     <div class="grid grid-cols-2 gap-3">
-                        <a href="/pos" class="quick-action-btn bg-purple-100 hover:bg-purple-200 text-purple-900 p-4 rounded-xl text-center transition"><div class="text-2xl mb-1">🛒</div><div class="text-xs font-semibold">New Sale</div></a>
+                        <a href="#" onclick="goToPOS(); return false;" class="quick-action-btn bg-purple-100 hover:bg-purple-200 text-purple-900 p-4 rounded-xl text-center transition">
+                                    <div class="text-2xl mb-1">🛒</div>
+                                    <div class="text-xs font-semibold">New Sale</div>
+                                </a>
                         <a href="/pos" class="quick-action-btn bg-blue-100 hover:bg-blue-200 text-blue-900 p-4 rounded-xl text-center transition"><div class="text-2xl mb-1">📦</div><div class="text-xs font-semibold">View Catalog</div></a>
                         <a href="/pos" class="quick-action-btn bg-emerald-100 hover:bg-emerald-200 text-emerald-900 p-4 rounded-xl text-center transition"><div class="text-2xl mb-1">➕</div><div class="text-xs font-semibold">Add Product</div></a>
                         <a href="/director" class="quick-action-btn bg-amber-100 hover:bg-amber-200 text-amber-900 p-4 rounded-xl text-center transition director-only" id="director-quick-btn"><div class="text-2xl mb-1">📊</div><div class="text-xs font-semibold">Director View</div></a>
@@ -279,21 +283,34 @@
         }
 
         async function loadShopList() {
-            try {
-                const token = getCookie('spide_token');
-                if (!token) return;
-                const response = await fetch('/api/branches', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
-                if (!response.ok) return;
-                allShops = await response.json();
-                renderShopList(allShops);
-            } catch(e) {
-                console.error('Error loading shops:', e);
-                allShops = [{ id: 1, name: 'Store #1 - Main', location: 'Nairobi' }, { id: 2, name: 'Store #2 - Mombasa', location: 'Mombasa' }];
-                renderShopList(allShops);
+                try {
+                    const token = getCookie('spide_token');
+                    if (!token) {
+                        console.error('No token found for shop list');
+                        return;
+                    }
+                    
+                    const response = await fetch('/api/branches', {
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                    
+                    if (!response.ok) {
+                        console.error('Failed to load shops:', response.status);
+                        return;
+                    }
+                    
+                    allShops = await response.json();
+                    console.log('✅ Shops loaded:', allShops);
+                    renderShopList(allShops);
+                } catch(e) {
+                    console.error('Error loading shops:', e);
+                    // ✅ Only show error, don't hardcode anything
+                    const container = document.getElementById('shop-list-dropdown');
+                    if (container) {
+                        container.innerHTML = '<div class="p-3 text-center text-sm text-red-500">Error loading shops</div>';
+                    }
+                }
             }
-        }
 
         function renderShopList(shops) {
             const container = document.getElementById('shop-list-dropdown');
@@ -308,7 +325,12 @@
             container.innerHTML = html;
         }
 
-        function selectShop(id, name) {
+        async function selectShop(id, name) {
+            // If name is provided, use it, otherwise fetch it
+            let shopName = name;
+            if (!shopName) {
+                shopName = await getShopName(id);
+            }
             currentShop.id = id;
             currentShop.name = name;
             updateShopDisplay();
@@ -339,6 +361,49 @@
             setTimeout(() => { notif.style.opacity = '0'; setTimeout(() => notif.remove(), 500); }, 3000);
         }
 
+            // ============================================
+            // GO TO POS WITH CURRENT SHOP
+            // ============================================
+          function goToPOS() {
+                  // ✅ Get shop_id from multiple sources
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlShopId = urlParams.get('shop_id');
+                const storedShopId = localStorage.getItem('currentShopId');
+                
+                // ✅ Priority: URL > localStorage > currentShop > default 1
+                const shopId = urlShopId || storedShopId || currentShop.id || 1;
+                
+                console.log('🚀 goToPOS Debug:');
+                console.log('  - urlShopId:', urlShopId);
+                console.log('  - storedShopId:', storedShopId);
+                console.log('  - currentShop.id:', currentShop.id);
+                console.log('  - FINAL shopId:', shopId);
+                
+                window.location.href = '/pos?shop_id=' + shopId;
+          }  
+
+        // ============================================
+        // SHOP NAME HELPER
+        // ============================================
+       async function getShopName(shopId) {
+            try {
+                const token = getCookie('spide_token');
+                const response = await fetch('/api/branches', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!response.ok) return 'Store #' + shopId;
+                
+                const shops = await response.json();
+                allShops = shops; // Cache for later
+                
+                const shop = shops.find(s => s.id === shopId);
+                return shop ? shop.name : 'Store #' + shopId;
+            } catch(e) {
+                console.error('Error getting shop name:', e);
+                return 'Store #' + shopId;
+            }
+        }
+
         // ============================================
         // USER MANAGEMENT
         // ============================================
@@ -359,55 +424,84 @@
         // ============================================
         // DOM READY
         // ============================================
-        document.addEventListener('DOMContentLoaded', function() {
-            // User display
-            const userEl = document.getElementById('logged-in-user');
-            if (userEl && user.username) userEl.textContent = user.username;
-            const initialEl = document.getElementById('user-initial');
-            if (initialEl) {
-                const name = user.username || 'C';
-                initialEl.textContent = name.charAt(0).toUpperCase();
-            }
-
-            // Director elements
-            const directorElements = document.querySelectorAll('.director-only');
-            directorElements.forEach(el => {
-                if (isDirector) {
-                    el.style.display = '';
-                    el.classList.remove('hidden-role');
-                } else {
-                    el.style.display = 'none';
-                    el.classList.add('hidden-role');
+       document.addEventListener('DOMContentLoaded', async function() {
+                // User display
+                const userEl = document.getElementById('logged-in-user');
+                if (userEl && user.username) userEl.textContent = user.username;
+                const initialEl = document.getElementById('user-initial');
+                if (initialEl) {
+                    const name = user.username || 'C';
+                    initialEl.textContent = name.charAt(0).toUpperCase();
                 }
+
+                // Director elements
+                const directorElements = document.querySelectorAll('.director-only');
+                directorElements.forEach(el => {
+                    if (isDirector) {
+                        el.style.display = '';
+                        el.classList.remove('hidden-role');
+                    } else {
+                        el.style.display = 'none';
+                        el.classList.add('hidden-role');
+                    }
+                });
+
+                // ✅ Check if coming from director dashboard with shop_id
+                const urlParams = new URLSearchParams(window.location.search);
+                const shopIdParam = urlParams.get('shop_id');
+                console.log('📍 DOM Ready - shop_id from URL:', shopIdParam);
+                
+                if (shopIdParam && isDirector) {
+                    const shopId = parseInt(shopIdParam);
+                    // ✅ Get shop name dynamically
+                    const shopName = await getShopName(shopId);
+                    console.log('📍 Shop name from API:', shopName);
+                    
+                    const display = document.getElementById('shop-name-display');
+                    if (display) {
+                        display.textContent = shopName;
+                    }
+                    
+                    currentShop.id = shopId;
+                    currentShop.name = shopName;
+                    localStorage.setItem('currentShopId', shopId);
+                    localStorage.setItem('currentShopName', shopName);
+                    
+                    // ✅ Also update the shop selector dropdown if it's open
+                    // The dropdown will be loaded when the user opens it
+                }
+
+                // Shop selector
+                const shopSelectorBtn = document.getElementById('shop-selector-btn');
+                if (isDirector) {
+                    shopSelectorBtn.style.display = '';
+                    // ✅ Load shop list for dropdown
+                    loadShopList();
+                } else {
+                    shopSelectorBtn.style.display = 'none';
+                }
+
+                const shopName = getCookie('currentShopName') || user.shop_name || 'Store #1 - Main';
+                const display = document.getElementById('shop-name-display');
+                if (display) display.textContent = shopName;
+                currentShop.name = shopName;
+
+                const shopId = parseInt(getCookie('currentShopId')) || user.shop_id || 1;
+                currentShop.id = shopId;
+
+                refreshDashboard();
+                startClock();
             });
 
-            // Shop selector
-            const shopSelectorBtn = document.getElementById('shop-selector-btn');
-            if (isDirector) {
-                shopSelectorBtn.style.display = '';
-                loadShopList();
-            } else {
-                shopSelectorBtn.style.display = 'none';
-            }
-
-            const shopName = getCookie('currentShopName') || user.shop_name || 'Store #1 - Main';
-            const display = document.getElementById('shop-name-display');
-            if (display) display.textContent = shopName;
-            currentShop.name = shopName;
-
-            const shopId = parseInt(getCookie('currentShopId')) || user.shop_id || 1;
-            currentShop.id = shopId;
-
-            refreshDashboard();
-            startClock();
-        });
-
         function startClock() {
-            function updateClock() {
-                document.getElementById('live-clock').textContent = new Date().toLocaleTimeString('en-KE', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            }
-            updateClock();
-            setInterval(updateClock, 1000);
+             function updateClock() {
+               const clock = document.getElementById('live-clock');
+               if (clock) {  // ✅ Check if element exists
+                  clock.textContent = new Date().toLocaleTimeString('en-KE', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                  }
+                }
+                 updateClock();
+                 setInterval(updateClock, 1000);
         }
 
         function logout() {
@@ -456,24 +550,51 @@
         // ============================================
         // DASHBOARD DATA
         // ============================================
-        async function refreshDashboard() {
-            try {
-                let url = '/api/dashboard/stats';
-                if (isDirector && currentShop.id) url += '?shop_id=' + currentShop.id;
-                
-                const response = await fetch(url, {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
+           async function refreshDashboard() {
+                try {
+                    console.log('📍 refreshDashboard called');
+                    
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const shopIdParam = urlParams.get('shop_id');
+                    console.log('📍 shop_id from URL:', shopIdParam);
+                    
+                    let url = '/api/dashboard/stats';
+                    if (shopIdParam) {
+                        url += '?shop_id=' + shopIdParam;
+                        console.log('📍 Using URL shop_id:', shopIdParam);
+                        
+                        // ✅ Update shop name if we have a shop ID and display is not already set
+                        const shopId = parseInt(shopIdParam);
+                        const display = document.getElementById('shop-name-display');
+                        if (display && !display.textContent.includes('Store #' + shopId)) {
+                            const shopName = await getShopName(shopId);
+                            display.textContent = shopName;
+                            console.log('📍 Updated shop name to:', shopName);
+                        }
+                    } else if (isDirector && currentShop.id) {
+                        url += '?shop_id=' + currentShop.id;
+                        console.log('📍 Using currentShop.id:', currentShop.id);
+                    }
+                    
+                    console.log('📍 Final API URL:', url);
+                    
+                    const response = await fetch(url, {
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
 
-                if (response.status === 401) { logout(); return; }
-                if (!response.ok) throw new Error('Failed to fetch dashboard data');
-                const data = await response.json();
-                renderDashboard(data);
-                document.getElementById('trend-update-time').textContent = 'Updated: ' + new Date().toLocaleTimeString('en-KE', { hour12: false, hour: '2-digit', minute: '2-digit' });
-            } catch (error) {
-                console.error('Dashboard refresh error:', error);
+                    if (response.status === 401) {
+                        logout();
+                        return;
+                    }
+
+                    if (!response.ok) throw new Error('Failed to fetch dashboard data');
+                    const data = await response.json();
+                    renderDashboard(data);
+                    document.getElementById('trend-update-time').textContent = 'Updated: ' + new Date().toLocaleTimeString('en-KE', { hour12: false, hour: '2-digit', minute: '2-digit' });
+                } catch (error) {
+                    console.error('Dashboard refresh error:', error);
+                }
             }
-        }
 
         function renderDashboard(data) {
             document.getElementById('stat-revenue').textContent = 'KES ' + (data.today_sales?.total_revenue || 0).toFixed(2);

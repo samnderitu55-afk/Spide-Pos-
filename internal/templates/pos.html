@@ -104,7 +104,7 @@
     <div class="flex items-center gap-1">
         <!-- Quick Action Buttons -->
         <div class="flex items-center gap-1 bg-purple-800/30 rounded-xl p-1 border border-purple-700/20">
-            <button onclick="window.location.href='/pos'" class="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition flex items-center gap-1.5 text-white bg-emerald-600/80">
+            <button onclick="goToPOS()" class="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition flex items-center gap-1.5 text-white bg-emerald-600/80">
                 <span>🛒</span>
                 <span class="hidden sm:inline">POS</span>
             </button>
@@ -484,7 +484,12 @@
     </div>
 
     <script>
-
+           // ============================================
+            // DEBUG - Check POS Loading
+            // ============================================
+            console.log('🕷️ POS script started...');
+            console.log('📍 URL:', window.location.href);
+            console.log('📍 Search params:', window.location.search);
         // ============================================
         // COOKIE FUNCTIONS
         // ============================================
@@ -497,24 +502,18 @@
 
             function deleteCookie(name) {
             document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
-      }
+            }
 
         // ============================================
         // SHOP MANAGEMENT
         // ============================================
-        let currentShop = {
-            id: parseInt(localStorage.getItem('currentShopId')) || 1,
-            name: localStorage.getItem('currentShopName') || 'Store #1 - Main'
-        };
+          let currentShop = {
+                id: parseInt(localStorage.getItem('currentShopId')) || 1,
+                name: localStorage.getItem('currentShopName') || 'Store #1 - Main'
+         };
 
-        const shops = [
-            { id: 1, name: 'Store #1 - Main', location: 'Nairobi CBD' },
-            { id: 2, name: 'Store #2 - Mombasa', location: 'Mombasa CBD' },
-            { id: 3, name: 'Store #3 - Kisumu', location: 'Kisumu CBD' },
-            { id: 4, name: 'Store #4 - Eldoret', location: 'Eldoret CBD' },
-            { id: 5, name: 'Store #5 - Thika', location: 'Thika Town' }
-        ];
-
+        let shops = [];  // ← This should be empty, filled by API
+       
         function updateShopDisplay() {
             const display = document.getElementById('shop-name-display');
             if (display) display.textContent = currentShop.name;
@@ -587,6 +586,27 @@
             notif.textContent = '✅ ' + message;
             document.body.appendChild(notif);
             setTimeout(() => { notif.style.opacity = '0'; setTimeout(() => notif.remove(), 500); }, 3000);
+        }
+
+        // ============================================
+        // GO TO POS WITH CURRENT SHOP
+        // ============================================
+        function goToPOS() {
+           // ✅ Get shop_id from multiple sources
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlShopId = urlParams.get('shop_id');
+            const storedShopId = localStorage.getItem('currentShopId');
+            
+            // ✅ Priority: URL > localStorage > currentShop > default 1
+            const shopId = urlShopId || storedShopId || currentShop.id || 1;
+            
+            console.log('🚀 goToPOS Debug:');
+            console.log('  - urlShopId:', urlShopId);
+            console.log('  - storedShopId:', storedShopId);
+            console.log('  - currentShop.id:', currentShop.id);
+            console.log('  - FINAL shopId:', shopId);
+            
+            window.location.href = '/pos?shop_id=' + shopId;
         }
 
         // ============================================
@@ -3584,52 +3604,135 @@ async function submitDeposit(event) {
         //function openSuppliersModal() { alert('Manage Suppliers - Coming soon!'); }
 
         // Initialize
-        document.addEventListener('DOMContentLoaded', function() {
-            updateShopDisplay();
-            updateCartTotals();
-            // Set user initial
-            const userEl = document.getElementById('logged-in-user');
-            const initialEl = document.getElementById('user-initial');
-            if (userEl && initialEl) {
-                const name = userEl.textContent || 'User';
-             initialEl.textContent = name.charAt(0).toUpperCase();
-            }
 
-            // ============================================
-            // BARCODE & QTY INPUT HANDLERS - ADD THIS
-            // ============================================
-            // Barcode input handler
-            const barcodeInput = document.getElementById('barcode-input');
-            if (barcodeInput) {
-                barcodeInput.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const barcode = this.value.trim();
-                        if (barcode) {
-                            handleAddToCart();
-                        }
-                    }
-                });
-            }
-            
-            // Quantity input handler
-            const qtyInput = document.getElementById('qty-input');
-            if (qtyInput) {
-                qtyInput.addEventListener('keydown', function(e) {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const barcode = document.getElementById('barcode-input').value.trim();
-                        if (barcode) {
-                            handleAddToCart();
+               // ============================================
+                // LOAD SHOPS FROM API
+                // ============================================
+                async function loadShops() {
+                    try {
+                        const token = getCookie('spide_token');
+                        const response = await fetch('/api/branches', {
+                            headers: { 'Authorization': 'Bearer ' + token }
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            // Clear and refill the shops array
+                            shops.length = 0;
+                            shops.push(...data);
+                            console.log('✅ Shops loaded:', shops.length);
+                            return shops;
                         } else {
-                            document.getElementById('barcode-input').focus();
+                            console.error('Failed to load shops:', response.status);
+                            return [];
                         }
+                    } catch(e) {
+                        console.error('Error loading shops:', e);
+                        return [];
                     }
-                });
-                } 
+                }
+                document.addEventListener('DOMContentLoaded', function() {
+                    // Load shops first
+                    loadShops().then(() => {
+                        // Check if shop_id is in URL
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const shopIdParam = urlParams.get('shop_id');
+                        
+                        console.log('📍 POS loading - Raw URL:', window.location.href);
+                        console.log('📍 POS loading - shop_id from URL:', shopIdParam);
+                        
+                        // Update currentShop based on URL
+                        if (shopIdParam) {
+                            const shopId = parseInt(shopIdParam);
+                            console.log('📍 POS: Looking for shop ID:', shopId);
+                            
+                            // Find the shop in the loaded shops
+                            const shop = shops.find(s => s.id === shopId);
+                            if (shop) {
+                                currentShop.id = shopId;
+                                currentShop.name = shop.name;
+                                console.log('📍 POS loaded with shop from API:', shop.name);
+                            } else {
+                                // If shop not found, try to fetch it directly
+                                fetch('/api/branches')
+                                    .then(res => res.json())
+                                    .then(data => {
+                                        const foundShop = data.find(s => s.id === shopId);
+                                        if (foundShop) {
+                                            currentShop.id = shopId;
+                                            currentShop.name = foundShop.name;
+                                            shops.push(foundShop);
+                                            console.log('📍 POS loaded with shop from direct API:', foundShop.name);
+                                        } else {
+                                            currentShop.id = shopId;
+                                            currentShop.name = 'Store #' + shopId;
+                                            console.log('📍 POS: Shop not found, using fallback name');
+                                        }
+                                        updateShopDisplay();
+                                    })
+                                    .catch(err => {
+                                        console.error('Error fetching shop:', err);
+                                        currentShop.id = shopId;
+                                        currentShop.name = 'Store #' + shopId;
+                                        updateShopDisplay();
+                                    });
+                                return; // Exit early while fetching
+                            }
+                        }
+                        
+                        // ✅ Always update display after shop is set
+                        updateShopDisplay();
+                        
+                        // Continue with initialization
+                        updateCartTotals();
+                        
+                        // Set user initial
+                        const userEl = document.getElementById('logged-in-user');
+                        const initialEl = document.getElementById('user-initial');
+                        if (userEl && initialEl) {
+                            const name = userEl.textContent || 'User';
+                            initialEl.textContent = name.charAt(0).toUpperCase();
+                        }
 
-            console.log('🕷️ Spide POS Ready!');
-        }) ;
+                        // Barcode input handler
+                        const barcodeInput = document.getElementById('barcode-input');
+                        if (barcodeInput) {
+                            barcodeInput.addEventListener('keydown', function(e) {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const barcode = this.value.trim();
+                                    if (barcode) {
+                                        handleAddToCart();
+                                    }
+                                }
+                            });
+                        }
+                        
+                        // Quantity input handler
+                        const qtyInput = document.getElementById('qty-input');
+                        if (qtyInput) {
+                            qtyInput.addEventListener('keydown', function(e) {
+                                if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const barcode = document.getElementById('barcode-input').value.trim();
+                                    if (barcode) {
+                                        handleAddToCart();
+                                    } else {
+                                        document.getElementById('barcode-input').focus();
+                                    }
+                                }
+                            });
+                        }
+
+                        console.log('🕷️ Spide POS Ready! - Current Shop:', currentShop.name);
+                        console.log('🕷️ Current Shop ID:', currentShop.id);
+                    }).catch(err => {
+                        console.error('Error initializing POS:', err);
+                        updateShopDisplay();
+                        updateCartTotals();
+                        console.log('🕷️ Spide POS Ready! (fallback)');
+                    });
+                });
+                
 
 // ============================================
 // MEGA MENU

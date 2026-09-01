@@ -357,23 +357,30 @@
 
             // Outlet Stats
             const outletContainer = document.getElementById('outlet-rows');
-            if (!data.outlet_stats || data.outlet_stats.length === 0) {
-                outletContainer.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No outlet data available</td></tr>';
-            } else {
-                let html = '';
-                data.outlet_stats.forEach(outlet => {
-                    const statusClass = outlet.status === 'active' ? 'text-emerald-600' : 'text-gray-400';
-                    html += `<tr class="outlet-row border-b">
-                        <td class="p-3 font-semibold">${outlet.shop_name || 'Unknown'}</td>
-                        <td class="p-3 text-center font-mono font-bold text-purple-900">${formatCurrency(outlet.today_revenue)}</td>
-                        <td class="p-3 text-center">${outlet.today_transactions || 0}</td>
-                        <td class="p-3 text-center">${outlet.today_items || 0}</td>
-                        <td class="p-3 text-center font-mono">${formatCurrency(outlet.month_revenue)}</td>
-                        <td class="p-3 text-center"><span class="${statusClass}">${outlet.status === 'active' ? '🟢 Active' : '⚪ Inactive'}</span></td>
-                    </tr>`;
-                });
-                outletContainer.innerHTML = html;
-            }
+                if (!data.outlet_stats || data.outlet_stats.length === 0) {
+                    outletContainer.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No outlet data available</td></tr>';
+                } else {
+                    let html = '';
+                    data.outlet_stats.forEach(outlet => {
+                        const statusClass = outlet.status === 'active' ? 'text-emerald-600' : 'text-gray-400';
+                        html += `<tr class="outlet-row border-b hover:bg-purple-50/50 transition">
+                            <td class="p-3 font-semibold">
+                                <a href="/?shop_id=${outlet.shop_id || outlet.id}" 
+                                class="text-purple-700 hover:text-purple-900 hover:underline flex items-center gap-1 transition group"
+                                onclick="event.preventDefault(); window.location.href='/?shop_id=${outlet.shop_id || outlet.id}'">
+                                    ${outlet.shop_name || 'Unknown'}
+                                    <span class="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">↗</span>
+                                </a>
+                            </td>
+                            <td class="p-3 text-center font-mono font-bold text-purple-900">${formatCurrency(outlet.today_revenue)}</td>
+                            <td class="p-3 text-center">${outlet.today_transactions || 0}</td>
+                            <td class="p-3 text-center">${outlet.today_items || 0}</td>
+                            <td class="p-3 text-center font-mono">${formatCurrency(outlet.month_revenue)}</td>
+                            <td class="p-3 text-center"><span class="${statusClass}">${outlet.status === 'active' ? '🟢 Active' : '⚪ Inactive'}</span></td>
+                        </tr>`;
+                    });
+                    outletContainer.innerHTML = html;
+                }
 
             // Sales Trend
             const trendContainer = document.getElementById('trend-chart');
