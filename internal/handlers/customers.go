@@ -1,11 +1,12 @@
 ﻿package handlers
 
 import (
-    "encoding/json"
-    "net/http"
-    "spide-pos/internal/db"
-    "spide-pos/internal/middleware"
-    "strconv"
+	"encoding/json"
+	"log"
+	"net/http"
+	"spide-pos/internal/db"
+	"spide-pos/internal/middleware"
+	"strconv"
 )
 
 func GetCustomersHandler(w http.ResponseWriter, r *http.Request) {
@@ -554,4 +555,56 @@ func GetCustomerTransactionsHandler(w http.ResponseWriter, r *http.Request) {
     }
 
     json.NewEncoder(w).Encode(transactions)
+}
+
+// internal/handlers/customers.go
+
+func GetCustomerStatementHandler(w http.ResponseWriter, r *http.Request) {
+    // Get user from context (set by AuthMiddleware)
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
+        http.Error(w, "Unauthorized", http.StatusUnauthorized)
+        return
+    }
+
+    customerID := r.URL.Query().Get("customer_id")
+    if customerID == "" {
+        http.Error(w, "customer_id required", http.StatusBadRequest)
+        return
+    }
+
+    id, err := strconv.Atoi(customerID)
+    if err != nil {
+        http.Error(w, "Invalid customer_id", http.StatusBadRequest)
+        return
+    }
+
+    log.Printf("📊 Generating statement for customer: %d (user: %s)", id, claims.Username)
+
+    // Get customer transactions
+    transactions, err := db.GetCustomerTransactions(db.GetDB(), id)
+    if err != nil {
+        log.Printf("❌ Error getting transactions: %v", err)
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    // Get customer summary
+    summary, err := db.GetCustomerSummary(db.GetDB(), id)
+    if err != nil {
+        log.Printf("❌ Error getting summary: %v", err)
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+
+    response := map[string]interface{}{
+        "transactions":     transactions,
+        "total_sales":      summary.TotalSales,
+        "total_payments":   summary.TotalPayments,
+        "total_deposits":   summary.TotalDeposits,
+        "current_balance":  summary.CurrentBalance,
+    }
+
+    w.Header().Set("Content-Type", "application/json")
+    json.NewEncoder(w).Encode(response)
 }

@@ -1,9 +1,9 @@
 ﻿package db
 
 import (
-    "log"
-    "database/sql"
-    "fmt"
+	"database/sql"
+	"fmt"
+	"log"
 )
 
 // Add deposit to customer account
@@ -110,51 +110,6 @@ func GetCustomerBalance(db *sql.DB, customerID int) (float64, error) {
     return balance, nil
 }
 
-// Get customer transaction history
-func GetCustomerTransactions(db *sql.DB, customerID int) ([]CreditSale, error) {
-    query := `
-        SELECT id, customer_id, shop_id, sale_id, total_amount, amount_paid, balance,
-               due_date, status, notes, created_by, created_at, updated_at
-        FROM credit_sales
-        WHERE customer_id = ?
-        ORDER BY created_at DESC
-    `
-    rows, err := db.Query(query, customerID)
-    if err != nil {
-        return nil, fmt.Errorf("failed to get transactions: %w", err)
-    }
-    defer rows.Close()
-
-    var transactions []CreditSale
-    for rows.Next() {
-        var t CreditSale
-        err := rows.Scan(
-            &t.ID,
-            &t.CustomerID,
-            &t.ShopID,
-            &t.SaleID,
-            &t.TotalAmount,
-            &t.AmountPaid,
-            &t.Balance,
-            &t.DueDate,
-            &t.Status,
-            &t.Notes,
-            &t.CreatedBy,
-            &t.CreatedAt,
-            &t.UpdatedAt,
-        )
-        if err != nil {
-            return nil, err
-        }
-        transactions = append(transactions, t)
-    }
-
-    if err := rows.Err(); err != nil {
-        return nil, fmt.Errorf("error iterating transactions: %w", err)
-    }
-
-    return transactions, nil
-}
 
 
 

@@ -21,9 +21,10 @@ func CheckoutHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-    // ✅ Log the incoming request
-    log.Printf("💰 Sale received - Total: %.2f, Customer: %d, Deposit: %.2f, Credit: %.2f", 
-        req.TotalAmount, req.CustomerID, req.DepositAmount, req.CreditAmount)
+    // ✅ Log the incoming request with full breakdown
+    log.Printf("💰 Sale received - Total: %.2f, Customer: %d", req.TotalAmount, req.CustomerID)
+    log.Printf("💰 Payment Breakdown - Cash: %.2f, Mpesa: %.2f, Deposit: %.2f, Credit: %.2f, Type: %s", 
+        req.CashAmount, req.MpesaAmount, req.DepositAmount, req.CreditAmount, req.PaymentType)
 
     // ✅ Get shop_id from request
     shopID := req.ShopID
@@ -40,42 +41,79 @@ func CheckoutHandler(w http.ResponseWriter, r *http.Request) {
 
     log.Printf("💰 Sale - Shop ID: %d, Total: %.2f", shopID, req.TotalAmount)
 
-    // ✅ Calculate change and validate payment
+    // ✅ Calculate total paid FIRST (before any modifications)
+    totalPaid := req.CashAmount + req.MpesaAmount + req.DepositAmount + req.CreditAmount
+    log.Printf("💰 Total Paid before validation: %.2f", totalPaid)
+
+    // ✅ Only modify amounts for specific payment types
     switch req.PaymentType {
     case "split":
-        remainingBalance := req.TotalAmount - req.MpesaAmount
-        if remainingBalance < 0 {
-            remainingBalance = 0
+        // Split between cash and mpesa
+        if req.CashAmount > 0 && req.MpesaAmount > 0 {
+            // Keep both as is
         }
-        if req.CashAmount > remainingBalance {
-            req.ChangeGiven = req.CashAmount - remainingBalance
-            req.CashAmount = remainingBalance
+        // Calculate change if cash exceeds remaining
+        remainingAfterMpesa := req.TotalAmount - req.MpesaAmount - req.DepositAmount - req.CreditAmount
+        if remainingAfterMpesa < 0 {
+            remainingAfterMpesa = 0
+        }
+        if req.CashAmount > remainingAfterMpesa {
+            req.ChangeGiven = req.CashAmount - remainingAfterMpesa
+            req.CashAmount = remainingAfterMpesa
         }
     case "cash":
+        // Only cash payment
         req.MpesaAmount = 0
+        req.DepositAmount = 0
+        req.CreditAmount = 0
         if req.CashAmount > req.TotalAmount {
             req.ChangeGiven = req.CashAmount - req.TotalAmount
             req.CashAmount = req.TotalAmount
         }
     case "mpesa":
-        req.MpesaAmount = req.TotalAmount
+        // Only Mpesa payment
         req.CashAmount = 0
+        req.DepositAmount = 0
+        req.CreditAmount = 0
+        req.MpesaAmount = req.TotalAmount
         req.ChangeGiven = 0
     case "deposit":
-        // ✅ Deposit payment - no cash or mpesa needed
+        // Only deposit payment (customer has enough deposit)
         req.CashAmount = 0
         req.MpesaAmount = 0
+        //req.CreditAmount = 0
         req.ChangeGiven = 0
+        // Deposit amount should already be set
     case "credit":
-        // ✅ Credit payment - no cash or mpesa needed
-        req.CashAmount = 0
+        // ✅ Credit payment - KEEP all payment amounts!
+        // Don't reset anything - just validate that total is covered
+        // Cash, Mpesa, Deposit, and Credit all work together
+        req.ChangeGiven = 0
+        
+        // If credit is the only payment, set it to total
+        if req.CashAmount == 0 && req.MpesaAmount == 0 && req.DepositAmount == 0 && req.CreditAmount > 0 {
+            req.CreditAmount = req.TotalAmount
+        }
+        // Otherwise, keep all amounts as they are (cash + deposit + credit)
+    default:
+        // Unknown payment type - treat as cash
+        log.Printf("⚠️ Unknown payment type: %s, defaulting to cash", req.PaymentType)
+        req.PaymentType = "cash"
+        req.CashAmount = req.TotalAmount
         req.MpesaAmount = 0
+        req.DepositAmount = 0
+        req.CreditAmount = 0
         req.ChangeGiven = 0
     }
 
+    // ✅ Recalculate total paid after modifications
+    totalPaid = req.CashAmount + req.MpesaAmount + req.DepositAmount + req.CreditAmount
+    log.Printf("💰 Total Paid after validation: %.2f (Cash: %.2f, Mpesa: %.2f, Deposit: %.2f, Credit: %.2f)", 
+        totalPaid, req.CashAmount, req.MpesaAmount, req.DepositAmount, req.CreditAmount)
+
     // ✅ Validate: Cash + Mpesa + Deposit + Credit must cover total
-    totalPaid := req.CashAmount + req.MpesaAmount + req.DepositAmount + req.CreditAmount
     if totalPaid < req.TotalAmount-0.009 {
+        log.Printf("❌ Insufficient payment: Paid=%.2f, Required=%.2f", totalPaid, req.TotalAmount)
         http.Error(w, "Insufficient payment", http.StatusBadRequest)
         return
     }

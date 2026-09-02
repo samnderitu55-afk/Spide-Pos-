@@ -134,12 +134,17 @@ func main() {
 	mux.HandleFunc("/api/customers/update", middleware.AuthMiddleware(handlers.UpdateCustomerHandler))
 	mux.HandleFunc("/api/customers/delete", middleware.AuthMiddleware(handlers.DeleteCustomerHandler))
 	mux.HandleFunc("/api/customers/search", middleware.AuthMiddleware(handlers.SearchCustomersHandler))
+	
 
 	// Credit sales routes
 	mux.HandleFunc("/api/credit-sales", middleware.AuthMiddleware(handlers.GetCreditSalesHandler))
 	mux.HandleFunc("/api/credit-sales/create", middleware.AuthMiddleware(handlers.CreateCreditSaleHandler))
 	mux.HandleFunc("/api/credit-sales/payments", middleware.AuthMiddleware(handlers.GetCreditPaymentsHandler))
 	mux.HandleFunc("/api/credit-sales/add-payment", middleware.AuthMiddleware(handlers.AddCreditPaymentHandler))
+	
+	
+	//customer statement route
+	mux.HandleFunc("/api/customers/statement", middleware.AuthMiddleware(handlers.GetCustomerStatementHandler))
 
 	// Server configuration
 	port := getEnv("PORT", "8081")

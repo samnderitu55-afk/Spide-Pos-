@@ -1,9 +1,9 @@
 ﻿package db
 
 import (
-    "log"
 	"database/sql"
 	"fmt"
+	"log"
 )
 
 type Customer struct {
@@ -11,8 +11,8 @@ type Customer struct {
 	Name           string  `json:"name"`
 	Phone          string  `json:"phone"`
 	Email          string  `json:"email"`
-	IDNumber       string  `json:"id_number"`
-	Address        string  `json:"address"`
+	IDNumber       sql.NullString  `json:"id_number"`
+	Address        sql.NullString  `json:"address"`
 	Balance        float64 `json:"balance"`
 	DepositBalance float64 `json:"deposit_balance"`
 	CreditLimit    float64 `json:"credit_limit"`
@@ -50,6 +50,23 @@ type CreditPayment struct {
 	CreatedBy     string  `json:"created_by"`
 	CreatedAt     string  `json:"created_at"`
 }
+
+type CustomerTransaction struct {
+    Date        string  `json:"date"`
+    Description string  `json:"description"`
+    Type        string  `json:"type"` // sale, payment, deposit
+    Amount      float64 `json:"amount"`
+    SaleID      int     `json:"sale_id,omitempty"`
+    Balance     float64 `json:"balance"`
+}
+
+type CustomerSummary struct {
+    TotalSales     float64 `json:"total_sales"`
+    TotalPayments  float64 `json:"total_payments"`
+    TotalDeposits  float64 `json:"total_deposits"`
+    CurrentBalance float64 `json:"current_balance"`
+}
+
 
 func CreateCustomer(db *sql.DB, customer *Customer) error {
     log.Printf("Creating customer: Name='%s', Phone='%s'", customer.Name, customer.Phone)
@@ -523,6 +540,125 @@ func AddCreditPayment(db *sql.DB, payment *CreditPayment) error {
 	return nil
 }
 
+func GetCustomerTransactions(db *sql.DB, customerID int) ([]CustomerTransaction, error) {
+    var transactions []CustomerTransaction
+    var runningBalance float64
 
+    // Get sales transactions
+    salesQuery := `
+        SELECT 
+            DATE(created_at) as date,
+            CONCAT('Sale #', id) as description,
+            'sale' as type,
+            total_amount as amount,
+            id as sale_id
+        FROM sales
+        WHERE customer_id = ?
+        ORDER BY created_at ASC
+    `
+    salesRows, err := db.Query(salesQuery, customerID)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get sales: %w", err)
+    }
+    defer salesRows.Close()
 
+    for salesRows.Next() {
+        var t CustomerTransaction
+        err := salesRows.Scan(&t.Date, &t.Description, &t.Type, &t.Amount, &t.SaleID)
+        if err != nil {
+            return nil, fmt.Errorf("failed to scan sale row: %w", err)
+        }
+        // Sales increase what customer owes
+        runningBalance += t.Amount
+        t.Balance = runningBalance
+        transactions = append(transactions, t)
+    }
 
+    // ✅ Check for salesRows iteration errors
+    if err = salesRows.Err(); err != nil {
+        return nil, fmt.Errorf("error iterating sales: %w", err)
+    }
+
+    // Get deposits (payments made by customer)
+    depositsQuery := `
+        SELECT 
+            DATE(created_at) as date,
+            CONCAT('Deposit - ', COALESCE(payment_method, 'cash')) as description,
+            'deposit' as type,
+            amount as amount,
+            0 as sale_id
+        FROM customer_deposits
+        WHERE customer_id = ?
+        ORDER BY created_at ASC
+    `
+    depositRows, err := db.Query(depositsQuery, customerID)
+    if err != nil {
+        // Table might not exist - log but don't fail
+        log.Printf("⚠️ Could not fetch deposits: %v", err)
+        return transactions, nil
+    }
+    defer depositRows.Close()
+
+    for depositRows.Next() {
+        var t CustomerTransaction
+        err := depositRows.Scan(&t.Date, &t.Description, &t.Type, &t.Amount, &t.SaleID)
+        if err != nil {
+            log.Printf("⚠️ Error scanning deposit row: %v", err)
+            continue
+        }
+        // Deposits reduce what customer owes
+        runningBalance -= t.Amount
+        t.Balance = runningBalance
+        transactions = append(transactions, t)
+    }
+
+    // ✅ Check for depositRows iteration errors
+    if err = depositRows.Err(); err != nil {
+        return nil, fmt.Errorf("error iterating deposits: %w", err)
+    }
+
+    return transactions, nil
+}
+
+func GetCustomerSummary(db *sql.DB, customerID int) (CustomerSummary, error) {
+    var summary CustomerSummary
+
+    // Get total sales for this customer
+    salesQuery := `
+        SELECT COALESCE(SUM(total_amount), 0) 
+        FROM sales 
+        WHERE customer_id = ?
+    `
+    err := db.QueryRow(salesQuery, customerID).Scan(&summary.TotalSales)
+    if err != nil {
+        return summary, fmt.Errorf("failed to get total sales: %w", err)
+    }
+
+    // ✅ Get total deposits from customer_deposits table
+    depositsQuery := `
+        SELECT COALESCE(SUM(amount), 0) 
+        FROM customer_deposits 
+        WHERE customer_id = ?
+    `
+    err = db.QueryRow(depositsQuery, customerID).Scan(&summary.TotalDeposits)
+    if err != nil {
+        log.Printf("⚠️ Could not get deposits: %v", err)
+        summary.TotalDeposits = 0
+    }
+
+    // ✅ Get current balance from customers table (deposit_balance)
+    balanceQuery := `
+        SELECT COALESCE(deposit_balance, 0) 
+        FROM customers 
+        WHERE id = ?
+    `
+    err = db.QueryRow(balanceQuery, customerID).Scan(&summary.CurrentBalance)
+    if err != nil {
+        return summary, fmt.Errorf("failed to get current balance: %w", err)
+    }
+
+    log.Printf("📊 Customer %d summary - Sales: %.2f, Deposits: %.2f, Balance: %.2f", 
+        customerID, summary.TotalSales, summary.TotalDeposits, summary.CurrentBalance)
+
+    return summary, nil
+}
