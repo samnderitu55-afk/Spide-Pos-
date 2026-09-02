@@ -71,6 +71,9 @@ type SaleRequest struct {
 	PaymentType string  `json:"payment_type"`
 	ChangeGiven float64 `json:"change_given,omitempty"`
 	ShopID      int     `json:"shop_id"`
+	CreditAmount float64 `json:"credit_amount"` 
+	CustomerID    int     `json:"customer_id"`     
+    DepositAmount float64 `json:"deposit_amount"`  
 	Items       []struct {
 		ProductID int64   `json:"product_id"`
 		Quantity  int     `json:"quantity"`

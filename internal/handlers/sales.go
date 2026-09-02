@@ -21,30 +21,26 @@ func CheckoutHandler(w http.ResponseWriter, r *http.Request) {
         return
     }
 
-   // ✅ Get the shop_id from the request
+    // ✅ Log the incoming request
+    log.Printf("💰 Sale received - Total: %.2f, Customer: %d, Deposit: %.2f, Credit: %.2f", 
+        req.TotalAmount, req.CustomerID, req.DepositAmount, req.CreditAmount)
+
+    // ✅ Get shop_id from request
     shopID := req.ShopID
-    
-    // If not in request, try to get from user claims
     if shopID == 0 {
         claims := middleware.GetUserFromContext(r)
         if claims != nil {
             shopID = claims.ShopID
-            log.Printf("⚠️ Using user's shop_id: %d", shopID)
         }
     }
-    
-    // If still 0, default to main shop
     if shopID == 0 {
         shopID = 1
-        log.Printf("⚠️ Using default shop_id: %d", shopID)
     }
-    
-    // Set the shop_id back to the request
     req.ShopID = shopID
 
     log.Printf("💰 Sale - Shop ID: %d, Total: %.2f", shopID, req.TotalAmount)
 
-    // Calculate change
+    // ✅ Calculate change and validate payment
     switch req.PaymentType {
     case "split":
         remainingBalance := req.TotalAmount - req.MpesaAmount
@@ -65,13 +61,33 @@ func CheckoutHandler(w http.ResponseWriter, r *http.Request) {
         req.MpesaAmount = req.TotalAmount
         req.CashAmount = 0
         req.ChangeGiven = 0
+    case "deposit":
+        // ✅ Deposit payment - no cash or mpesa needed
+        req.CashAmount = 0
+        req.MpesaAmount = 0
+        req.ChangeGiven = 0
+    case "credit":
+        // ✅ Credit payment - no cash or mpesa needed
+        req.CashAmount = 0
+        req.MpesaAmount = 0
+        req.ChangeGiven = 0
+    }
+
+    // ✅ Validate: Cash + Mpesa + Deposit + Credit must cover total
+    totalPaid := req.CashAmount + req.MpesaAmount + req.DepositAmount + req.CreditAmount
+    if totalPaid < req.TotalAmount-0.009 {
+        http.Error(w, "Insufficient payment", http.StatusBadRequest)
+        return
     }
 
     saleID, err := db.CreateSale(db.GetDB(), req)
     if err != nil {
+        log.Printf("❌ Error creating sale: %v", err)
         http.Error(w, "Failed to record transaction", http.StatusInternalServerError)
         return
     }
+
+    log.Printf("✅ Sale created with ID: %d, Payment Type: %s", saleID, req.PaymentType)
 
     w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(map[string]interface{}{

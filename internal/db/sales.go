@@ -27,12 +27,12 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
     }
 
     saleQuery := `
-        INSERT INTO sales (total_amount, cash_amount, mpesa_amount, mpesa_code, 
+        INSERT INTO sales (total_amount, cash_amount, mpesa_amount,credit_amount, mpesa_code, 
                            payment_type, change_given, shop_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `
     result, err := tx.Exec(saleQuery,
-        calculatedTotal, req.CashAmount, req.MpesaAmount,
+        calculatedTotal, req.CashAmount, req.MpesaAmount,req.CreditAmount,
         req.MpesaCode, req.PaymentType, req.ChangeGiven, shopID,
     )
     if err != nil {
@@ -66,13 +66,47 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
         }
     }
 
+     // ✅ If credit was used, update customer balance
+    if req.CreditAmount > 0 && req.CustomerID > 0 {
+        _, err = tx.Exec(`
+            UPDATE customers 
+            SET balance = balance + ? 
+            WHERE id = ?
+        `, req.CreditAmount, req.CustomerID)
+        if err != nil {
+            return 0, fmt.Errorf("failed to update customer credit balance: %w", err)
+        }
+
+        // ✅ Record credit sale in credit_sales table
+        _, err = tx.Exec(`
+            INSERT INTO credit_sales (customer_id, shop_id, sale_id, total_amount, balance, status, created_at)
+            VALUES (?, ?, ?, ?, ?, 'pending', NOW())
+        `, req.CustomerID, req.ShopID, saleID, req.CreditAmount, req.CreditAmount)
+        if err != nil {
+            // Log error but don't fail the transaction
+            log.Printf("Warning: Failed to record credit sale: %v", err)
+        }
+    }
+
+            // ✅ If deposit was used, deduct from customer deposit balance
+            if req.DepositAmount > 0 && req.CustomerID > 0 {
+                _, err = tx.Exec(`
+                    UPDATE customers 
+                    SET deposit_balance = deposit_balance - ? 
+                    WHERE id = ?
+                `, req.DepositAmount, req.CustomerID)
+                if err != nil {
+                    return 0, fmt.Errorf("failed to update customer deposit balance: %w", err)
+                }
+            }
+
     if err := tx.Commit(); err != nil {
         return 0, fmt.Errorf("failed to commit transaction: %w", err)
     }
 
-    log.Printf("✅ Sale %d created for shop %d", saleID, shopID)
+            log.Printf("✅ Sale %d created for shop %d", saleID, shopID)
 
-    return saleID, nil
+            return saleID, nil
 }
 
 func GetRecentSales(db *sql.DB, limit int) ([]Sale, error) {
