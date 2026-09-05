@@ -69,7 +69,88 @@
         #payment-modal { z-index: 100 !important; }
         #recent-sales-modal { z-index: 100 !important; }
         #shop-selector-modal { z-index: 100 !important; }
+
+        /* Role-based visibility controls */
+        .director-only { 
+            display: flex; 
+        }
+        .manager-only { 
+            display: flex; 
+        }
+        .cashier-only { 
+            display: flex; 
+        }
+        
+        /* Hide elements based on role */
+        .hide-for-cashier { 
+            display: none; 
+        }
+        .hide-for-manager { 
+            display: none; 
+        }
+        
+        /* When we want to show/hide using JavaScript */
+        .role-hidden {
+            display: none !important;
+        }
+        .role-visible {
+            display: flex !important;
+        }
+        
     </style>
+
+<script>
+// ============================================
+// EARLY FUNCTION DEFINITION - Loads before menu
+// ============================================
+(function() {
+    console.log('🔄 Pre-loading modal functions...');
+    
+    // Define a placeholder function that will be replaced later
+    window.openZReportModal = function() {
+        console.log('📊 Z-Report called (early placeholder)');
+        // Try to find the modal
+        var modal = document.getElementById('zreport-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            // Set default date
+            var today = new Date().toISOString().split('T')[0];
+            var dateInput = document.getElementById('zreport-date');
+            if (dateInput) dateInput.value = today;
+            // Try to load report
+            if (typeof loadZReport === 'function') {
+                loadZReport();
+            } else {
+                // Wait for loadZReport to be defined
+                var checkInterval = setInterval(function() {
+                    if (typeof loadZReport === 'function') {
+                        clearInterval(checkInterval);
+                        loadZReport();
+                    }
+                }, 200);
+                // Timeout after 5 seconds
+                setTimeout(function() {
+                    clearInterval(checkInterval);
+                    var content = document.getElementById('zreport-content');
+                    if (content) {
+                        content.innerHTML = '<div class="text-center text-amber-600 py-8">⚠️ Report function is loading. Please click Generate.</div>';
+                    }
+                }, 5000);
+            }
+        } else {
+            alert('Z-Report modal not found. Please refresh the page.');
+        }
+    };
+    
+    window.closeZReportModal = function() {
+        var modal = document.getElementById('zreport-modal');
+        if (modal) modal.classList.add('hidden');
+    };
+    
+    console.log('✅ Pre-loaded modal functions');
+})();
+</script>
+
 </head>
 <body class="bg-gray-100 font-sans min-h-screen">
    <header class="bg-gradient-to-r from-purple-900 to-purple-800 text-white p-2 shadow-lg flex justify-between items-center sticky top-0 z-40 border-b border-purple-700/30">
@@ -145,106 +226,113 @@
             </svg>
         </button>
         
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-2">
-            
-            <!-- Sales -->
-            <div class="space-y-1">
-                <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2">
-                    <span class="text-lg">🛒</span> Sales
-                </div>
-                <a href="#" onclick="openRecentSalesModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">📋</span> Recent Sales
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openZReportModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">📊</span> Z-Report
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openProductSalesModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">📈</span> Product Sales
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-            </div>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-2">
+                        
+                        <!-- Sales Section -->
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2">
+                                <span class="text-lg">🛒</span> Sales
+                            </div>
+                            <a href="#" onclick="openRecentSalesModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">📋</span> Recent Sales
+                            </a>
+                            <!-- ✅ Add director-only class to Z-Report -->
+                            <a href="#" onclick="window.openZReportModal ? window.openZReportModal() : alert('Loading...')" class="director-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">📊</span> Z-Report
+                                <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
+                            </a>
+                            <!-- ✅ Add manager-only class to Product Sales -->
+                            <a href="#" onclick="openProductSalesModal()" class="manager-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">📈</span> Product Sales
+                                <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
+                            </a>
+                        </div>
 
-            <!-- Inventory -->
-            <div class="space-y-1">
-                <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2">
-                    <span class="text-lg">📦</span> Inventory
-                </div>
-                <a href="#" onclick="openAddProductModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">➕</span> Add Product
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openProductCatalogModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">📋</span> Catalog
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openLowStockModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">⚠️</span> Low Stock
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openInventoryValuationModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">💎</span> Valuation
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-            </div>
+                        <!-- Inventory Section -->
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2">
+                                <span class="text-lg">📦</span> Inventory
+                            </div>
+                            <!-- ✅ Add manager-only to Add Product -->
+                            <a href="#" onclick="openAddProductModal()" class="manager-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">➕</span> Add Product
+                            </a>
+                            <!-- ✅ Add cashier-only to Catalog (everyone can view) -->
+                            <a href="#" onclick="openProductCatalogModal()" class="cashier-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">📋</span> Catalog
+                            </a>
+                            <!-- ✅ Add manager-only to Low Stock -->
+                            <a href="#" onclick="openLowStockModal()" class="manager-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">⚠️</span> Low Stock
+                            </a>
+                            <!-- ✅ Add manager-only to Valuation -->
+                            <a href="#" onclick="openInventoryValuationModal()" class="manager-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">💎</span> Valuation
+                            </a>
+                        </div>
 
-            <!-- Supply Chain -->
-            <div class="space-y-1">
-                <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2">
-                    <span class="text-lg">🔗</span> Supply Chain
-                </div>
-                <a href="#" onclick="openPurchaseModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">📥</span> New Purchase
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openPurchaseReportModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">📊</span> Purchase Report
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openSupplierModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">👥</span> Suppliers
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openTransferModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">🔄</span> New Transfer
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openTransferHistoryModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">📋</span> Transfer History
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-            </div>
+                        <!-- Supply Chain Section -->
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2">
+                                <span class="text-lg">🔗</span> Supply Chain
+                            </div>
+                            <!-- ✅ Add manager-only to Purchase -->
+                            <a href="#" onclick="openPurchaseModal()" class="manager-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">📥</span> New Purchase
+                            </a>
+                            <!-- ✅ Add manager-only to Purchase Report -->
+                            <a href="#" onclick="openPurchaseReportModal()" class="manager-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">📊</span> Purchase Report
+                            </a>
+                            <!-- ✅ Add manager-only to Suppliers -->
+                            <a href="#" onclick="openSupplierModal()" class="manager-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">👥</span> Suppliers
+                            </a>
+                            <!-- ✅ Add manager-only to Transfer -->
+                            <a href="#" onclick="openTransferModal()" class="manager-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">🔄</span> New Transfer
+                            </a>
+                            <!-- ✅ Add manager-only to Transfer History -->
+                            <a href="#" onclick="openTransferHistoryModal()" class="manager-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">📋</span> Transfer History
+                            </a>
+                        </div>
 
-            <!-- Finance & Customers -->
-            <div class="space-y-1">
-                <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2">
-                    <span class="text-lg">💰</span> Finance
-                </div>
-                <a href="#" onclick="openExpenseModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">➕</span> Add Expense
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openExpenseReportModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">📊</span> Expense Report
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openCustomerListModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">👥</span> Customers
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openDepositModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">💰</span> Deposits
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-                <a href="#" onclick="openCustomerStatement()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
-                    <span class="text-base">📊</span>
-                    Customer Statement
-                    <span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
-                </a>
-            </div>
-
-        </div>
+                        <!-- Finance & Customers Section -->
+                        <div class="space-y-1">
+                            <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2">
+                                <span class="text-lg">💰</span> Finance
+                            </div>
+                            <!-- ✅ Add manager-only to Add Expense -->
+                            <a href="#" onclick="openExpenseModal()" class="manager-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">➕</span> Add Expense
+                            </a>
+                            <!-- ✅ Add manager-only to Expense Report -->
+                            <a href="#" onclick="openExpenseReportModal()" class="manager-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">📊</span> Expense Report
+                            </a>
+                            <!-- ✅ Add cashier-only to Customers (everyone can view) -->
+                            <a href="#" onclick="openCustomerListModal()" class="cashier-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">👥</span> Customers
+                            </a>
+                            <!-- ✅ Add cashier-only to Deposits -->
+                            <a href="#" onclick="openDepositModal()" class="cashier-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">💰</span> Deposits
+                            </a>
+                            <!-- ✅ Add director-only to Customer Statement -->
+                            <a href="#" onclick="openCustomerStatement()" class="director-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">📊</span> Customer Statement
+                            </a>
+                            <!-- ✅ Add director-only to User Management -->
+                            <a href="#" onclick="openUserManagement()" class="director-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">👥</span> User Management
+                            </a>
+                            <!-- ✅ Add director-only to Company Settings -->
+                            <a href="#" onclick="openCompanySettings()" class="director-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group">
+                                <span class="text-base">🏢</span> Company Settings
+                            </a>
+                        </div>
+                    </div>
         
         <!-- Footer -->
         <div class="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-400">
@@ -284,13 +372,27 @@
         <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between">
             <div>
                 <h2 class="text-lg font-bold text-gray-800 mb-4">Current Order Items</h2>
-                    <!-- Customer Selector -->
+                    <!-- Customer Selector - Updated with Phone Search -->
                     <div class="flex items-center gap-3 mb-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
                         <label class="text-xs font-semibold text-purple-900 uppercase tracking-wider">👤 Customer</label>
-                        <select id="pos-customer-select" onchange="onCustomerSelect(this.value)" class="flex-1 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white">
-                            <option value="">Walk-in Customer</option>
-                        </select>
-                        <button onclick="openCustomerListModal()" class="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg transition">+ Add</button>
+                        <div class="flex-1 relative">
+                            <input type="text" 
+                                id="pos-customer-search" 
+                                placeholder="Search by phone number..." 
+                                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
+                                autocomplete="off"
+                                oninput="searchCustomerByPhone(this.value)"
+                                onkeydown="handleCustomerSearchKeydown(event)">
+                            <div id="customer-search-results" class="absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-xl hidden z-50 max-h-48 overflow-y-auto"></div>
+                        </div>
+                        <button onclick="openAddCustomerQuick()" class="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-2 rounded-lg transition whitespace-nowrap">
+                            + New
+                        </button>
+                        <div id="selected-customer-display" class="hidden text-sm font-medium text-purple-900 bg-purple-100 px-3 py-1.5 rounded-lg">
+                            <span id="selected-customer-name"></span>
+                            <span id="selected-customer-balance" class="text-xs ml-2"></span>
+                            <button onclick="clearSelectedCustomer()" class="ml-2 text-red-500 hover:text-red-700">✕</button>
+                        </div>
                     </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse">
@@ -549,6 +651,84 @@
             function deleteCookie(name) {
             document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
             }
+
+            // ============================================
+            // GLOBAL FUNCTION INTERCEPTOR
+            // ============================================
+            console.log('🔄 Setting up global function interceptor...');
+
+            window.openZReportModal = function() {
+                console.log('📊 Z-Report called from global interceptor');
+                
+                const modal = document.getElementById('zreport-modal');
+                if (!modal) {
+                    console.error('❌ Z-Report modal not found!');
+                    const allModals = document.querySelectorAll('[id*="zreport" i]');
+                    if (allModals.length > 0) {
+                        console.log('✅ Found modal with similar ID:', allModals[0].id);
+                        allModals[0].classList.remove('hidden');
+                        if (typeof loadZReport === 'function') {
+                            loadZReport();
+                        }
+                        return;
+                    }
+                    alert('Z-Report modal not found. Please refresh the page.');
+                    return;
+                }
+                
+                modal.classList.remove('hidden');
+                
+                // Set default date
+                const today = new Date().toISOString().split('T')[0];
+                const dateInput = document.getElementById('zreport-date');
+                if (dateInput) dateInput.value = today;
+                
+                // Load shops for filter if user is director/admin
+                const userRole = typeof getCurrentUserRole === 'function' ? getCurrentUserRole() : 'cashier';
+                const shopFilterContainer = document.getElementById('zreport-shop-filter-container');
+                if (shopFilterContainer) {
+                    if (userRole === 'director' || userRole === 'admin') {
+                        shopFilterContainer.style.display = 'inline-flex';
+                        if (typeof loadZReportShops === 'function') {
+                            loadZReportShops();
+                        }
+                    } else {
+                        shopFilterContainer.style.display = 'none';
+                    }
+                }
+                
+                // Load the report
+                if (typeof loadZReport === 'function') {
+                    loadZReport();
+                } else {
+                    console.warn('⚠️ loadZReport not defined, retrying...');
+                    setTimeout(function() {
+                        if (typeof loadZReport === 'function') {
+                            loadZReport();
+                        } else {
+                            setTimeout(function() {
+                                if (typeof loadZReport === 'function') {
+                                    loadZReport();
+                                } else {
+                                    console.error('❌ loadZReport still not defined');
+                                    const content = document.getElementById('zreport-content');
+                                    if (content) {
+                                        content.innerHTML = '<div class="text-center text-amber-600 py-8">⚠️ Report function not loaded. Please refresh the page.</div>';
+                                    }
+                                }
+                            }, 500);
+                        }
+                    }, 500);
+                }
+            };
+
+            window.closeZReportModal = function() {
+                console.log('📊 Closing Z-Report...');
+                const modal = document.getElementById('zreport-modal');
+                if (modal) modal.classList.add('hidden');
+            };
+
+            console.log('✅ Global interceptor set up');
 
         // ============================================
         // SHOP MANAGEMENT
@@ -1739,12 +1919,65 @@ function renderValuation(data) {
 // ============================================
 // Z-REPORT
 // ============================================
-function openZReportModal() {
-    document.getElementById('zreport-modal').classList.remove('hidden');
-    // Set default date to today
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('zreport-date').value = today;
-    loadZReport();
+
+// Helper function to get user role
+function getCurrentUserRole() {
+    // Get from cookie or local storage
+    const token = getCookie('spide_token');
+    if (token) {
+        try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return payload.role || 'cashier';
+        } catch(e) {
+            return 'cashier';
+        }
+    }
+    return 'cashier';
+}
+
+function updateMenuBasedOnRole() {
+    const role = getCurrentUserRole();
+    console.log('👤 Updating menu for role:', role);
+    
+    // Get all role-based elements
+    const directorItems = document.querySelectorAll('.director-only');
+    const managerItems = document.querySelectorAll('.manager-only');
+    const cashierItems = document.querySelectorAll('.cashier-only');
+    const hideCashierItems = document.querySelectorAll('.hide-for-cashier');
+    const hideManagerItems = document.querySelectorAll('.hide-for-manager');
+    
+    // Reset all to default first
+    directorItems.forEach(el => el.style.display = 'flex');
+    managerItems.forEach(el => el.style.display = 'flex');
+    cashierItems.forEach(el => el.style.display = 'flex');
+    hideCashierItems.forEach(el => el.style.display = 'flex');
+    hideManagerItems.forEach(el => el.style.display = 'flex');
+    
+    // Apply role-based visibility
+    if (role === 'director' || role === 'admin') {
+        // Directors/Admins see everything
+        directorItems.forEach(el => el.style.display = 'flex');
+        managerItems.forEach(el => el.style.display = 'flex');
+        cashierItems.forEach(el => el.style.display = 'flex');
+        hideCashierItems.forEach(el => el.style.display = 'flex');
+        hideManagerItems.forEach(el => el.style.display = 'flex');
+        
+    } else if (role === 'manager') {
+        // Managers see manager and cashier items, not director
+        directorItems.forEach(el => el.style.display = 'none');
+        managerItems.forEach(el => el.style.display = 'flex');
+        cashierItems.forEach(el => el.style.display = 'flex');
+        hideCashierItems.forEach(el => el.style.display = 'flex');
+        hideManagerItems.forEach(el => el.style.display = 'none'); // Hide manager-only items from managers
+        
+    } else {
+        // Cashiers only see cashier items
+        directorItems.forEach(el => el.style.display = 'none');
+        managerItems.forEach(el => el.style.display = 'none');
+        cashierItems.forEach(el => el.style.display = 'flex');
+        hideCashierItems.forEach(el => el.style.display = 'none'); // Hide from cashiers
+        hideManagerItems.forEach(el => el.style.display = 'none');
+    }
 }
 
 function closeZReportModal() {
@@ -1753,6 +1986,8 @@ function closeZReportModal() {
 
 async function loadZReport() {
     const date = document.getElementById('zreport-date').value;
+    const shopId = document.getElementById('zreport-shop-filter')?.value || 0;
+    
     if (!date) {
         alert('Please select a date');
         return;
@@ -1762,7 +1997,15 @@ async function loadZReport() {
     container.innerHTML = '<div class="text-center text-gray-500 py-8">Loading report...</div>';
     
     try {
-        const response = await fetch('/api/sales/z-report?date=' + date);
+        const token = getCookie('spide_token');
+        // ✅ Make sure shop_id is being sent
+        const url = '/api/sales/z-report?date=' + date + '&shop_id=' + shopId;
+        console.log('📊 Fetching Z-Report:', url);
+        
+        const response = await fetch(url, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
         if (!response.ok) {
             throw new Error('Failed to load Z-Report');
         }
@@ -1774,8 +2017,46 @@ async function loadZReport() {
     }
 }
 
+async function loadZReportShops() {
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/branches', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) {
+            console.error('Failed to load shops:', response.status);
+            return;
+        }
+        const branches = await response.json();
+        const select = document.getElementById('zreport-shop-filter');
+        if (!select) {
+            console.error('Shop filter select not found!');
+            return;
+        }
+        
+        // ✅ Preserve the selected value if it exists
+        const currentValue = select.value;
+        select.innerHTML = '<option value="0">All Shops</option>';
+        branches.forEach(b => {
+            const opt = document.createElement('option');
+            opt.value = b.id;
+            opt.textContent = b.name;
+            select.appendChild(opt);
+        });
+        
+        // Restore the selected value
+        if (currentValue) {
+            select.value = currentValue;
+        }
+        
+        console.log('✅ Shops loaded:', branches.length);
+    } catch(e) {
+        console.error('Error loading shops:', e);
+    }
+}
+
 function renderZReport(data) {
-    const container = document.getElementById('zreport-content');
+   const container = document.getElementById('zreport-content');
     
     if (!data || !data.total_revenue) {
         container.innerHTML = `
@@ -1793,6 +2074,7 @@ function renderZReport(data) {
         <div class="text-center border-b border-gray-200 pb-4 mb-4">
             <h2 class="text-xl font-bold text-gray-900">📊 Daily Z-Report</h2>
             <p class="text-sm text-gray-500">${data.report_date || 'N/A'}</p>
+            ${data.shop_name ? `<p class="text-xs text-gray-400">🏪 ${data.shop_name}</p>` : ''}
             <div class="flex justify-center gap-6 mt-2 text-xs">
                 <span class="text-gray-400">📈 ${data.total_sales_count || 0} sales</span>
                 <span class="text-gray-400">💰 ${data.expense_count || 0} expenses</span>
@@ -1819,8 +2101,8 @@ function renderZReport(data) {
             </div>
         </div>
         
-        <!-- Payment Methods -->
-        <div class="grid grid-cols-3 gap-3 mb-4">
+        <!-- ✅ Payment Methods - Updated with Deposit and Credit -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
             <div class="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
                 <p class="text-xs text-gray-500">💵 Cash</p>
                 <p class="font-bold text-gray-800">KES ${(data.total_cash || 0).toFixed(2)}</p>
@@ -1831,9 +2113,19 @@ function renderZReport(data) {
                 <p class="font-bold text-gray-800">KES ${(data.total_mpesa || 0).toFixed(2)}</p>
                 <p class="text-xs text-gray-400">${data.mpesa_sales_count || 0} transactions</p>
             </div>
+            <div class="bg-white border border-green-200 rounded-xl p-3 text-center shadow-sm bg-green-50/30">
+                <p class="text-xs text-gray-500">💰 Deposit</p>
+                <p class="font-bold text-green-700">KES ${(data.total_deposit || 0).toFixed(2)}</p>
+                <p class="text-xs text-gray-400">${data.deposit_sales_count || 0} transactions</p>
+            </div>
+            <div class="bg-white border border-purple-200 rounded-xl p-3 text-center shadow-sm bg-purple-50/30">
+                <p class="text-xs text-gray-500">📊 Credit</p>
+                <p class="font-bold text-purple-700">KES ${(data.total_credit || 0).toFixed(2)}</p>
+                <p class="text-xs text-gray-400">${data.credit_sales_count || 0} transactions</p>
+            </div>
             <div class="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
-                <p class="text-xs text-gray-500">💳 Split</p>
-                <p class="font-bold text-gray-800">KES ${(data.split_sales_count || 0).toFixed(2)}</p>
+                <p class="text-xs text-gray-500">🔄 Split</p>
+                <p class="font-bold text-gray-800">KES ${((data.total_revenue || 0) - (data.total_cash || 0) - (data.total_mpesa || 0) - (data.total_deposit || 0) - (data.total_credit || 0)).toFixed(2)}</p>
                 <p class="text-xs text-gray-400">${data.split_sales_count || 0} transactions</p>
             </div>
         </div>
@@ -3960,29 +4252,307 @@ async function checkCustomerDeposit() {
 }
 
 // ============================================
-// CUSTOMER SELECTOR
+// CUSTOMER SELECTOR - PHONE SEARCH
 // ============================================
-async function loadCustomerSelector() {
+
+let customerSearchResults = [];
+let customerSearchTimeout = null;
+let selectedCustomerIndex = -1;
+let currentSelectedCustomer = null;  // Store the currently selected customer object
+
+async function searchCustomerByPhone(query) {
+    clearTimeout(customerSearchTimeout);
+    const trimmed = query.trim();
+    
+    // If query is empty, hide results
+    if (trimmed.length === 0) {
+        document.getElementById('customer-search-results').classList.add('hidden');
+        return;
+    }
+    
+    // If it's a complete phone number (10 digits), search immediately
+    if (trimmed.length >= 7) {
+        customerSearchTimeout = setTimeout(() => {
+            fetchCustomerSearch(trimmed);
+        }, 200);
+    } else {
+        // Short query, wait a bit
+        customerSearchTimeout = setTimeout(() => {
+            fetchCustomerSearch(trimmed);
+        }, 400);
+    }
+}
+
+async function fetchCustomerSearch(query) {
     try {
         const token = getCookie('spide_token');
-        const response = await fetch('/api/customers', {
+        const response = await fetch('/api/customers/search?q=' + encodeURIComponent(query), {
             headers: { 'Authorization': 'Bearer ' + token }
         });
-        if (!response.ok) return;
         
-        const customers = await response.json();
-        const select = document.getElementById('pos-customer-select');
-        select.innerHTML = '<option value="">Walk-in Customer</option>';
+        if (!response.ok) {
+            console.error('Search failed:', response.status);
+            return;
+        }
         
-        customers.forEach(c => {
-            const opt = document.createElement('option');
-            opt.value = c.id;
-            const depositText = c.deposit_balance > 0 ? '💰 ' + c.deposit_balance.toFixed(2) : '';
-            opt.textContent = c.name + ' ' + depositText;
-            select.appendChild(opt);
+        customerSearchResults = await response.json();
+        renderCustomerSearchResults(customerSearchResults);
+    } catch(err) {
+        console.error('Customer search error:', err);
+    }
+}
+
+function renderCustomerSearchResults(items) {
+    const dropdown = document.getElementById('customer-search-results');
+    selectedCustomerIndex = -1;
+    
+    // If no results, show "Add new" option
+    if (!items || items.length === 0) {
+        const phone = document.getElementById('pos-customer-search').value.trim();
+        dropdown.innerHTML = `
+            <div class="p-3 text-center text-sm text-gray-500">
+                No customer found with "${phone}"
+                <button onclick="openAddCustomerWithPhone('${phone}')" 
+                        class="block w-full mt-2 text-indigo-600 hover:text-indigo-800 font-medium">
+                    ➕ Add new customer with this phone
+                </button>
+            </div>
+        `;
+        dropdown.classList.remove('hidden');
+        return;
+    }
+    
+    let html = '';
+    items.forEach((item, index) => {
+        const balance = item.balance || 0;
+        const balanceColor = balance < 0 ? 'text-red-600' : balance > 0 ? 'text-green-600' : 'text-gray-500';
+        const depositText = item.deposit_balance > 0 ? '💰 ' + item.deposit_balance.toFixed(2) : '';
+        const creditText = item.balance < 0 ? '⚠️ ' + Math.abs(item.balance).toFixed(2) : '';
+        
+        html += `<div id="customer-search-item-${index}" 
+                      onclick="selectCustomerResult(${index})"
+                      class="p-3 hover:bg-purple-50 cursor-pointer flex justify-between items-center transition border-b last:border-b-0">
+            <div>
+                <div class="font-bold text-gray-900 text-sm">${item.name}</div>
+                <div class="text-xs text-gray-500">
+                    📱 ${item.phone || 'No phone'}
+                    ${item.email ? ' • ✉️ ' + item.email : ''}
+                </div>
+            </div>
+            <div class="text-right">
+                <div class="text-xs text-gray-400">Balance</div>
+                <div class="font-bold ${balanceColor}">KES ${balance.toFixed(2)}</div>
+                ${depositText ? '<div class="text-xs text-green-600">' + depositText + '</div>' : ''}
+                ${creditText ? '<div class="text-xs text-red-600">' + creditText + '</div>' : ''}
+            </div>
+        </div>`;
+    });
+    
+    // Add "Add new" option at the bottom
+    const phone = document.getElementById('pos-customer-search').value.trim();
+    html += `
+        <div class="p-2 border-t border-gray-100">
+            <button onclick="openAddCustomerWithPhone('${phone}')" 
+                    class="w-full text-center text-sm text-indigo-600 hover:text-indigo-800 font-medium py-1">
+                ➕ Add new customer with "${phone}"
+            </button>
+        </div>
+    `;
+    
+    dropdown.innerHTML = html;
+    dropdown.classList.remove('hidden');
+}
+
+function handleCustomerSearchKeydown(e) {
+    const dropdown = document.getElementById('customer-search-results');
+    const isVisible = !dropdown.classList.contains('hidden');
+    if (!isVisible || customerSearchResults.length === 0) return;
+    
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (selectedCustomerIndex < customerSearchResults.length - 1) {
+            selectedCustomerIndex++;
+            updateCustomerSearchHighlight();
+        }
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (selectedCustomerIndex > 0) {
+            selectedCustomerIndex--;
+            updateCustomerSearchHighlight();
+        }
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedCustomerIndex >= 0 && selectedCustomerIndex < customerSearchResults.length) {
+            selectCustomerResult(selectedCustomerIndex);
+        }
+    } else if (e.key === 'Escape') {
+        document.getElementById('customer-search-results').classList.add('hidden');
+    }
+}
+
+function updateCustomerSearchHighlight() {
+    customerSearchResults.forEach((_, index) => {
+        const el = document.getElementById('customer-search-item-' + index);
+        if (el) {
+            if (index === selectedCustomerIndex) {
+                el.classList.add('bg-purple-100');
+            } else {
+                el.classList.remove('bg-purple-100');
+            }
+        }
+    });
+}
+
+function selectCustomerResult(index) {
+    const customer = customerSearchResults[index];
+    if (!customer) return;
+    
+    selectCustomer(customer);
+    document.getElementById('customer-search-results').classList.add('hidden');
+    document.getElementById('pos-customer-search').value = customer.name + ' (' + customer.phone + ')';
+}
+
+function selectCustomer(customer) {
+    currentSelectedCustomer = customer;
+    selectedCustomerId = customer.id;
+    customerDepositBalance = customer.deposit_balance || 0;
+    customerCreditLimit = customer.credit_limit || 2000;  // Default to 2000 if not set
+    
+    // Update display
+    const display = document.getElementById('selected-customer-display');
+    const nameEl = document.getElementById('selected-customer-name');
+    const balanceEl = document.getElementById('selected-customer-balance');
+    
+    display.classList.remove('hidden');
+    nameEl.textContent = customer.name + ' (' + (customer.phone || 'No phone') + ')';
+    
+    const balance = customer.balance || 0;
+    const balanceColor = balance < 0 ? 'text-red-600' : balance > 0 ? 'text-green-600' : 'text-gray-500';
+    balanceEl.innerHTML = `Balance: <span class="${balanceColor}">KES ${balance.toFixed(2)}</span>`;
+    
+    // Hide the search input
+    document.getElementById('pos-customer-search').style.display = 'none';
+    
+    // Update deposit section if payment modal is open
+    if (!document.getElementById('payment-modal').classList.contains('hidden')) {
+        checkCustomerDeposit();
+    }
+    
+    console.log('💰 Customer selected:', customer.name);
+    console.log('💰 Deposit Balance:', customerDepositBalance);
+    console.log('💰 Credit Limit:', customerCreditLimit);
+}
+
+function clearSelectedCustomer() {
+    currentSelectedCustomer = null;
+    selectedCustomerId = null;
+    customerDepositBalance = 0;
+    customerCreditLimit = 2000;
+    
+    document.getElementById('selected-customer-display').classList.add('hidden');
+    document.getElementById('pos-customer-search').style.display = 'block';
+    document.getElementById('pos-customer-search').value = '';
+    document.getElementById('pos-customer-search').focus();
+    document.getElementById('deposit-section').style.display = 'none';
+}
+
+function openAddCustomerWithPhone(phone) {
+    document.getElementById('quick-customer-phone').value = phone;
+    document.getElementById('quick-customer-name').value = '';
+    document.getElementById('quick-customer-credit-limit').value = 2000;
+    document.getElementById('quick-customer-alert').classList.add('hidden');
+    document.getElementById('quick-customer-modal').classList.remove('hidden');
+    document.getElementById('quick-customer-name').focus();
+    document.getElementById('customer-search-results').classList.add('hidden');
+}
+
+function openAddCustomerQuick() {
+    document.getElementById('quick-customer-phone').value = '';
+    document.getElementById('quick-customer-name').value = '';
+    document.getElementById('quick-customer-credit-limit').value = 2000;
+    document.getElementById('quick-customer-alert').classList.add('hidden');
+    document.getElementById('quick-customer-modal').classList.remove('hidden');
+    document.getElementById('quick-customer-phone').focus();
+}
+
+function closeQuickCustomerModal() {
+    document.getElementById('quick-customer-modal').classList.add('hidden');
+}
+
+async function saveQuickCustomer(event) {
+    event.preventDefault();
+    
+    const alertBox = document.getElementById('quick-customer-alert');
+    const submitBtn = document.getElementById('quick-customer-submit-btn');
+    const token = getCookie('spide_token');
+    
+    const phone = document.getElementById('quick-customer-phone').value.trim();
+    const name = document.getElementById('quick-customer-name').value.trim();
+    const creditLimit = parseFloat(document.getElementById('quick-customer-credit-limit').value) || 2000;
+    
+    if (!phone || !name) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Phone number and name are required';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Creating...';
+    alertBox.classList.add('hidden');
+    
+    const data = {
+        name: name,
+        phone: phone,
+        credit_limit: creditLimit,
+        balance: 0,
+        deposit_balance: 0
+    };
+    
+    try {
+        const response = await fetch('/api/customers/create', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(data)
         });
-    } catch(e) {
-        console.error('Error loading customers:', e);
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-green-100 text-green-700 border border-green-200';
+            alertBox.textContent = '✅ Customer created successfully!';
+            alertBox.classList.remove('hidden');
+            
+            // Select the new customer
+            const newCustomer = {
+                id: result.id || result.customer_id,
+                name: name,
+                phone: phone,
+                credit_limit: creditLimit,
+                balance: 0,
+                deposit_balance: 0
+            };
+            
+            setTimeout(() => {
+                closeQuickCustomerModal();
+                selectCustomer(newCustomer);
+                showNotification('Customer "' + name + '" added successfully!');
+            }, 1000);
+        } else {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+            alertBox.textContent = 'Error: ' + (result.error || 'Failed to create customer');
+            alertBox.classList.remove('hidden');
+        }
+    } catch(error) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Network error: ' + error.message;
+        alertBox.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '💾 Add Customer';
     }
 }
 
@@ -4239,6 +4809,9 @@ function onCustomerSelect(customerId) {
                             initialEl.textContent = name.charAt(0).toUpperCase();
                         }
 
+                         // Update menu based on user role
+                        updateMenuBasedOnRole();
+
                         // Barcode input handler
                         const barcodeInput = document.getElementById('barcode-input');
                         if (barcodeInput) {
@@ -4252,7 +4825,7 @@ function onCustomerSelect(customerId) {
                                 }
                             });
                         }
-                        
+                                              
                         // Quantity input handler
                         const qtyInput = document.getElementById('qty-input');
                         if (qtyInput) {
@@ -4268,7 +4841,6 @@ function onCustomerSelect(customerId) {
                                 }
                             });
                         }
-
                         console.log('🕷️ Spide POS Ready! - Current Shop:', currentShop.name);
                         console.log('🕷️ Current Shop ID:', currentShop.id);
                     }).catch(err => {
@@ -4277,7 +4849,19 @@ function onCustomerSelect(customerId) {
                         updateCartTotals();
                         console.log('🕷️ Spide POS Ready! (fallback)');
                     });
+
+                    // ✅ Check if we need to open Z-Report automatically - Use a unique variable name
+                    const zReportUrlParams = new URLSearchParams(window.location.search);
+                    if (zReportUrlParams.get('open_zreport') === 'true') {
+                        setTimeout(function() {
+                            if (typeof openZReportModal === 'function') {
+                                openZReportModal();
+                            }
+                        }, 800);
+                    }
+
                 });
+
                 
 
 // ============================================
@@ -4366,9 +4950,9 @@ updateMenuClock();
             </div>
         </div>
     </div>
-   
 
-<!-- Z-REPORT MODAL - REDESIGNED -->
+
+<!-- Z-REPORT MODAL - With Role-Based Shop Filter -->
 <div id="zreport-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
     <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
         <!-- Header -->
@@ -4380,7 +4964,15 @@ updateMenuClock();
                 </h2>
                 <p class="text-xs text-gray-500 mt-0.5">Complete sales summary for the day</p>
             </div>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
+                <!-- ✅ Shop Filter Container - Only visible to Directors/Admins -->
+                <div id="zreport-shop-filter-container" class="director-only flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
+                    <span class="text-xs text-gray-500">🏪</span>
+                    <select id="zreport-shop-filter" onchange="loadZReport()" 
+                            class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1">
+                        <option value="0">All Shops</option>
+                    </select>
+                </div>
                 <div class="flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
                     <span class="text-xs text-gray-500">📅</span>
                     <input type="date" id="zreport-date" value="" 
@@ -4405,7 +4997,7 @@ updateMenuClock();
         <div id="zreport-content" class="flex-1 overflow-y-auto">
             <div class="text-center text-gray-400 py-12 flex flex-col items-center">
                 <span class="text-4xl mb-3">📋</span>
-                <p class="text-sm font-medium">Select a date and click Generate</p>
+                <p class="text-sm font-medium">Select a date and shop, then click Generate</p>
                 <p class="text-xs mt-1">View daily sales, payments, expenses, and profit</p>
             </div>
         </div>
@@ -5313,6 +5905,51 @@ updateMenuClock();
         <div class="flex justify-end border-t border-gray-100 pt-3">
             <button onclick="closeCustomerStatement()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">Close</button>
         </div>
+    </div>
+</div>
+
+<!-- QUICK ADD CUSTOMER MODAL -->
+<div id="quick-customer-modal" class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+        <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+            <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <span class="bg-indigo-100 p-1.5 rounded-lg">👤</span>
+                Quick Add Customer
+            </h2>
+            <button onclick="closeQuickCustomerModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        </div>
+        
+        <form id="quick-customer-form" onsubmit="saveQuickCustomer(event)">
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Phone Number *</label>
+                    <input type="text" id="quick-customer-phone" required placeholder="e.g. 0712345678" 
+                           class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Full Name *</label>
+                    <input type="text" id="quick-customer-name" required placeholder="e.g. John Kamau" 
+                           class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Credit Limit</label>
+                    <input type="number" id="quick-customer-credit-limit" value="2000" step="100" 
+                           class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    <p class="text-xs text-gray-400 mt-1">Default: KES 2,000</p>
+                </div>
+                <div id="quick-customer-alert" class="hidden p-2 rounded-lg text-sm font-medium"></div>
+            </div>
+            <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
+                <button type="button" onclick="closeQuickCustomerModal()" 
+                        class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">
+                    Cancel
+                </button>
+                <button type="submit" id="quick-customer-submit-btn" 
+                        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg transition text-sm">
+                    💾 Add Customer
+                </button>
+            </div>
+        </form>
     </div>
 </div>
 

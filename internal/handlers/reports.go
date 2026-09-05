@@ -7,6 +7,7 @@ import (
 	"spide-pos/internal/db"
 	"spide-pos/internal/middleware"
 	"strconv"
+	"time"
 )
 
 type LowStockItem struct {
@@ -20,27 +21,74 @@ type LowStockItem struct {
 
 // ZReportHandler - Daily Z-Report
 func ZReportHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+    w.Header().Set("Content-Type", "application/json")
 
-	claims := middleware.GetUserFromContext(r)
-	if claims == nil {
-		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
-		return
-	}
+    claims := middleware.GetUserFromContext(r)
+    if claims == nil {
+        http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+        return
+    }
 
-	dateParam := r.URL.Query().Get("date")
-	shopID := claims.ShopID
-	if shopID == 0 {
-		shopID = 1
-	}
+    dateParam := r.URL.Query().Get("date")
+    if dateParam == "" {
+        dateParam = time.Now().Format("2006-01-02")
+    }
 
-	report, err := db.GetDailyZReportWithExpenses(db.GetDB(), dateParam, shopID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	json.NewEncoder(w).Encode(report)
+    // ✅ Role-based shop access
+    var shopID int
+    shopIDParam := r.URL.Query().Get("shop_id")
+
+	// ✅ Add debug logging
+    log.Printf("🔍 Z-Report Request - Date: %s, shop_id_param: %s, Role: %s", 
+        dateParam, shopIDParam, claims.Role)
+    
+    switch claims.Role {
+    case "director", "admin":
+        // Director/Admin can view any shop
+        if shopIDParam != "" {
+            id, err := strconv.Atoi(shopIDParam)
+            if err == nil && id > 0 {
+                shopID = id
+            } else {
+                shopID = claims.ShopID
+            }
+        } else {
+            // If no shop_id specified, show all shops (shopID = 0)
+            shopID = 0
+        }
+    case "manager":
+        // Manager can view their own shop only
+        shopID = claims.ShopID
+        if shopID == 0 {
+            shopID = 1
+        }
+    case "cashier":
+        // Cashier can view their own shop only
+        shopID = claims.ShopID
+        if shopID == 0 {
+            shopID = 1
+        }
+    default:
+        // Default to their shop
+        shopID = claims.ShopID
+        if shopID == 0 {
+            shopID = 1
+        }
+    }
+
+    log.Printf("📊 Generating Z-Report - Date: %s, Shop: %d, User: %s, Role: %s", 
+        dateParam, shopID, claims.Username, claims.Role)
+
+    report, err := db.GetZReport(db.GetDB(), dateParam, shopID)
+    if err != nil {
+        log.Printf("❌ Error generating Z-Report: %v", err)
+        http.Error(w, err.Error(), http.StatusInternalServerError)
+        return
+    }
+    
+    json.NewEncoder(w).Encode(report)
 }
+
 
 // ProductSalesReportHandler - Product Sales Report
 func ProductSalesReportHandler(w http.ResponseWriter, r *http.Request) {

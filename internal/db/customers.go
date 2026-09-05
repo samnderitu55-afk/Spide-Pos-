@@ -250,55 +250,47 @@ func DeleteCustomer(db *sql.DB, id int) error {
 	return nil
 }
 
-// Search customers by name or phone
 func SearchCustomers(db *sql.DB, query string) ([]Customer, error) {
-	sqlQuery := `
-        SELECT id, name, phone, email, id_number, address, 
-               COALESCE(balance, 0) as balance,
-               COALESCE(deposit_balance, 0) as deposit_balance,
-               COALESCE(credit_limit, 0) as credit_limit,
-               notes, created_by, created_at, updated_at
+    // Search by phone number or name
+    sqlQuery := `
+        SELECT id, name, phone, email, credit_limit, balance, deposit_balance
         FROM customers
-        WHERE name LIKE ? OR phone LIKE ?
-        ORDER BY name
-        LIMIT 20
+        WHERE phone LIKE ? OR name LIKE ?
+        ORDER BY 
+            CASE 
+                WHEN phone = ? THEN 1
+                WHEN phone LIKE ? THEN 2
+                WHEN name LIKE ? THEN 3
+                ELSE 4
+            END,
+            name
+        LIMIT 10
     `
-	searchTerm := "%" + query + "%"
-	rows, err := db.Query(sqlQuery, searchTerm, searchTerm)
-	if err != nil {
-		return nil, fmt.Errorf("failed to search customers: %w", err)
-	}
-	defer rows.Close()
+    
+    searchTerm := "%" + query + "%"
+    exactMatch := query
+    
+    rows, err := db.Query(sqlQuery, searchTerm, searchTerm, exactMatch, searchTerm, searchTerm)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
 
-	var customers []Customer
-	for rows.Next() {
-		var c Customer
-		err := rows.Scan(
-			&c.ID,
-			&c.Name,
-			&c.Phone,
-			&c.Email,
-			&c.IDNumber,
-			&c.Address,
-			&c.Balance,
-			&c.DepositBalance,
-			&c.CreditLimit,
-			&c.Notes,
-			&c.CreatedBy,
-			&c.CreatedAt,
-			&c.UpdatedAt,
-		)
-		if err != nil {
-			return nil, err
-		}
-		customers = append(customers, c)
-	}
+    var customers []Customer
+    for rows.Next() {
+        var c Customer
+        err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email,
+            &c.CreditLimit, &c.Balance, &c.DepositBalance)
+        if err != nil {
+            return nil, err
+        }
+        customers = append(customers, c)
+    }
+    if err := rows.Err(); err != nil {
+        return nil, err
+    }
 
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating customers: %w", err)
-	}
-
-	return customers, nil
+    return customers, nil
 }
 
 func CreateCreditSale(db *sql.DB, creditSale *CreditSale) error {

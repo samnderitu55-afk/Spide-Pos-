@@ -209,32 +209,32 @@ func DeleteCustomerHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func SearchCustomersHandler(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Content-Type", "application/json")
-    
+    if r.Method != http.MethodGet {
+        http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+        return
+    }
+
     claims := middleware.GetUserFromContext(r)
     if claims == nil {
-        json.NewEncoder(w).Encode(map[string]interface{}{
-            "error": "Unauthorized",
-        })
+        http.Error(w, "Unauthorized", http.StatusUnauthorized)
         return
     }
 
     query := r.URL.Query().Get("q")
     if query == "" {
-        json.NewEncoder(w).Encode(map[string]interface{}{
-            "error": "Search query is required",
-        })
+        http.Error(w, "Search query required", http.StatusBadRequest)
         return
     }
 
+    // Single company - just search all customers
     customers, err := db.SearchCustomers(db.GetDB(), query)
     if err != nil {
-        json.NewEncoder(w).Encode(map[string]interface{}{
-            "error": "Failed to search customers: " + err.Error(),
-        })
+        log.Printf("❌ Error searching customers: %v", err)
+        http.Error(w, err.Error(), http.StatusInternalServerError)
         return
     }
 
+    w.Header().Set("Content-Type", "application/json")
     json.NewEncoder(w).Encode(customers)
 }
 

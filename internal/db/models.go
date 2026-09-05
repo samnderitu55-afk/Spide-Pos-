@@ -98,22 +98,35 @@ type Expense struct {
 }
 
 type ZReport struct {
-	ReportDate       string             `json:"report_date"`
-	TotalRevenue     float64            `json:"total_revenue"`
-	TotalCost        float64            `json:"total_cost"`
-	TotalProfit      float64            `json:"total_profit"`
-	MarginPercent    float64            `json:"margin_percent"`
-	TotalSalesCount  int                `json:"total_sales_count"`
-	TotalCash        float64            `json:"total_cash"`
-	TotalMpesa       float64            `json:"total_mpesa"`
-	CashSalesCount   int                `json:"cash_sales_count"`
-	MpesaSalesCount  int                `json:"mpesa_sales_count"`
-	SplitSalesCount  int                `json:"split_sales_count"`
-	TotalExpenses    float64            `json:"total_expenses"`
-	ExpenseCount     int                `json:"expense_count"`
-	ExpenseBreakdown map[string]float64 `json:"expense_breakdown"`
-	NetProfit        float64            `json:"net_profit"`
+    ReportDate       string             `json:"report_date"`
+    TotalRevenue     float64            `json:"total_revenue"`
+    TotalCost        float64            `json:"total_cost"`
+    TotalProfit      float64            `json:"total_profit"`
+    MarginPercent    float64            `json:"margin_percent"`
+    TotalSalesCount  int                `json:"total_sales_count"`
+    
+    // ✅ Add these fields for deposit and credit
+    TotalCash        float64            `json:"total_cash"`
+    TotalMpesa       float64            `json:"total_mpesa"`
+    TotalDeposit     float64            `json:"total_deposit"`
+    TotalCredit      float64            `json:"total_credit"`
+    
+    CashSalesCount   int                `json:"cash_sales_count"`
+    MpesaSalesCount  int                `json:"mpesa_sales_count"`
+    DepositSalesCount int               `json:"deposit_sales_count"`
+    CreditSalesCount int                `json:"credit_sales_count"`
+    SplitSalesCount  int                `json:"split_sales_count"`
+    
+    TotalExpenses    float64            `json:"total_expenses"`
+    ExpenseCount     int                `json:"expense_count"`
+    ExpenseBreakdown map[string]float64 `json:"expense_breakdown"`
+    NetProfit        float64            `json:"net_profit"`
+    
+    // Shop info
+    ShopName         string             `json:"shop_name,omitempty"`
+    ShopID           int                `json:"shop_id,omitempty"`
 }
+
 
 type ProductSalesReportItem struct {
 	ProductName  string  `json:"product_name"`

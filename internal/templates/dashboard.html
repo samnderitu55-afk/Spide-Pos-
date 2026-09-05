@@ -699,6 +699,11 @@
             });
             container.innerHTML = html;
         }
+
+        function openZReportModal() {
+        // Redirect to POS page with Z-Report open
+        window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_zreport=true';
+}
     </script>
 
 </body>

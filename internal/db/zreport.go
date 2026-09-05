@@ -1,51 +1,85 @@
 ﻿package db
 
 import (
-    "database/sql"
-    "fmt"
+	"database/sql"
+	"fmt"
+	"log"
+	"strconv"
 )
 
-// GetZReport generates a Z-report for a given date
-func GetZReport(db *sql.DB, date string) (*ZReport, error) {
+// GetZReport generates a Z-report for a given date with optional shop filter
+func GetZReport(db *sql.DB, date string, shopID int) (*ZReport, error) {
     report := &ZReport{
         ReportDate:       date,
         ExpenseBreakdown: make(map[string]float64),
+        ShopID:           shopID,
     }
 
-    // Get total revenue and sales count
-    err := db.QueryRow(`
+    // Build shop filter
+    shopFilter := ""
+    if shopID > 0 {
+        shopFilter = " AND shop_id = " + strconv.Itoa(shopID)
+    }
+
+    // ✅ Get sales summary with deposit and credit
+    query := `
         SELECT 
-            COALESCE(SUM(total_amount), 0),
-            COUNT(*),
-            COALESCE(SUM(CASE WHEN payment_type = 'cash' THEN total_amount ELSE 0 END), 0),
-            COALESCE(SUM(CASE WHEN payment_type = 'mpesa' THEN total_amount ELSE 0 END), 0),
-            COALESCE(SUM(CASE WHEN payment_type = 'split' THEN total_amount ELSE 0 END), 0),
-            COUNT(CASE WHEN payment_type = 'cash' THEN 1 END),
-            COUNT(CASE WHEN payment_type = 'mpesa' THEN 1 END),
-            COUNT(CASE WHEN payment_type = 'split' THEN 1 END)
+            COALESCE(SUM(total_amount), 0) as total_revenue,
+            COUNT(*) as total_sales,
+            COALESCE(SUM(CASE WHEN payment_type = 'cash' THEN total_amount ELSE 0 END), 0) as total_cash,
+            COALESCE(SUM(CASE WHEN payment_type = 'mpesa' THEN total_amount ELSE 0 END), 0) as total_mpesa,
+            COALESCE(SUM(CASE WHEN payment_type = 'deposit' THEN total_amount ELSE 0 END), 0) as total_deposit,
+            COALESCE(SUM(CASE WHEN payment_type = 'credit' THEN total_amount ELSE 0 END), 0) as total_credit,
+            COUNT(CASE WHEN payment_type = 'cash' THEN 1 END) as cash_count,
+            COUNT(CASE WHEN payment_type = 'mpesa' THEN 1 END) as mpesa_count,
+            COUNT(CASE WHEN payment_type = 'deposit' THEN 1 END) as deposit_count,
+            COUNT(CASE WHEN payment_type = 'credit' THEN 1 END) as credit_count,
+            COUNT(CASE WHEN payment_type = 'split' THEN 1 END) as split_count
         FROM sales
-        WHERE DATE(created_at) = ?
-    `, date).Scan(
+        WHERE DATE(created_at) = ?` + shopFilter
+
+    err := db.QueryRow(query, date).Scan(
         &report.TotalRevenue,
         &report.TotalSalesCount,
         &report.TotalCash,
         &report.TotalMpesa,
-        &report.SplitSalesCount,
+        &report.TotalDeposit,
+        &report.TotalCredit,
         &report.CashSalesCount,
         &report.MpesaSalesCount,
+        &report.DepositSalesCount,
+        &report.CreditSalesCount,
         &report.SplitSalesCount,
     )
     if err != nil && err != sql.ErrNoRows {
         return nil, fmt.Errorf("failed to get sales data: %w", err)
     }
 
-    // Get expenses for the day
-    rows, err := db.Query(`
+    // ✅ Calculate Total Cost (COGS) from sale items
+    costQuery := `
+        SELECT COALESCE(SUM(si.quantity * p.cost_price), 0) as total_cost
+        FROM sale_items si
+        JOIN products p ON si.product_id = p.id
+        JOIN sales s ON si.sale_id = s.id
+        WHERE DATE(s.created_at) = ?` + shopFilter
+
+    err = db.QueryRow(costQuery, date).Scan(&report.TotalCost)
+    if err != nil && err != sql.ErrNoRows {
+        // If error, set to 0 and continue
+        report.TotalCost = 0
+    }
+
+    // Calculate Total Profit
+    report.TotalProfit = report.TotalRevenue - report.TotalCost
+
+    // Get expenses
+    expenseQuery := `
         SELECT category, COALESCE(SUM(amount), 0) as total
         FROM expenses
-        WHERE DATE(created_at) = ?
+        WHERE DATE(created_at) = ?` + shopFilter + `
         GROUP BY category
-    `, date)
+    `
+    rows, err := db.Query(expenseQuery, date)
     if err != nil && err != sql.ErrNoRows {
         return nil, fmt.Errorf("failed to get expenses: %w", err)
     }
@@ -70,12 +104,25 @@ func GetZReport(db *sql.DB, date string) (*ZReport, error) {
 
     report.TotalExpenses = totalExpenses
     report.ExpenseCount = expenseCount
-    report.NetProfit = report.TotalRevenue - report.TotalExpenses
+    report.NetProfit = report.TotalRevenue - report.TotalCost - report.TotalExpenses
 
-    // Calculate margin
+    // ✅ Calculate margin correctly
     if report.TotalRevenue > 0 {
-        report.MarginPercent = (report.NetProfit / report.TotalRevenue) * 100
+        // Gross margin based on COGS
+        report.MarginPercent = (report.TotalProfit / report.TotalRevenue) * 100
     }
+
+    // Get shop name if shopID is specified
+    if shopID > 0 {
+        var shopName string
+        err = db.QueryRow("SELECT name FROM shops WHERE id = ?", shopID).Scan(&shopName)
+        if err == nil {
+            report.ShopName = shopName
+        }
+    }
+
+    log.Printf("📊 Z-Report - Revenue: %.2f, Cost: %.2f, Profit: %.2f, Margin: %.2f%%",
+        report.TotalRevenue, report.TotalCost, report.TotalProfit, report.MarginPercent)
 
     return report, nil
 }

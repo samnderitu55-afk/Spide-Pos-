@@ -1,9 +1,9 @@
 ﻿package db
 
 import (
-    "database/sql"
-    "fmt"
-    "time"
+	"database/sql"
+	"fmt"
+	"time"
 )
 
 func GetDailyZReportWithExpenses(db *sql.DB, dateParam string, shopID int) (*ZReport, error) {
@@ -33,10 +33,9 @@ func GetDailyZReportWithExpenses(db *sql.DB, dateParam string, shopID int) (*ZRe
         &report.TotalRevenue,
         &report.TotalCash,
         &report.TotalMpesa,
-        &report.CashSalesCount,
+        &report.CashSalesCount,  
         &report.MpesaSalesCount,
-        &report.SplitSalesCount,
-    )
+  )
     if err != nil && err != sql.ErrNoRows {
         return nil, fmt.Errorf("failed to get sales summary: %w", err)
     }

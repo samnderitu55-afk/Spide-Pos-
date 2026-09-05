@@ -145,6 +145,7 @@ func main() {
 	
 	//customer statement route
 	mux.HandleFunc("/api/customers/statement", middleware.AuthMiddleware(handlers.GetCustomerStatementHandler))
+	
 
 	// Server configuration
 	port := getEnv("PORT", "8081")
