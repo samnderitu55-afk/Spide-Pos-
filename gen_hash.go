@@ -1,8 +1,9 @@
 ﻿package main
 
 import (
-    "fmt"
-    "golang.org/x/crypto/bcrypt"
+	"fmt"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 func main() {
@@ -12,6 +13,7 @@ func main() {
         fmt.Println("Error:", err)
         return
     }
-    fmt.Println("Password:", password)
-    fmt.Println("Hash:", string(hash))
+    fmt.Printf("Password: %s\n", password)
+    fmt.Printf("Hash: %s\n", string(hash))
 }
+

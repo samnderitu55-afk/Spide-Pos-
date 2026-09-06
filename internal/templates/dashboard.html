@@ -69,6 +69,24 @@
         #mega-menu a:hover {
             padding-left: 14px;
         }
+
+         /* Role-based visibility controls */
+        .director-only { 
+            display: flex; 
+        }
+        .manager-only { 
+            display: flex; 
+        }
+        .cashier-only { 
+            display: flex; 
+        }
+        .role-hidden {
+            display: none !important;
+        }
+        .role-visible {
+            display: flex !important;
+        }
+
     </style>
 </head>
 <body class="bg-gray-100 font-sans min-h-screen">
@@ -159,8 +177,8 @@
                     <a href="#" onclick="openExpenseReportModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📊</span> Expense Report<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
                     <a href="#" onclick="openCustomerListModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">👥</span> Customers<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
                     <a href="#" onclick="openDepositModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">💰</span> Deposits<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                    <a href="#" onclick="openUserManagement()" class="director-only flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">👥</span> User Management<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span>
                 </div>
-            </div>
             <div class="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-400">
                 <span>🕷️ Spide POS v2.0</span>
                 <span id="menu-clock" class="font-mono"></span>
@@ -425,6 +443,7 @@
         // DOM READY
         // ============================================
        document.addEventListener('DOMContentLoaded', async function() {
+                shopId = getShopIdFromURL();
                 // User display
                 const userEl = document.getElementById('logged-in-user');
                 if (userEl && user.username) userEl.textContent = user.username;
@@ -466,10 +485,12 @@
                     currentShop.name = shopName;
                     localStorage.setItem('currentShopId', shopId);
                     localStorage.setItem('currentShopName', shopName);
-                    
+                                        
                     // ✅ Also update the shop selector dropdown if it's open
                     // The dropdown will be loaded when the user opens it
                 }
+                // Update menu based on role
+                updateMenuBasedOnRole();
 
                 // Shop selector
                 const shopSelectorBtn = document.getElementById('shop-selector-btn');
@@ -489,7 +510,10 @@
                 const shopId = parseInt(getCookie('currentShopId')) || user.shop_id || 1;
                 currentShop.id = shopId;
 
+                // Update shop display
+                updateShopDisplay();
                 refreshDashboard();
+                updateMenuBasedOnRole();
                 startClock();
             });
 
@@ -503,16 +527,25 @@
                  updateClock();
                  setInterval(updateClock, 1000);
         }
-
-        function logout() {
-            deleteCookie('spide_token');
-            deleteCookie('spide_user');
-            deleteCookie('currentShopId');
-            deleteCookie('currentShopName');
-            localStorage.removeItem('spide_token');
-            localStorage.removeItem('spide_user');
-            window.location.href = '/login';
-        }
+// ============================================
+// LOGOUT FUNCTION
+// ============================================
+function logout() {
+    if (!confirm('Are you sure you want to logout?')) return;
+    
+    // Clear localStorage
+    localStorage.removeItem('spide_token');
+    localStorage.removeItem('spide_user');
+    localStorage.removeItem('currentShopId');
+    localStorage.removeItem('currentShopName');
+    
+    // Clear cookies
+    document.cookie = 'spide_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
+    document.cookie = 'spide_user=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
+    
+    // Redirect to login
+    window.location.href = '/login';
+}
 
         // ============================================
         // MEGA MENU
@@ -704,7 +737,813 @@
         // Redirect to POS page with Z-Report open
         window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_zreport=true';
 }
+
+// Z-Report Functions
+function openZReportModal() {
+    document.getElementById('zreport-modal').classList.remove('hidden');
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('zreport-date').value = today;
+    
+    const userRole = getCurrentUserRole();
+    const shopFilter = document.getElementById('zreport-shop-filter');
+    
+    if (userRole === 'director' || userRole === 'admin') {
+        shopFilter.style.display = 'inline-flex';
+        loadZReportShops();
+    } else {
+        shopFilter.style.display = 'none';
+    }
+    
+    loadZReport();
+}
+
+function closeZReportModal() {
+    document.getElementById('zreport-modal').classList.add('hidden');
+}
+
+async function loadZReport() {
+     const date = document.getElementById('zreport-date').value;
+    const shopId = document.getElementById('zreport-shop-filter')?.value || 0;
+    
+    if (!date) {
+        alert('Please select a date');
+        return;
+    }
+    
+    const container = document.getElementById('zreport-content');
+    container.innerHTML = '<div class="text-center text-gray-500 py-8">Loading report...</div>';
+    
+    try {
+        const token = getCookie('spide_token');
+        // ✅ Make sure shop_id is being sent
+        const url = '/api/sales/z-report?date=' + date + '&shop_id=' + shopId;
+        console.log('📊 Fetching Z-Report:', url);
+        
+        const response = await fetch(url, {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load Z-Report');
+        }
+        const data = await response.json();
+        renderZReport(data);
+    } catch(error) {
+        console.error('Z-Report error:', error);
+        container.innerHTML = '<div class="text-center text-red-500 py-8">Error loading report: ' + error.message + '</div>';
+    }
+}
+
+async function loadZReportShops() {
+      try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/branches', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) {
+            console.error('Failed to load shops:', response.status);
+            return;
+        }
+        const branches = await response.json();
+        const select = document.getElementById('zreport-shop-filter');
+        if (!select) {
+            console.error('Shop filter select not found!');
+            return;
+        }
+        
+        // ✅ Preserve the selected value if it exists
+        const currentValue = select.value;
+        select.innerHTML = '<option value="0">All Shops</option>';
+        branches.forEach(b => {
+            const opt = document.createElement('option');
+            opt.value = b.id;
+            opt.textContent = b.name;
+            select.appendChild(opt);
+        });
+        
+        // Restore the selected value
+        if (currentValue) {
+            select.value = currentValue;
+        }
+        
+        console.log('✅ Shops loaded:', branches.length);
+    } catch(e) {
+        console.error('Error loading shops:', e);
+    }
+}
+
+function renderZReport(data) {
+    const container = document.getElementById('zreport-content');
+    
+    if (!data || !data.total_revenue) {
+        container.innerHTML = `
+            <div class="text-center py-12 flex flex-col items-center">
+                <span class="text-4xl mb-3">📭</span>
+                <p class="text-sm font-medium text-gray-500">No sales data for this date</p>
+                <p class="text-xs text-gray-400 mt-1">Try selecting a different date</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <!-- Report Header -->
+        <div class="text-center border-b border-gray-200 pb-4 mb-4">
+            <h2 class="text-xl font-bold text-gray-900">📊 Daily Z-Report</h2>
+            <p class="text-sm text-gray-500">${data.report_date || 'N/A'}</p>
+            ${data.shop_name ? `<p class="text-xs text-gray-400">🏪 ${data.shop_name}</p>` : ''}
+            <div class="flex justify-center gap-6 mt-2 text-xs">
+                <span class="text-gray-400">📈 ${data.total_sales_count || 0} sales</span>
+                <span class="text-gray-400">💰 ${data.expense_count || 0} expenses</span>
+            </div>
+        </div>
+        
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div class="bg-gradient-to-br from-purple-50 to-purple-100/50 p-4 rounded-xl text-center border border-purple-200/50">
+                <p class="text-xs font-medium text-purple-600 uppercase tracking-wider">Revenue</p>
+                <p class="text-xl font-bold text-purple-900 mt-1">KES ${(data.total_revenue || 0).toFixed(2)}</p>
+            </div>
+            <div class="bg-gradient-to-br from-blue-50 to-blue-100/50 p-4 rounded-xl text-center border border-blue-200/50">
+                <p class="text-xs font-medium text-blue-600 uppercase tracking-wider">Sales</p>
+                <p class="text-xl font-bold text-blue-900 mt-1">${data.total_sales_count || 0}</p>
+            </div>
+            <div class="bg-gradient-to-br from-amber-50 to-amber-100/50 p-4 rounded-xl text-center border border-amber-200/50">
+                <p class="text-xs font-medium text-amber-600 uppercase tracking-wider">Expenses</p>
+                <p class="text-xl font-bold text-amber-900 mt-1">KES ${(data.total_expenses || 0).toFixed(2)}</p>
+            </div>
+            <div class="bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-4 rounded-xl text-center border border-emerald-200/50">
+                <p class="text-xs font-medium text-emerald-600 uppercase tracking-wider">Net Profit</p>
+                <p class="text-xl font-bold text-emerald-900 mt-1">KES ${(data.net_profit || 0).toFixed(2)}</p>
+            </div>
+        </div>
+        
+        <!-- ✅ Payment Methods - REMOVED SPLIT -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+            <div class="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
+                <p class="text-xs text-gray-500">💵 Cash</p>
+                <p class="font-bold text-gray-800">KES ${(data.total_cash || 0).toFixed(2)}</p>
+                <p class="text-xs text-gray-400">${data.cash_sales_count || 0} transactions</p>
+            </div>
+            <div class="bg-white border border-gray-200 rounded-xl p-3 text-center shadow-sm">
+                <p class="text-xs text-gray-500">📱 M-Pesa</p>
+                <p class="font-bold text-gray-800">KES ${(data.total_mpesa || 0).toFixed(2)}</p>
+                <p class="text-xs text-gray-400">${data.mpesa_sales_count || 0} transactions</p>
+            </div>
+            <div class="bg-white border border-green-200 rounded-xl p-3 text-center shadow-sm bg-green-50/30">
+                <p class="text-xs text-gray-500">💰 Deposit</p>
+                <p class="font-bold text-green-700">KES ${(data.total_deposit || 0).toFixed(2)}</p>
+                <p class="text-xs text-gray-400">${data.deposit_sales_count || 0} transactions</p>
+            </div>
+            <div class="bg-white border border-purple-200 rounded-xl p-3 text-center shadow-sm bg-purple-50/30">
+                <p class="text-xs text-gray-500">📊 Credit</p>
+                <p class="font-bold text-purple-700">KES ${(data.total_credit || 0).toFixed(2)}</p>
+                <p class="text-xs text-gray-400">${data.credit_sales_count || 0} transactions</p>
+            </div>
+        </div>
+        
+        <!-- ✅ Payment Summary - REMOVED SPLIT -->
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-3 text-center shadow-sm mb-4">
+            <div class="grid grid-cols-4 gap-2 text-xs">
+                <div>
+                    <span class="text-gray-500">Cash:</span>
+                    <span class="font-bold text-gray-800">${((data.total_cash || 0) / (data.total_revenue || 1) * 100).toFixed(1)}%</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">M-Pesa:</span>
+                    <span class="font-bold text-gray-800">${((data.total_mpesa || 0) / (data.total_revenue || 1) * 100).toFixed(1)}%</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">Deposit:</span>
+                    <span class="font-bold text-green-700">${((data.total_deposit || 0) / (data.total_revenue || 1) * 100).toFixed(1)}%</span>
+                </div>
+                <div>
+                    <span class="text-gray-500">Credit:</span>
+                    <span class="font-bold text-purple-700">${((data.total_credit || 0) / (data.total_revenue || 1) * 100).toFixed(1)}%</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Expenses
+    if (data.expense_breakdown && Object.keys(data.expense_breakdown).length > 0) {
+        html += `
+            <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
+                <h3 class="font-semibold text-gray-700 text-sm mb-3 flex items-center gap-2">
+                    <span>💰</span> Expense Breakdown
+                </h3>
+                <div class="space-y-1">
+        `;
+        for (const [category, amount] of Object.entries(data.expense_breakdown)) {
+            const pct = data.total_expenses > 0 ? (amount / data.total_expenses * 100) : 0;
+            html += `
+                <div>
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">${category}</span>
+                        <span class="font-medium text-amber-700">KES ${amount.toFixed(2)}</span>
+                    </div>
+                    <div class="w-full bg-gray-100 rounded-full h-1.5 mt-0.5">
+                        <div class="bg-amber-400 h-1.5 rounded-full" style="width: ${pct}%"></div>
+                    </div>
+                </div>
+            `;
+        }
+        html += `
+                </div>
+                <div class="flex justify-between text-sm font-bold border-t border-gray-100 pt-2 mt-2">
+                    <span class="text-gray-700">Total Expenses</span>
+                    <span class="text-amber-700">KES ${(data.total_expenses || 0).toFixed(2)}</span>
+                </div>
+            </div>
+        `;
+    }
+    
+    // Margin
+    if (data.margin_percent) {
+        const marginColor = data.margin_percent > 30 ? 'emerald' : data.margin_percent > 15 ? 'blue' : 'amber';
+        html += `
+            <div class="mt-3 text-center bg-${marginColor}-50 border border-${marginColor}-200 rounded-xl p-3">
+                <span class="text-sm font-medium text-gray-600">Profit Margin:</span>
+                <span class="font-bold text-${marginColor}-600">${data.margin_percent.toFixed(1)}%</span>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = html;
+}
+
+function printZReport() {
+    const content = document.getElementById('zreport-content');
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    printWindow.document.write(`
+        <html><head><title>Z-Report</title>
+        <style>
+            body { font-family: Arial, sans-serif; padding: 20px; }
+            @media print { body { padding: 10px; } }
+        </style>
+        </head><body>
+        ${content.innerHTML}
+        <script>
+            window.onload = function() { window.print(); setTimeout(function() { window.close(); }, 500); };
+        <\/script>
+        </body></html>
+    `);
+    printWindow.document.close();
+}
+
+// ============================================
+// USER ROLE FUNCTIONS
+// ============================================
+
+function getCurrentUserRole() {
+    // Get from cookie or local storage
+    const token = getCookie('spide_token');
+    if (token) {
+        try {
+            // Decode JWT token
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            return payload.role || 'cashier';
+        } catch(e) {
+            console.warn('Could not decode token, defaulting to cashier');
+            return 'cashier';
+        }
+    }
+    return 'cashier';
+}
+
+// Also add getCookie if not present
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
+function openUserManagement() {
+    document.getElementById('user-management-modal').classList.remove('hidden');
+    loadUsers();
+    loadUserShops();
+}
+
+function closeUserManagement() {
+    document.getElementById('user-management-modal').classList.add('hidden');
+}
+
+function openAddUserModal() {
+    document.getElementById('user-modal-title').textContent = 'Add User';
+    document.getElementById('user-id').value = '0';
+    document.getElementById('user-form').reset();
+    document.getElementById('user-password').required = true;
+    document.getElementById('password-hint').textContent = 'Enter a password (min 6 characters)';
+    document.getElementById('user-alert').classList.add('hidden');
+    document.getElementById('user-modal').classList.remove('hidden');
+}
+
+function openEditUserModal(user) {
+    document.getElementById('user-modal-title').textContent = 'Edit User';
+    document.getElementById('user-id').value = user.id;
+    document.getElementById('user-username').value = user.username;
+    document.getElementById('user-fullname').value = user.full_name || '';
+    document.getElementById('user-email').value = user.email || '';
+    document.getElementById('user-role').value = user.role || 'cashier';
+    document.getElementById('user-shop').value = user.shop_id || 0;
+    document.getElementById('user-password').required = false;
+    document.getElementById('password-hint').textContent = 'Leave blank to keep current password';
+    document.getElementById('user-alert').classList.add('hidden');
+    document.getElementById('user-modal').classList.remove('hidden');
+}
+
+function closeUserModal() {
+    document.getElementById('user-modal').classList.add('hidden');
+}
+
+async function loadUsers() {
+    const tbody = document.getElementById('user-list-body');
+    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">Loading...</td></tr>';
+    
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/users', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to load users');
+        }
+        
+        const users = await response.json();
+        renderUsers(users);
+    } catch(error) {
+        console.error('User load error:', error);
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-500">Error loading users</td></tr>';
+    }
+}
+
+function renderUsers(users) {
+    const tbody = document.getElementById('user-list-body');
+    
+    if (!users || users.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No users found</td></tr>';
+        return;
+    }
+    
+    let html = '';
+    users.forEach(u => {
+        const statusColor = u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+        const statusText = u.is_active ? 'Active' : 'Inactive';
+        const roleColors = {
+            'admin': 'bg-purple-100 text-purple-800',
+            'manager': 'bg-blue-100 text-blue-800',
+            'cashier': 'bg-gray-100 text-gray-800',
+            'director': 'bg-amber-100 text-amber-800'
+        };
+        const roleColor = roleColors[u.role] || 'bg-gray-100 text-gray-800';
+        
+        html += `<tr class="border-b hover:bg-gray-50/50 transition">
+            <td class="p-2 font-medium text-gray-800">${u.username}</td>
+            <td class="p-2">${u.full_name || '-'}</td>
+            <td class="p-2 text-gray-500">${u.email || '-'}</td>
+            <td class="p-2"><span class="px-2 py-0.5 rounded-full text-xs ${roleColor}">${u.role}</span></td>
+            <td class="p-2 text-gray-500">${u.shop_name || 'All'}</td>
+            <td class="p-2 text-center"><span class="px-2 py-0.5 rounded-full text-xs ${statusColor}">${statusText}</span></td>
+            <td class="p-2 text-center space-x-1">
+                <button onclick='openEditUserModal(${JSON.stringify(u).replace(/"/g, "&quot;")})' 
+                        class="text-blue-400 hover:text-blue-600 text-xs font-bold">✏️</button>
+                <button onclick="deleteUser(${u.id})" 
+                        class="text-red-400 hover:text-red-600 text-xs font-bold">🗑️</button>
+            </td>
+        </tr>`;
+    });
+    tbody.innerHTML = html;
+
+    users.forEach(u => {
+        // ✅ Show shop name or "All Shops"
+        const shopDisplay = u.shop_name || (u.shop_id ? 'Shop #' + u.shop_id : 'All Shops');
+        // ... render the table row with shopDisplay
+    });
+}
+
+async function loadUserShops() {
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/branches', {
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        if (!response.ok) return;
+        
+        const shops = await response.json();
+        const select = document.getElementById('user-shop');
+        select.innerHTML = '<option value="0">All Shops</option>';
+        shops.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.name;
+            select.appendChild(opt);
+        });
+    } catch(e) {
+        console.error('Error loading shops:', e);
+    }
+}
+
+async function saveUser(event) {
+    event.preventDefault();
+    
+    const alertBox = document.getElementById('user-alert');
+    const submitBtn = document.getElementById('user-submit-btn');
+    const token = getCookie('spide_token');
+    const userId = document.getElementById('user-id').value;
+    const isEdit = userId && userId !== '0';
+    
+    const data = {
+        id: parseInt(userId) || 0,
+        username: document.getElementById('user-username').value.trim(),
+        full_name: document.getElementById('user-fullname').value.trim(),
+        email: document.getElementById('user-email').value.trim(),
+        role: document.getElementById('user-role').value,
+        shop_id: parseInt(document.getElementById('user-shop').value) || 0
+    };
+    
+    const password = document.getElementById('user-password').value;
+    if (password) {
+        data.password = password;
+    } else if (!isEdit) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Password is required for new users';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    if (!data.username || !data.full_name) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Username and Full Name are required';
+        alertBox.classList.remove('hidden');
+        return;
+    }
+    
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving...';
+    alertBox.classList.add('hidden');
+    
+    try {
+        const url = isEdit ? '/api/users/update' : '/api/users/create';
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-green-100 text-green-700 border border-green-200';
+            alertBox.textContent = '✅ User ' + (isEdit ? 'updated' : 'created') + ' successfully!';
+            alertBox.classList.remove('hidden');
+            setTimeout(() => {
+                closeUserModal();
+                loadUsers();
+            }, 1500);
+        } else {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+            alertBox.textContent = 'Error: ' + (result.error || 'Failed to save user');
+            alertBox.classList.remove('hidden');
+        }
+    } catch(error) {
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+        alertBox.textContent = 'Network error: ' + error.message;
+        alertBox.classList.remove('hidden');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '💾 Save User';
+    }
+}
+
+async function deleteUser(id) {
+    if (!confirm('Are you sure you want to delete this user?')) return;
+    
+    try {
+        const token = getCookie('spide_token');
+        const response = await fetch('/api/users/delete?id=' + id, {
+            method: 'DELETE',
+            headers: { 'Authorization': 'Bearer ' + token }
+        });
+        
+        if (response.ok) {
+            loadUsers();
+        } else {
+            const result = await response.json();
+            alert('Error: ' + (result.error || 'Failed to delete user'));
+        }
+    } catch(error) {
+        console.error('Delete error:', error);
+        alert('Network error');
+    }
+}
+
+// Get shop_id from URL
+function getShopIdFromURL() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const shopId = urlParams.get('shop_id');
+    if (shopId) {
+        localStorage.setItem('currentShopId', shopId);
+        return parseInt(shopId);
+    }
+    return parseInt(localStorage.getItem('currentShopId')) || 1;
+}
+
+function updateMenuBasedOnRole() {
+    const role = getCurrentUserRole();
+    console.log('👤 Updating menu for role:', role);
+    
+    // Get all role-based elements
+    const directorItems = document.querySelectorAll('.director-only');
+    const managerItems = document.querySelectorAll('.manager-only');
+    const cashierItems = document.querySelectorAll('.cashier-only');
+    const hideCashierItems = document.querySelectorAll('.hide-for-cashier');
+    const hideManagerItems = document.querySelectorAll('.hide-for-manager');
+    
+    // Reset all to default first
+    directorItems.forEach(el => el.style.display = 'flex');
+    managerItems.forEach(el => el.style.display = 'flex');
+    cashierItems.forEach(el => el.style.display = 'flex');
+    hideCashierItems.forEach(el => el.style.display = 'flex');
+    hideManagerItems.forEach(el => el.style.display = 'flex');
+    
+    // Apply role-based visibility
+    if (role === 'director' || role === 'admin') {
+        // Directors/Admins see everything
+        directorItems.forEach(el => el.style.display = 'flex');
+        managerItems.forEach(el => el.style.display = 'flex');
+        cashierItems.forEach(el => el.style.display = 'flex');
+        hideCashierItems.forEach(el => el.style.display = 'flex');
+        hideManagerItems.forEach(el => el.style.display = 'flex');
+        
+    } else if (role === 'manager') {
+        // Managers see manager and cashier items, not director
+        directorItems.forEach(el => el.style.display = 'none');
+        managerItems.forEach(el => el.style.display = 'flex');
+        cashierItems.forEach(el => el.style.display = 'flex');
+        hideCashierItems.forEach(el => el.style.display = 'flex');
+        hideManagerItems.forEach(el => el.style.display = 'none'); // Hide manager-only items from managers
+        
+    } else {
+        // Cashiers only see cashier items
+        directorItems.forEach(el => el.style.display = 'none');
+        managerItems.forEach(el => el.style.display = 'none');
+        cashierItems.forEach(el => el.style.display = 'flex');
+        hideCashierItems.forEach(el => el.style.display = 'none'); // Hide from cashiers
+        hideManagerItems.forEach(el => el.style.display = 'none');
+    }
+}
+
+
     </script>
+
+    <!-- Z-REPORT MODAL - With Role-Based Shop Filter -->
+<div id="zreport-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-4xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+        <!-- Header -->
+        <div class="flex justify-between items-center border-b border-gray-100 pb-4">
+            <div>
+                <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <span class="bg-purple-100 p-1.5 rounded-lg">📊</span>
+                    Daily Z-Report
+                </h2>
+                <p class="text-xs text-gray-500 mt-0.5">Complete sales summary for the day</p>
+            </div>
+            <div class="flex items-center gap-2 flex-wrap">
+                <!-- ✅ Shop Filter Container - Only visible to Directors/Admins -->
+                <div id="zreport-shop-filter-container" class="director-only flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
+                    <span class="text-xs text-gray-500">🏪</span>
+                    <select id="zreport-shop-filter" onchange="loadZReport()" 
+                            class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1">
+                        <option value="0">All Shops</option>
+                    </select>
+                </div>
+                <div class="flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
+                    <span class="text-xs text-gray-500">📅</span>
+                    <input type="date" id="zreport-date" value="" 
+                           class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-32">
+                </div>
+                <button onclick="loadZReport()" 
+                        class="bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                    <span>⟳</span> Generate
+                </button>
+                <button onclick="printZReport()" 
+                        class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                    🖨️ Print
+                </button>
+                <button onclick="closeZReportModal()" 
+                        class="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1.5 transition text-lg">
+                    ✕
+                </button>
+            </div>
+        </div>
+        
+        <!-- Report Content -->
+        <div id="zreport-content" class="flex-1 overflow-y-auto">
+            <div class="text-center text-gray-400 py-12 flex flex-col items-center">
+                <span class="text-4xl mb-3">📋</span>
+                <p class="text-sm font-medium">Select a date and shop, then click Generate</p>
+                <p class="text-xs mt-1">View daily sales, payments, expenses, and profit</p>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div class="flex justify-end border-t border-gray-100 pt-3">
+            <button onclick="closeZReportModal()" 
+                    class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">
+                Close
+            </button>
+        </div>
+    </div>
+</div>
+
+    <!-- PRODUCT SALES & COGS REPORT MODAL -->
+    <div id="product-sales-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-6xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <!-- Header -->
+            <div class="flex justify-between items-center border-b border-gray-100 pb-4">
+                <div>
+                    <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <span class="bg-blue-100 p-1.5 rounded-lg">📈</span>
+                        Product Sales &amp; COGS
+                    </h2>
+                    <p class="text-xs text-gray-500 mt-0.5">Sales, cost of goods sold, and profit by product</p>
+                </div>
+                <div class="flex items-center gap-2">
+                    <div class="flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
+                        <span class="text-xs text-gray-500">📅</span>
+                        <input type="date" id="productsales-start-date" value="" class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-28">
+                        <span class="text-xs text-gray-400">to</span>
+                        <input type="date" id="productsales-end-date" value="" class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-28">
+                    </div>
+                    <select id="productsales-branch-filter" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
+                        <option value="0">All Branches</option>
+                    </select>
+                    <button onclick="loadProductSalesReport()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                        <span>⟳</span> Generate
+                    </button>
+                    <button onclick="printProductSalesReport()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                        🖨️ Print
+                    </button>
+                    <button onclick="closeProductSalesModal()" class="text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg p-1.5 transition text-lg">
+                        ✕
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Summary Stats -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="productsales-summary">
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100/50 p-3 rounded-xl text-center border border-blue-200/50">
+                    <p class="text-xs font-medium text-blue-600 uppercase tracking-wider">Total Revenue</p>
+                    <p id="ps-total-revenue" class="text-lg font-bold text-blue-900">KES 0.00</p>
+                </div>
+                <div class="bg-gradient-to-br from-amber-50 to-amber-100/50 p-3 rounded-xl text-center border border-amber-200/50">
+                    <p class="text-xs font-medium text-amber-600 uppercase tracking-wider">Total COGS</p>
+                    <p id="ps-total-cogs" class="text-lg font-bold text-amber-900">KES 0.00</p>
+                </div>
+                <div class="bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-3 rounded-xl text-center border border-emerald-200/50">
+                    <p class="text-xs font-medium text-emerald-600 uppercase tracking-wider">Gross Profit</p>
+                    <p id="ps-total-profit" class="text-lg font-bold text-emerald-900">KES 0.00</p>
+                </div>
+                <div class="bg-gradient-to-br from-purple-50 to-purple-100/50 p-3 rounded-xl text-center border border-purple-200/50">
+                    <p class="text-xs font-medium text-purple-600 uppercase tracking-wider">Avg Margin</p>
+                    <p id="ps-avg-margin" class="text-lg font-bold text-purple-900">0%</p>
+                </div>
+            </div>
+
+            <!-- Product List -->
+            <div class="flex-1 overflow-y-auto border rounded-xl relative">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                        <tr>
+                            <th class="p-2">Product</th>
+                            <th class="p-2">Category</th>
+                            <th class="p-2 text-center">Units Sold</th>
+                            <th class="p-2 text-right">Total Revenue</th>
+                            <th class="p-2 text-right">Total COGS</th>
+                            <th class="p-2 text-right">Gross Profit</th>
+                            <th class="p-2 text-right">Margin %</th>
+                        </tr>
+                    </thead>
+                    <tbody id="productsales-table-body">
+                        <tr><td colspan="7" class="p-4 text-center text-gray-500">Select date range and click Generate</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Footer -->
+            <div class="flex justify-end border-t border-gray-100 pt-3">
+                <button onclick="closeProductSalesModal()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- USER MANAGEMENT MODAL -->
+<div id="user-management-modal" class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+            <div>
+                <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <span class="bg-indigo-100 p-1.5 rounded-lg">👥</span>
+                    User Management
+                </h2>
+                <p class="text-xs text-gray-500">Manage users and their roles</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openAddUserModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition">➕ Add User</button>
+                <button onclick="closeUserManagement()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto border rounded-xl relative">
+            <table class="w-full text-left border-collapse text-xs">
+                <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                    <tr>
+                        <th class="p-2">Username</th>
+                        <th class="p-2">Full Name</th>
+                        <th class="p-2">Email</th>
+                        <th class="p-2">Role</th>
+                        <th class="p-2">Shop</th>
+                        <th class="p-2 text-center">Status</th>
+                        <th class="p-2 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="user-list-body">
+                    <tr><td colspan="7" class="p-4 text-center text-gray-500">Loading users...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="flex justify-end border-t border-gray-100 pt-3">
+            <button onclick="closeUserManagement()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">Close</button>
+        </div>
+    </div>
+</div>
+
+<!-- ADD/EDIT USER MODAL -->
+<div id="user-modal" class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl shadow-2xl p-6 space-y-4">
+        <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+            <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <span class="bg-indigo-100 p-1.5 rounded-lg">👤</span>
+                <span id="user-modal-title">Add User</span>
+            </h2>
+            <button onclick="closeUserModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        </div>
+        
+        <form id="user-form" onsubmit="saveUser(event)">
+            <input type="hidden" id="user-id" value="0">
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Username *</label>
+                    <input type="text" id="user-username" required placeholder="e.g. john_doe" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Full Name *</label>
+                    <input type="text" id="user-fullname" required placeholder="e.g. John Doe" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Email</label>
+                    <input type="email" id="user-email" placeholder="e.g. john@example.com" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Password *</label>
+                    <input type="password" id="user-password" placeholder="Min 6 characters" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    <p class="text-xs text-gray-400 mt-1" id="password-hint">Leave blank to keep current password (when editing)</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Role</label>
+                    <select id="user-role" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="cashier">Cashier</option>
+                        <option value="manager">Manager</option>
+                        <option value="admin">Admin</option>
+                        <option value="director">Director</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Shop</label>
+                    <select id="user-shop" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                        <option value="0">All Shops</option>
+                    </select>
+                </div>
+                <div id="user-alert" class="hidden p-2 rounded-lg text-sm font-medium"></div>
+            </div>
+            <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
+                <button type="button" onclick="closeUserModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
+                <button type="submit" id="user-submit-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg transition text-sm">💾 Save User</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 </body>
 </html>

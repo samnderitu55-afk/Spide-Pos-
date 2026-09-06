@@ -8,6 +8,8 @@ import (
 )
 
 // GetZReport generates a Z-report for a given date with optional shop filter
+// internal/db/reports.go
+
 func GetZReport(db *sql.DB, date string, shopID int) (*ZReport, error) {
     report := &ZReport{
         ReportDate:       date,
@@ -21,7 +23,7 @@ func GetZReport(db *sql.DB, date string, shopID int) (*ZReport, error) {
         shopFilter = " AND shop_id = " + strconv.Itoa(shopID)
     }
 
-    // ✅ Get sales summary with deposit and credit
+    // ✅ Updated query - REMOVED SPLIT
     query := `
         SELECT 
             COALESCE(SUM(total_amount), 0) as total_revenue,
@@ -33,11 +35,12 @@ func GetZReport(db *sql.DB, date string, shopID int) (*ZReport, error) {
             COUNT(CASE WHEN payment_type = 'cash' THEN 1 END) as cash_count,
             COUNT(CASE WHEN payment_type = 'mpesa' THEN 1 END) as mpesa_count,
             COUNT(CASE WHEN payment_type = 'deposit' THEN 1 END) as deposit_count,
-            COUNT(CASE WHEN payment_type = 'credit' THEN 1 END) as credit_count,
-            COUNT(CASE WHEN payment_type = 'split' THEN 1 END) as split_count
+            COUNT(CASE WHEN payment_type = 'credit' THEN 1 END) as credit_count
+            -- ✅ REMOVED split_count
         FROM sales
         WHERE DATE(created_at) = ?` + shopFilter
 
+    // ✅ Updated Scan - REMOVED SplitSalesCount
     err := db.QueryRow(query, date).Scan(
         &report.TotalRevenue,
         &report.TotalSalesCount,
@@ -49,7 +52,7 @@ func GetZReport(db *sql.DB, date string, shopID int) (*ZReport, error) {
         &report.MpesaSalesCount,
         &report.DepositSalesCount,
         &report.CreditSalesCount,
-        &report.SplitSalesCount,
+        // ✅ REMOVED &report.SplitSalesCount
     )
     if err != nil && err != sql.ErrNoRows {
         return nil, fmt.Errorf("failed to get sales data: %w", err)
@@ -65,7 +68,6 @@ func GetZReport(db *sql.DB, date string, shopID int) (*ZReport, error) {
 
     err = db.QueryRow(costQuery, date).Scan(&report.TotalCost)
     if err != nil && err != sql.ErrNoRows {
-        // If error, set to 0 and continue
         report.TotalCost = 0
     }
 
@@ -106,9 +108,8 @@ func GetZReport(db *sql.DB, date string, shopID int) (*ZReport, error) {
     report.ExpenseCount = expenseCount
     report.NetProfit = report.TotalRevenue - report.TotalCost - report.TotalExpenses
 
-    // ✅ Calculate margin correctly
+    // Calculate margin
     if report.TotalRevenue > 0 {
-        // Gross margin based on COGS
         report.MarginPercent = (report.TotalProfit / report.TotalRevenue) * 100
     }
 

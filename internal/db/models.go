@@ -115,7 +115,7 @@ type ZReport struct {
     MpesaSalesCount  int                `json:"mpesa_sales_count"`
     DepositSalesCount int               `json:"deposit_sales_count"`
     CreditSalesCount int                `json:"credit_sales_count"`
-    SplitSalesCount  int                `json:"split_sales_count"`
+    
     
     TotalExpenses    float64            `json:"total_expenses"`
     ExpenseCount     int                `json:"expense_count"`
@@ -230,17 +230,6 @@ type Supplier struct {
 type Category struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
-}
-
-type User struct {
-	ID       int    `json:"id"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Name     string `json:"name"`
-	Role     string `json:"role"`
-	ShopID   int    `json:"shop_id"`
-	ShopName string `json:"shop_name"`
-	IsActive bool   `json:"is_active"`
 }
 
 type DashboardStats struct {

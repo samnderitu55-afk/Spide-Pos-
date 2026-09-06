@@ -145,8 +145,11 @@ func main() {
 	
 	//customer statement route
 	mux.HandleFunc("/api/customers/statement", middleware.AuthMiddleware(handlers.GetCustomerStatementHandler))
-	
 
+	
+	// Add this route - TEMPORARY for testing
+	mux.HandleFunc("/api/reset-password", handlers.ResetPasswordHandler)
+	
 	// Server configuration
 	port := getEnv("PORT", "8081")
 	server := &http.Server{

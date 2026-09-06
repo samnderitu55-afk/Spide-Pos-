@@ -132,6 +132,10 @@
                     localStorage.setItem('spide_user', JSON.stringify(data.user));
                     localStorage.setItem('currentShopId', data.user.shop_id || 1);
                     localStorage.setItem('currentShopName', data.user.shop_name || 'Store #1 - Main');
+
+                    // ✅ Use the user's assigned shop
+                    const shopId = data.user.shop_id || 1;
+                    const shopName = data.user.shop_name || 'Store #' + shopId;
                     
                     showMessage('✅ Login successful! Redirecting...', 'success');
                     
@@ -140,7 +144,8 @@
                         if (data.user.role === 'director' || data.user.role === 'admin') {
                             window.location.href = '/director';
                         } else {
-                            window.location.href = '/';
+                            // Cashiers and Managers go directly to POS
+                            window.location.href = '/pos?shop_id=' + shopId;
                         }
                     }, 500);
                 } else {
