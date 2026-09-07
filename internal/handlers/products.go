@@ -169,7 +169,7 @@ func ScanProductHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("🔍 Scanning barcode: %s, shop: %d, qty: %d", barcode, shopID, qty)
 
-	product, err := db.GetProductByBarcodeAndShop(db.GetDB(), barcode, shopID)
+	product, err := db.GetProductByBarcode(db.GetDB(), barcode, shopID)
 	if err != nil {
 		log.Printf("❌ Database error: %v", err)
 		http.Error(w, `<div class="text-red-500 text-center p-2">❌ Product not found</div>`, http.StatusNotFound)

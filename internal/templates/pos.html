@@ -338,13 +338,19 @@
                         class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">🏢
                         Company Settings</a>
                     <a href="#" onclick="openCompanyManagement()"
-                        class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">
-                        <span class="text-sm">🏢</span> Company Management
-                    </a>
+                        class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">🏢
+                        Company Management</a>
                     <a href="#" onclick="openCompanySetupWizard()"
+                        class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">🚀
+                        Company Setup Wizard</a>
+                    <!-- ✅ Add Import Products -->
+                    <a href="#" onclick="openImportModal()"
                         class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">
-                        <span class="text-sm">🚀</span> Company Setup Wizard
+                        <span class="text-sm">📥</span> Import Products
                     </a>
+                    <a href="#" onclick="openShopManagement()"
+                        class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">🏪
+                        Shop Management</a>
                 </div>
             </div>
             <div class="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-400">
@@ -1686,6 +1692,9 @@
             productsContainer.innerHTML = html;
         }
 
+
+
+
         // ============================================
         // Z-REPORT FUNCTIONS
         // ============================================
@@ -2201,11 +2210,16 @@
         }
 
         // ============================================
-        // COMPANY SETTINGS
+        // COMPANY SETTINGS (Edit Current Company Only)
         // ============================================
+
         function openCompanySettings() {
             const modal = document.getElementById('company-settings-modal');
-            if (!modal) { console.error('❌ Company settings modal not found!'); alert('Company settings modal not found. Please refresh the page.'); return; }
+            if (!modal) {
+                console.error('❌ Company settings modal not found!');
+                alert('Company settings modal not found. Please refresh the page.');
+                return;
+            }
             modal.classList.remove('hidden');
             loadCompanySettings();
         }
@@ -2235,7 +2249,7 @@
                 const data = await response.json();
                 console.log('✅ Company settings loaded:', data);
 
-                // Populate the form - handle null values
+                // Populate the form with current company data
                 document.getElementById('company-name').value = data.company_name || '';
                 document.getElementById('company-reg-number').value = data.registration_number || '';
                 document.getElementById('company-tax-id').value = data.tax_id || '';
@@ -2246,7 +2260,7 @@
                 document.getElementById('company-currency').value = data.currency || 'KES';
                 document.getElementById('company-receipt-footer').value = data.receipt_footer || '';
 
-                // Store company ID
+                // Store company ID for updates
                 const form = document.getElementById('company-settings-form');
                 if (form) {
                     form.dataset.companyId = data.id || 0;
@@ -2259,6 +2273,16 @@
                         preview.innerHTML = `<img src="${data.logo_path}" class="w-full h-full object-contain rounded-lg">`;
                     }
                 }
+
+                // ✅ Disable company name field if it's not allowed to change
+                // (Optional: only allow company name change for admins/directors)
+                const userRole = getCurrentUserRole();
+                if (userRole === 'admin' || userRole === 'director') {
+                    document.getElementById('company-name').disabled = false;
+                } else {
+                    document.getElementById('company-name').disabled = true;
+                }
+
             } catch (error) {
                 console.error('❌ Error loading company settings:', error);
                 showCompanyAlert('Error loading company settings: ' + error.message, 'error');
@@ -2267,11 +2291,16 @@
 
         async function saveCompanySettings(event) {
             event.preventDefault();
+
             const alertBox = document.getElementById('company-alert');
             const submitBtn = document.getElementById('company-settings-submit-btn');
             const token = getCookie('spide_token');
+
+            // Get the company ID from the form
+            const companyId = document.getElementById('company-settings-form')?.dataset.companyId || 0;
+
             const data = {
-                id: parseInt(document.getElementById('company-settings-form').dataset.companyId) || 0,
+                id: parseInt(companyId) || 0,
                 company_name: document.getElementById('company-name').value.trim(),
                 registration_number: document.getElementById('company-reg-number').value.trim(),
                 tax_id: document.getElementById('company-tax-id').value.trim(),
@@ -2282,23 +2311,36 @@
                 currency: document.getElementById('company-currency').value,
                 receipt_footer: document.getElementById('company-receipt-footer').value.trim()
             };
-            const logoPreview = document.getElementById('logo-preview');
-            const logoImg = logoPreview?.querySelector('img');
-            if (logoImg) { data.logo_path = logoImg.src; }
-            if (!data.company_name) { showCompanyAlert('Company name is required', 'error'); return; }
+
+            if (!data.company_name) {
+                showCompanyAlert('Company name is required', 'error');
+                return;
+            }
+
             submitBtn.disabled = true;
             submitBtn.textContent = 'Saving...';
             alertBox.classList.add('hidden');
+
             try {
-                const response = await fetch('/api/company/settings/update', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token }, body: JSON.stringify(data) });
+                const response = await fetch('/api/company/settings/update', {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify(data)
+                });
+
                 const result = await response.json();
+
                 if (response.ok) {
+                    // ✅ Save to localStorage for receipt printing
                     localStorage.setItem('company_name', data.company_name);
                     localStorage.setItem('company_phone', data.phone);
                     localStorage.setItem('company_email', data.email);
                     localStorage.setItem('company_address', data.address);
                     localStorage.setItem('company_receipt_footer', data.receipt_footer);
-                    if (data.logo_path) { localStorage.setItem('company_logo', data.logo_path); }
+
                     showCompanyAlert('✅ Company settings saved successfully!', 'success');
                     setTimeout(() => closeCompanySettings(), 1500);
                 } else {
@@ -2315,10 +2357,14 @@
         function showCompanyAlert(message, type) {
             const alertBox = document.getElementById('company-alert');
             if (!alertBox) return;
+
             alertBox.textContent = message;
-            alertBox.className = 'mt-4 p-2 rounded-lg text-sm font-medium ' + (type === 'success' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200');
+            alertBox.className = 'mt-4 p-2 rounded-lg text-sm font-medium ' +
+                (type === 'success' ? 'bg-green-100 text-green-700 border border-green-200' :
+                    'bg-red-100 text-red-700 border border-red-200');
             alertBox.classList.remove('hidden');
         }
+
 
         // ============================================
         // COMPANY MANAGEMENT
@@ -2332,6 +2378,11 @@
         function closeCompanyManagement() {
             document.getElementById('company-management-modal').classList.add('hidden');
         }
+
+        function getMasterPassword() {
+            return document.getElementById('master-password-input')?.value || '';
+        }
+
 
         function openAddCompanyModal() {
             document.getElementById('company-modal-title').textContent = 'Add Company';
@@ -2367,26 +2418,31 @@
 
         async function loadCompanies() {
             const tbody = document.getElementById('company-list-body');
-            if (!tbody) {
-                console.error('Company list body not found!');
-                return;
-            }
+            if (!tbody) return;
+
             tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">Loading...</td></tr>';
 
             try {
                 const token = getCookie('spide_token');
+                const masterPass = getMasterPassword();
+
                 if (!token) {
-                    console.error('No token found');
                     tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-red-500">Not authenticated</td></tr>';
                     return;
                 }
 
-                const response = await fetch('/api/companies', {
-                    headers: { 'Authorization': 'Bearer ' + token }
-                });
+                const headers = {
+                    'Authorization': 'Bearer ' + token,
+                    'Content-Type': 'application/json'
+                };
+                if (masterPass) {
+                    headers['X-Master-Password'] = masterPass;
+                }
 
-                if (response.status === 401) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-red-500">Session expired. Please login again.</td></tr>';
+                const response = await fetch('/api/companies', { headers });
+
+                if (response.status === 403) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-amber-500">🔑 Master password required to view companies</td></tr>';
                     return;
                 }
 
@@ -2395,7 +2451,6 @@
                 }
 
                 const companies = await response.json();
-                console.log('✅ Companies loaded:', companies.length);
                 renderCompanies(companies);
             } catch (error) {
                 console.error('❌ Company load error:', error);
@@ -2435,6 +2490,18 @@
             });
             tbody.innerHTML = html;
         }
+        // Make sure the password field triggers load on Enter key
+        document.addEventListener('DOMContentLoaded', function () {
+            const pwInput = document.getElementById('master-password-input');
+            if (pwInput) {
+                pwInput.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        loadCompanies();
+                    }
+                });
+            }
+        });
+
 
         async function saveCompany(event) {
             event.preventDefault();
@@ -3464,6 +3531,262 @@
                 submitBtn.disabled = false;
                 submitBtn.textContent = '🚀 Create Company';
             }
+        }
+
+        // ============================================
+        // IMPORT PRODUCTS - PREVIEW THEN IMPORT
+        // ============================================
+
+        let previewData = [];
+
+        function openImportModal() {
+            document.getElementById('import-modal').classList.remove('hidden');
+            loadImportShops();
+            document.getElementById('import-step-1').classList.remove('hidden');
+            document.getElementById('import-step-2').classList.add('hidden');
+            document.getElementById('import-result').classList.add('hidden');
+            document.getElementById('import-progress').classList.add('hidden');
+            document.getElementById('import-file').value = '';
+        }
+
+        function closeImportModal() {
+            document.getElementById('import-modal').classList.add('hidden');
+        }
+
+        function goBackToUpload() {
+            document.getElementById('import-step-1').classList.remove('hidden');
+            document.getElementById('import-step-2').classList.add('hidden');
+        }
+
+        async function loadImportShops() {
+            try {
+                const token = getCookie('spide_token');
+                const response = await fetch('/api/shops', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                if (!response.ok) return;
+
+                const shops = await response.json();
+                const select = document.getElementById('import-shop-select');
+                select.innerHTML = '<option value="0">No shop stock (just products)</option>';
+                shops.forEach(s => {
+                    const opt = document.createElement('option');
+                    opt.value = s.id;
+                    opt.textContent = s.name;
+                    select.appendChild(opt);
+                });
+            } catch (e) {
+                console.error('Error loading shops:', e);
+            }
+        }
+
+        async function previewImport() {
+            const fileInput = document.getElementById('import-file');
+            const previewBtn = document.getElementById('preview-btn');
+            const resultDiv = document.getElementById('import-result');
+
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showImportResult('Please select an Excel file', 'error');
+                return;
+            }
+
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            previewBtn.disabled = true;
+            previewBtn.textContent = 'Loading preview...';
+            resultDiv.classList.add('hidden');
+
+            try {
+                const token = getCookie('spide_token');
+                const response = await fetch('/api/import/preview', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.text();
+                    throw new Error(error || 'Failed to preview');
+                }
+
+                const data = await response.json();
+                previewData = data;
+                renderPreview(data);
+
+                document.getElementById('import-step-1').classList.add('hidden');
+                document.getElementById('import-step-2').classList.remove('hidden');
+
+            } catch (error) {
+                console.error('Preview error:', error);
+                showImportResult('❌ Preview failed: ' + error.message, 'error');
+            } finally {
+                previewBtn.disabled = false;
+                previewBtn.textContent = '🔍 Preview Products';
+            }
+        }
+
+        function renderPreview(data) {
+            const tbody = document.getElementById('preview-table-body');
+            const summary = document.getElementById('preview-summary');
+            const categoriesDiv = document.getElementById('preview-categories');
+
+            // Summary
+            summary.textContent = `Total: ${data.total_rows} rows | Valid: ${data.valid_rows} | Invalid: ${data.invalid_rows}`;
+
+            // Categories
+            if (data.categories && data.categories.length > 0) {
+                let catHtml = '<span class="text-xs font-semibold text-gray-600 mr-2">Categories:</span>';
+                data.categories.forEach(cat => {
+                    catHtml += `<span class="bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded-full">${cat}</span>`;
+                });
+                categoriesDiv.innerHTML = catHtml;
+            } else {
+                categoriesDiv.innerHTML = '<span class="text-xs text-gray-400">No categories detected</span>';
+            }
+
+            // Table rows
+            if (!data.preview_items || data.preview_items.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">No products found in file</td></tr>';
+                return;
+            }
+
+            let html = '';
+            data.preview_items.forEach(item => {
+                const statusColor = item.is_valid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                const statusText = item.is_valid ? '✅ Valid' : '❌ Invalid';
+                const rowColor = item.is_valid ? '' : 'bg-red-50';
+
+                html += `<tr class="border-b hover:bg-gray-50/50 transition ${rowColor}">
+            <td class="p-2 text-gray-500">${item.row_number}</td>
+            <td class="p-2 font-medium text-gray-800">${item.name || '-'}</td>
+            <td class="p-2 font-mono text-gray-500">${item.barcode || '-'}</td>
+            <td class="p-2 text-gray-500">${item.category || '-'}</td>
+            <td class="p-2 text-right font-mono">${item.cost_price > 0 ? 'KES ' + item.cost_price.toFixed(2) : '-'}</td>
+            <td class="p-2 text-right font-mono">${item.retail_price > 0 ? 'KES ' + item.retail_price.toFixed(2) : '-'}</td>
+            <td class="p-2 text-center">${item.stock_qty > 0 ? item.stock_qty : '-'}</td>
+            <td class="p-2 text-center">
+                <span class="px-2 py-0.5 rounded-full text-xs ${statusColor}">${statusText}</span>
+                ${item.error ? `<div class="text-xs text-red-500 mt-0.5">${item.error}</div>` : ''}
+            </td>
+        </tr>`;
+            });
+            tbody.innerHTML = html;
+
+            // Enable/disable confirm button
+            const confirmBtn = document.getElementById('confirm-import-btn');
+            confirmBtn.disabled = data.valid_rows === 0;
+            if (data.valid_rows === 0) {
+                confirmBtn.title = 'No valid products to import';
+            }
+        }
+
+        async function confirmImport() {
+            alert('Import started!');  // ✅ Add this test alert
+            console.log('🔄 confirmImport called!');
+            const shopSelect = document.getElementById('import-shop-select');
+            const confirmBtn = document.getElementById('confirm-import-btn');
+            const resultDiv = document.getElementById('import-result');
+            const progressDiv = document.getElementById('import-progress');
+            const progressBar = document.getElementById('import-progress-bar');
+            const statusText = document.getElementById('import-status');
+
+            // Get valid products only
+            const validProducts = previewData.preview_items.filter(item => item.is_valid);
+
+            console.log('📊 Valid products:', validProducts.length);
+
+            if (validProducts.length === 0) {
+                showImportResult('No valid products to import', 'error');
+                return;
+            }
+
+            const shopId = shopSelect.value || '0';
+            console.log('🛒 Shop ID:', shopId);  // ✅ Add this
+
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Importing...';
+            progressDiv.classList.remove('hidden');
+            resultDiv.classList.add('hidden');
+            progressBar.style.width = '10%';
+            statusText.textContent = 'Starting import...';
+
+            try {
+                const token = getCookie('spide_token');
+
+                const payload = {
+                    shop_id: parseInt(shopId),
+                    products: validProducts
+                };
+
+                console.log('📤 Payload being sent:', payload);
+
+                progressBar.style.width = '40%';
+                statusText.textContent = `Importing ${validProducts.length} products...`;
+
+                const response = await fetch('/api/import/confirm', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                console.log('📥 Response status:', response.status);  // ✅ Add this
+
+                progressBar.style.width = '80%';
+                statusText.textContent = 'Finalizing...';
+
+                const result = await response.json();
+                console.log('📊 Result:', result);  // ✅ Add this
+
+                progressBar.style.width = '100%';
+                statusText.textContent = 'Import complete!';
+
+                if (response.ok) {
+                    let message = `✅ Import successful!\n`;
+                    message += `📦 ${result.imported_rows} products imported\n`;
+                    if (result.skipped_rows > 0) {
+                        message += `⚠️ ${result.skipped_rows} rows skipped\n`;
+                    }
+                    if (result.errors && result.errors.length > 0) {
+                        message += `\n❌ Errors:\n${result.errors.slice(0, 5).join('\n')}`;
+                        if (result.errors.length > 5) {
+                            message += `\n... and ${result.errors.length - 5} more errors`;
+                        }
+                    }
+                    showImportResult(message, result.errors && result.errors.length > 0 ? 'warning' : 'success');
+
+                    // Enable closing after successful import
+                    setTimeout(() => {
+                        if (confirm('Import completed! Close the import window?')) {
+                            closeImportModal();
+                        }
+                    }, 3000);
+                } else {
+                    showImportResult('❌ Import failed: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Import error:', error);
+                showImportResult('❌ Network error: ' + error.message, 'error');
+            } finally {
+                confirmBtn.disabled = false;
+                confirmBtn.textContent = '📤 Import All';
+            }
+        }
+
+        function showImportResult(message, type) {
+            const resultDiv = document.getElementById('import-result');
+            resultDiv.classList.remove('hidden');
+            resultDiv.textContent = message;
+            resultDiv.className = 'p-3 rounded-lg text-sm font-medium whitespace-pre-wrap ' +
+                (type === 'success' ? 'bg-green-100 text-green-700 border border-green-200' :
+                    type === 'warning' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
+                        'bg-red-100 text-red-700 border border-red-200');
         }
 
     </script>
@@ -4777,38 +5100,48 @@
             <form id="company-settings-form" onsubmit="saveCompanySettings(event)" class="flex-1 overflow-y-auto">
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div class="space-y-3">
-                        <div><label class="block text-xs font-semibold text-gray-700 mb-1">Company Name *</label><input
-                                type="text" id="company-name" required placeholder="e.g. ABC Retail Ltd"
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Company Name *</label>
+                            <input type="text" id="company-name" required placeholder="e.g. ABC Retail Ltd"
+                                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            <p class="text-xs text-gray-400 mt-0.5">💡 Only admins and directors can change the company
+                                name</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Registration Number</label>
+                            <input type="text" id="company-reg-number" placeholder="e.g. PVT-2024-001"
                                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                         </div>
-                        <div><label class="block text-xs font-semibold text-gray-700 mb-1">Registration
-                                Number</label><input type="text" id="company-reg-number" placeholder="e.g. PVT-2024-001"
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Tax ID (PIN)</label>
+                            <input type="text" id="company-tax-id" placeholder="e.g. A12345678X"
                                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                         </div>
-                        <div><label class="block text-xs font-semibold text-gray-700 mb-1">Tax ID (PIN)</label><input
-                                type="text" id="company-tax-id" placeholder="e.g. A12345678X"
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Phone</label>
+                            <input type="text" id="company-phone" placeholder="e.g. 0712345678"
                                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                         </div>
-                        <div><label class="block text-xs font-semibold text-gray-700 mb-1">Phone</label><input
-                                type="text" id="company-phone" placeholder="e.g. 0712345678"
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Email</label>
+                            <input type="email" id="company-email" placeholder="e.g. info@abc.co.ke"
                                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                         </div>
-                        <div><label class="block text-xs font-semibold text-gray-700 mb-1">Email</label><input
-                                type="email" id="company-email" placeholder="e.g. info@abc.co.ke"
-                                class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
-                        </div>
-                        <div><label class="block text-xs font-semibold text-gray-700 mb-1">Website</label><input
-                                type="text" id="company-website" placeholder="e.g. www.abc.co.ke"
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Website</label>
+                            <input type="text" id="company-website" placeholder="e.g. www.abc.co.ke"
                                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                         </div>
                     </div>
                     <div class="space-y-3">
-                        <div><label class="block text-xs font-semibold text-gray-700 mb-1">Address</label><textarea
-                                id="company-address" rows="3" placeholder="Physical address..."
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Address</label>
+                            <textarea id="company-address" rows="3" placeholder="Physical address..."
                                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
                         </div>
-                        <div><label class="block text-xs font-semibold text-gray-700 mb-1">Currency</label><select
-                                id="company-currency"
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Currency</label>
+                            <select id="company-currency"
                                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none">
                                 <option value="KES">KES - Kenyan Shilling</option>
                                 <option value="USD">USD - US Dollar</option>
@@ -4816,20 +5149,24 @@
                                 <option value="GBP">GBP - British Pound</option>
                                 <option value="TZS">TZS - Tanzanian Shilling</option>
                                 <option value="UGX">UGX - Ugandan Shilling</option>
-                            </select></div>
-                        <div><label class="block text-xs font-semibold text-gray-700 mb-1">Receipt
-                                Footer</label><textarea id="company-receipt-footer" rows="3"
-                                placeholder="Thank you for your business!..."
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Receipt Footer</label>
+                            <textarea id="company-receipt-footer" rows="3" placeholder="Thank you for your business!..."
                                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea>
                         </div>
-                        <div><label class="block text-xs font-semibold text-gray-700 mb-1">Company Logo</label>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-700 mb-1">Company Logo</label>
                             <div class="flex items-center gap-3">
                                 <div id="logo-preview"
                                     class="w-16 h-16 border rounded-lg flex items-center justify-center bg-gray-50">
                                     <span class="text-2xl">🏢</span>
-                                </div><input type="file" id="company-logo" accept="image/*"
+                                </div>
+                                <input type="file" id="company-logo" accept="image/*"
                                     class="flex-1 text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
                             </div>
+                            <p class="text-xs text-gray-400 mt-1">Recommended: PNG or JPG, max 2MB</p>
                         </div>
                     </div>
                 </div>
@@ -4838,10 +5175,13 @@
 
                 <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
                     <button type="button" onclick="closeCompanySettings()"
-                        class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
+                        class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">
+                        Cancel
+                    </button>
                     <button type="submit" id="company-settings-submit-btn"
-                        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg transition text-sm">💾
-                        Save Settings</button>
+                        class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg transition text-sm">
+                        💾 Save Settings
+                    </button>
                 </div>
             </form>
         </div>
@@ -4964,6 +5304,7 @@
     <div id="company-management-modal"
         class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <!-- Header -->
             <div class="flex justify-between items-center border-b border-gray-100 pb-3">
                 <div>
                     <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -4972,7 +5313,14 @@
                     </h2>
                     <p class="text-xs text-gray-500">Manage multiple companies (Demo/Live)</p>
                 </div>
+                <!-- ✅ ADD PASSWORD FIELD HERE -->
                 <div class="flex items-center gap-2">
+                    <!-- Master Password Field -->
+                    <div class="flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
+                        <span class="text-xs text-gray-500">🔑</span>
+                        <input type="password" id="master-password-input" placeholder="Master password"
+                            class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-28">
+                    </div>
                     <button onclick="openAddCompanyModal()"
                         class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition">➕
                         Add Company</button>
@@ -5294,6 +5642,109 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+
+
+    <!-- IMPORT MODAL -->
+    <div id="import-modal" class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <div>
+                    <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                        <span class="bg-emerald-100 p-1.5 rounded-lg">📥</span>
+                        Import Products (QuickBooks)
+                    </h2>
+                    <p class="text-xs text-gray-500">Preview and import products from Excel</p>
+                </div>
+                <button onclick="closeImportModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+
+            <!-- Step 1: Upload -->
+            <div id="import-step-1" class="space-y-4">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+                    <p class="font-semibold">📋 QuickBooks Format Requirements:</p>
+                    <ul class="list-disc list-inside text-xs mt-1 space-y-0.5">
+                        <li>Required: <strong>Item Name</strong>, <strong>Average Unit Cost</strong>, <strong>Regular
+                                Price</strong></li>
+                        <li>Optional: UPC, Alternate Lookup, Department Name, Vendor Name, Qty 1</li>
+                    </ul>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Select Shop (for stock)</label>
+                    <select id="import-shop-select"
+                        class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <option value="0">No shop stock (just products)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Excel File *</label>
+                    <input type="file" id="import-file" accept=".xlsx,.xls"
+                        class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    <p class="text-xs text-gray-400 mt-1">Supported: .xlsx, .xls (Max 10MB)</p>
+                </div>
+
+                <button onclick="previewImport()" id="preview-btn"
+                    class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 rounded-lg transition text-sm">
+                    🔍 Preview Products
+                </button>
+            </div>
+
+            <!-- Step 2: Preview -->
+            <div id="import-step-2" class="hidden space-y-4 flex-1 flex flex-col">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-sm font-semibold text-gray-700">Preview Results</p>
+                        <p id="preview-summary" class="text-xs text-gray-500"></p>
+                    </div>
+                    <div class="flex gap-2">
+                        <button onclick="goBackToUpload()"
+                            class="bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-medium px-3 py-1.5 rounded-lg transition">←
+                            Back</button>
+                        <button onclick="confirmImport()" id="confirm-import-btn"
+                            class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition">
+                            📤 Import All
+                        </button>
+                    </div>
+                </div>
+
+                <div id="preview-categories" class="flex flex-wrap gap-1"></div>
+
+                <div class="flex-1 overflow-y-auto border rounded-xl relative">
+                    <table class="w-full text-left border-collapse text-xs">
+                        <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                            <tr>
+                                <th class="p-2">Row</th>
+                                <th class="p-2">Product Name</th>
+                                <th class="p-2">Barcode</th>
+                                <th class="p-2">Category</th>
+                                <th class="p-2 text-right">Cost</th>
+                                <th class="p-2 text-right">Retail</th>
+                                <th class="p-2 text-center">Stock</th>
+                                <th class="p-2 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preview-table-body">
+                            <tr>
+                                <td colspan="8" class="p-4 text-center text-gray-500">Loading preview...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Progress/Result -->
+            <div id="import-progress" class="hidden">
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="import-progress-bar" class="bg-emerald-600 h-2.5 rounded-full transition-all duration-300"
+                        style="width: 0%"></div>
+                </div>
+                <p id="import-status" class="text-xs text-gray-500 mt-1">Ready to import...</p>
+            </div>
+
+            <div id="import-result" class="hidden p-3 rounded-lg text-sm"></div>
         </div>
     </div>
 

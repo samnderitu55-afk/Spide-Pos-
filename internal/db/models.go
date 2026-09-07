@@ -7,9 +7,11 @@ import (
 
 type Product struct {
 	ID              int64     `json:"id"`
+	CompanyID       int       `json:"company_id"`
 	Barcode         string    `json:"barcode"`
 	Name            string    `json:"name"`
 	Category        string    `json:"category"`
+	CategoryID      int       `json:"category_id"`
 	CostPrice       float64   `json:"cost_price"`
 	RetailPrice     float64   `json:"retail_price"`
 	WholesalePrice  float64   `json:"wholesale_price"`
@@ -43,6 +45,24 @@ func (p *Product) RenderRowHTML() string {
 		p.ID, p.RetailPrice, p.WholesalePrice, p.WholesaleMinQty,
 		p.Name, p.StockQuantity, p.RetailPrice, p.RetailPrice,
 	)
+}
+
+type ShopStock struct {
+	ID        int       `json:"id"`
+	CompanyID int       `json:"company_id"`
+	ShopID    int       `json:"shop_id"`
+	ProductID int       `json:"product_id"`
+	Quantity  int       `json:"quantity"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type Category struct {
+	ID        int       `json:"id"`
+	CompanyID int       `json:"company_id"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type SaleItem struct {
@@ -231,11 +251,6 @@ type Supplier struct {
 	Address       string `json:"address"`
 	Notes         string `json:"notes"`
 	IsActive      bool   `json:"is_active"`
-}
-
-type Category struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
 }
 
 type DashboardStats struct {

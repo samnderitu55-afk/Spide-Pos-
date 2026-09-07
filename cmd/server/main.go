@@ -149,8 +149,9 @@ func main() {
 	mux.HandleFunc("/api/shops/delete", middleware.AuthMiddleware(handlers.DeleteShopHandler))
 	mux.HandleFunc("/api/shops/by-company", middleware.AuthMiddleware(handlers.GetShopsByCompanyHandler))
 
-	// Legacy branches route
-	//mux.HandleFunc("/api/branches", middleware.AuthMiddleware(handlers.BranchesHandler))
+	// Import routes
+	mux.HandleFunc("/api/import/preview", middleware.AuthMiddleware(handlers.PreviewImportHandler))
+	mux.HandleFunc("/api/import/confirm", middleware.AuthMiddleware(handlers.ConfirmImportHandler))
 
 	// Customer statement route
 	mux.HandleFunc("/api/customers/statement", middleware.AuthMiddleware(handlers.GetCustomerStatementHandler))
