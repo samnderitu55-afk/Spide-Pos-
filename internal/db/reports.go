@@ -6,17 +6,28 @@ import (
 	"time"
 )
 
+type LowStockItem struct {
+	ProductID     int     `json:"product_id"`
+	ProductName   string  `json:"product_name"`
+	Category      string  `json:"category"`
+	StockQuantity int     `json:"stock_quantity"`
+	ReorderLevel  int     `json:"reorder_level"`
+	RestockCost   float64 `json:"restock_cost"`
+	ShopID        int     `json:"shop_id"`
+	ShopName      string  `json:"shop_name"`
+}
+
 func GetDailyZReportWithExpenses(db *sql.DB, dateParam string, shopID int) (*ZReport, error) {
-    if dateParam == "" {
-        dateParam = time.Now().Format("2006-01-02")
-    }
+	if dateParam == "" {
+		dateParam = time.Now().Format("2006-01-02")
+	}
 
-    report := &ZReport{
-        ReportDate:       dateParam,
-        ExpenseBreakdown: make(map[string]float64),
-    }
+	report := &ZReport{
+		ReportDate:       dateParam,
+		ExpenseBreakdown: make(map[string]float64),
+	}
 
-    salesQuery := `
+	salesQuery := `
         SELECT 
             COUNT(*) as total_sales,
             COALESCE(SUM(total_amount), 0) as total_revenue,
@@ -28,75 +39,75 @@ func GetDailyZReportWithExpenses(db *sql.DB, dateParam string, shopID int) (*ZRe
         FROM sales 
         WHERE DATE(created_at) = ? AND shop_id = ?
     `
-    err := db.QueryRow(salesQuery, dateParam, shopID).Scan(
-        &report.TotalSalesCount,
-        &report.TotalRevenue,
-        &report.TotalCash,
-        &report.TotalMpesa,
-        &report.CashSalesCount,  
-        &report.MpesaSalesCount,
-  )
-    if err != nil && err != sql.ErrNoRows {
-        return nil, fmt.Errorf("failed to get sales summary: %w", err)
-    }
+	err := db.QueryRow(salesQuery, dateParam, shopID).Scan(
+		&report.TotalSalesCount,
+		&report.TotalRevenue,
+		&report.TotalCash,
+		&report.TotalMpesa,
+		&report.CashSalesCount,
+		&report.MpesaSalesCount,
+	)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, fmt.Errorf("failed to get sales summary: %w", err)
+	}
 
-    cogsQuery := `
+	cogsQuery := `
         SELECT COALESCE(SUM(si.quantity * p.cost_price), 0)
         FROM sale_items si
         JOIN products p ON si.product_id = p.id
         JOIN sales s ON si.sale_id = s.id
         WHERE DATE(s.created_at) = ? AND s.shop_id = ?
     `
-    err = db.QueryRow(cogsQuery, dateParam, shopID).Scan(&report.TotalCost)
-    if err != nil && err != sql.ErrNoRows {
-        return nil, fmt.Errorf("failed to get COGS: %w", err)
-    }
+	err = db.QueryRow(cogsQuery, dateParam, shopID).Scan(&report.TotalCost)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, fmt.Errorf("failed to get COGS: %w", err)
+	}
 
-    report.TotalProfit = report.TotalRevenue - report.TotalCost
-    if report.TotalRevenue > 0 {
-        report.MarginPercent = (report.TotalProfit / report.TotalRevenue) * 100
-    }
+	report.TotalProfit = report.TotalRevenue - report.TotalCost
+	if report.TotalRevenue > 0 {
+		report.MarginPercent = (report.TotalProfit / report.TotalRevenue) * 100
+	}
 
-    expenseQuery := `
+	expenseQuery := `
         SELECT category, COALESCE(SUM(amount), 0) as total
         FROM expenses
         WHERE DATE(expense_date) = ? AND shop_id = ?
         GROUP BY category
     `
-    rows, err := db.Query(expenseQuery, dateParam, shopID)
-    if err != nil {
-        return nil, fmt.Errorf("failed to get expenses: %w", err)
-    }
-    defer rows.Close()
+	rows, err := db.Query(expenseQuery, dateParam, shopID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get expenses: %w", err)
+	}
+	defer rows.Close()
 
-    var totalExpenses float64
-    for rows.Next() {
-        var category string
-        var amount float64
-        if err := rows.Scan(&category, &amount); err != nil {
-            continue
-        }
-        report.ExpenseBreakdown[category] = amount
-        totalExpenses += amount
-        report.ExpenseCount++
-    }
+	var totalExpenses float64
+	for rows.Next() {
+		var category string
+		var amount float64
+		if err := rows.Scan(&category, &amount); err != nil {
+			continue
+		}
+		report.ExpenseBreakdown[category] = amount
+		totalExpenses += amount
+		report.ExpenseCount++
+	}
 
-    if err := rows.Err(); err != nil {
-        return nil, fmt.Errorf("error iterating expenses: %w", err)
-    }
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating expenses: %w", err)
+	}
 
-    report.TotalExpenses = totalExpenses
-    report.NetProfit = report.TotalProfit - totalExpenses
+	report.TotalExpenses = totalExpenses
+	report.NetProfit = report.TotalProfit - totalExpenses
 
-    return report, nil
+	return report, nil
 }
 
 func GetProductSalesReport(db *sql.DB, startDate, endDate string, shopID int) ([]ProductSalesReportItem, error) {
-    if startDate == "" || endDate == "" {
-        return nil, fmt.Errorf("start and end dates are required")
-    }
+	if startDate == "" || endDate == "" {
+		return nil, fmt.Errorf("start and end dates are required")
+	}
 
-    query := `
+	query := `
         SELECT 
             p.name as product_name,
             p.category,
@@ -111,39 +122,39 @@ func GetProductSalesReport(db *sql.DB, startDate, endDate string, shopID int) ([
         GROUP BY p.id, p.name, p.category
         ORDER BY units_sold DESC
     `
-    rows, err := db.Query(query, startDate, endDate, shopID)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	rows, err := db.Query(query, startDate, endDate, shopID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    var items []ProductSalesReportItem
-    for rows.Next() {
-        var item ProductSalesReportItem
-        err := rows.Scan(
-            &item.ProductName, &item.Category,
-            &item.UnitsSold, &item.TotalCost,
-            &item.TotalRevenue, &item.NetProfit,
-        )
-        if err != nil {
-            return nil, err
-        }
-        if item.TotalRevenue > 0 {
-            item.MarginPct = (item.NetProfit / item.TotalRevenue) * 100
-        }
-        items = append(items, item)
-    }
+	var items []ProductSalesReportItem
+	for rows.Next() {
+		var item ProductSalesReportItem
+		err := rows.Scan(
+			&item.ProductName, &item.Category,
+			&item.UnitsSold, &item.TotalCost,
+			&item.TotalRevenue, &item.NetProfit,
+		)
+		if err != nil {
+			return nil, err
+		}
+		if item.TotalRevenue > 0 {
+			item.MarginPct = (item.NetProfit / item.TotalRevenue) * 100
+		}
+		items = append(items, item)
+	}
 
-    if err := rows.Err(); err != nil {
-        return nil, fmt.Errorf("error iterating product sales: %w", err)
-    }
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating product sales: %w", err)
+	}
 
-    return items, nil
+	return items, nil
 }
 
 // GetInventoryValuationReport - returns inventory valuation by category
 func GetInventoryValuationReport(db *sql.DB) ([]InventoryValuationItem, error) {
-    query := `
+	query := `
         SELECT 
             category,
             COUNT(*) as total_items,
@@ -156,78 +167,123 @@ func GetInventoryValuationReport(db *sql.DB) ([]InventoryValuationItem, error) {
         GROUP BY category
         ORDER BY total_cost DESC
     `
-    rows, err := db.Query(query)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	rows, err := db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    var items []InventoryValuationItem
-    for rows.Next() {
-        var item InventoryValuationItem
-        err := rows.Scan(
-            &item.Category, &item.TotalItems, &item.TotalQuantity,
-            &item.TotalCost, &item.TotalRetail, &item.PotentialProfit,
-        )
-        if err != nil {
-            return nil, err
-        }
-        items = append(items, item)
-    }
+	var items []InventoryValuationItem
+	for rows.Next() {
+		var item InventoryValuationItem
+		err := rows.Scan(
+			&item.Category, &item.TotalItems, &item.TotalQuantity,
+			&item.TotalCost, &item.TotalRetail, &item.PotentialProfit,
+		)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
 
-    if err := rows.Err(); err != nil {
-        return nil, fmt.Errorf("error iterating inventory valuation: %w", err)
-    }
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating inventory valuation: %w", err)
+	}
 
-    return items, nil
+	return items, nil
 }
 
 // GetCategoryValuationDetails - returns detailed product list for a category
 func GetCategoryValuationDetails(db *sql.DB, category string) ([]struct {
-    ProductName string  `json:"product_name"`
-    InStock     int     `json:"in_stock"`
-    CostPrice   float64 `json:"cost_price"`
-    RetailPrice float64 `json:"retail_price"`
-    TotalCost   float64 `json:"total_cost"`
+	ProductName string  `json:"product_name"`
+	InStock     int     `json:"in_stock"`
+	CostPrice   float64 `json:"cost_price"`
+	RetailPrice float64 `json:"retail_price"`
+	TotalCost   float64 `json:"total_cost"`
 }, error) {
-    query := `
+	query := `
         SELECT name, stock_quantity, cost_price, retail_price, 
                stock_quantity * cost_price as total_cost
         FROM products
         WHERE is_active = 1 AND category = ? AND stock_quantity > 0
         ORDER BY name ASC
     `
-    rows, err := db.Query(query, category)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	rows, err := db.Query(query, category)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    var details []struct {
-        ProductName string  `json:"product_name"`
-        InStock     int     `json:"in_stock"`
-        CostPrice   float64 `json:"cost_price"`
-        RetailPrice float64 `json:"retail_price"`
-        TotalCost   float64 `json:"total_cost"`
-    }
-    for rows.Next() {
-        var d struct {
-            ProductName string  `json:"product_name"`
-            InStock     int     `json:"in_stock"`
-            CostPrice   float64 `json:"cost_price"`
-            RetailPrice float64 `json:"retail_price"`
-            TotalCost   float64 `json:"total_cost"`
-        }
-        err := rows.Scan(&d.ProductName, &d.InStock, &d.CostPrice, &d.RetailPrice, &d.TotalCost)
-        if err != nil {
-            return nil, err
-        }
-        details = append(details, d)
-    }
+	var details []struct {
+		ProductName string  `json:"product_name"`
+		InStock     int     `json:"in_stock"`
+		CostPrice   float64 `json:"cost_price"`
+		RetailPrice float64 `json:"retail_price"`
+		TotalCost   float64 `json:"total_cost"`
+	}
+	for rows.Next() {
+		var d struct {
+			ProductName string  `json:"product_name"`
+			InStock     int     `json:"in_stock"`
+			CostPrice   float64 `json:"cost_price"`
+			RetailPrice float64 `json:"retail_price"`
+			TotalCost   float64 `json:"total_cost"`
+		}
+		err := rows.Scan(&d.ProductName, &d.InStock, &d.CostPrice, &d.RetailPrice, &d.TotalCost)
+		if err != nil {
+			return nil, err
+		}
+		details = append(details, d)
+	}
 
-    if err := rows.Err(); err != nil {
-        return nil, fmt.Errorf("error iterating category details: %w", err)
-    }
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating category details: %w", err)
+	}
 
-    return details, nil
+	return details, nil
+}
+
+func GetLowStockItems(db *sql.DB, companyID int, shopID int) ([]LowStockItem, error) {
+	shopFilter := ""
+	args := []interface{}{companyID}
+
+	if shopID > 0 {
+		shopFilter = " AND ss.shop_id = ?"
+		args = append(args, shopID)
+	}
+
+	query := `
+        SELECT p.id, p.name, p.category, ss.quantity, p.reorder_level,
+               (p.cost_price * (p.reorder_level - ss.quantity)) as restock_cost,
+               ss.shop_id, s.name as shop_name
+        FROM shop_stock ss
+        JOIN products p ON ss.product_id = p.id
+        JOIN shops s ON ss.shop_id = s.id
+        WHERE ss.company_id = ? AND ss.quantity <= p.reorder_level` + shopFilter + `
+        ORDER BY ss.quantity ASC, p.name
+    `
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []LowStockItem
+	for rows.Next() {
+		var item LowStockItem
+		err := rows.Scan(
+			&item.ProductID, &item.ProductName, &item.Category,
+			&item.StockQuantity, &item.ReorderLevel, &item.RestockCost,
+			&item.ShopID, &item.ShopName,
+		)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

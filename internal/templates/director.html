@@ -1,5 +1,6 @@
 ﻿<!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,29 +8,82 @@
     <link rel="icon" type="image/x-icon" href="/favicon.ico">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .stat-card { transition: transform 0.2s, box-shadow 0.2s; }
-        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); }
-        .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; }
-        .outlet-row { transition: background 0.2s; }
-        .outlet-row:hover { background: #f9fafb; }
-        .status-active { color: #059669; }
-        .status-inactive { color: #6b7280; }
-        .severity-critical { color: #dc2626; }
-        .severity-high { color: #d97706; }
-        .severity-medium { color: #f59e0b; }
-        .trend-bar { transition: height 0.3s ease; }
-        .hidden-role { display: none !important; }
-        .refresh-spinner { display: inline-block; animation: spin 1s linear infinite; }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
+        .stat-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
 
-        /* Mega Menu Animation */
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .outlet-row {
+            transition: background 0.2s;
+        }
+
+        .outlet-row:hover {
+            background: #f9fafb;
+        }
+
+        .status-active {
+            color: #059669;
+        }
+
+        .status-inactive {
+            color: #6b7280;
+        }
+
+        .severity-critical {
+            color: #dc2626;
+        }
+
+        .severity-high {
+            color: #d97706;
+        }
+
+        .severity-medium {
+            color: #f59e0b;
+        }
+
+        .trend-bar {
+            transition: height 0.3s ease;
+        }
+
+        .hidden-role {
+            display: none !important;
+        }
+
+        .refresh-spinner {
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
         #mega-menu {
             animation: slideDown 0.25s ease-out;
         }
 
         @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-10px) scale(0.98); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
+            from {
+                opacity: 0;
+                transform: translateY(-10px) scale(0.98);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
         }
 
         .backdrop-blur-xl {
@@ -40,16 +94,35 @@
         #mega-menu a {
             transition: all 0.2s ease;
         }
+
         #mega-menu a:hover {
             padding-left: 14px;
         }
+
+        /* Role-based visibility */
+        .director-only {
+            display: flex;
+        }
+
+        .manager-only {
+            display: flex;
+        }
+
+        .cashier-only {
+            display: flex;
+        }
+
+        .role-hidden {
+            display: none !important;
+        }
     </style>
 </head>
+
 <body class="bg-gray-100 font-sans min-h-screen">
-    
-    <!-- HEADER - Same as POS -->
-    <header class="bg-gradient-to-r from-purple-900 to-purple-800 text-white p-2 shadow-lg flex justify-between items-center sticky top-0 z-40 border-b border-purple-700/30">
-        <!-- LEFT: Brand + Shop -->
+
+    <!-- HEADER -->
+    <header
+        class="bg-gradient-to-r from-purple-900 to-purple-800 text-white p-2 shadow-lg flex justify-between items-center sticky top-0 z-40 border-b border-purple-700/30">
         <div class="flex items-center gap-3">
             <div class="flex items-center gap-2 bg-purple-800/50 px-3 py-1.5 rounded-xl border border-purple-700/30">
                 <span class="text-xl">🕷️</span>
@@ -59,87 +132,155 @@
             <div class="flex items-center gap-2 bg-purple-800/30 px-3 py-1.5 rounded-xl border border-purple-700/20">
                 <span class="text-sm">🏪</span>
                 <span id="shop-name-display" class="text-sm font-medium">All Branches</span>
-                <span class="text-xs text-amber-400 font-semibold bg-amber-500/20 px-2 py-0.5 rounded-full">Director</span>
+                <span
+                    class="text-xs text-amber-400 font-semibold bg-amber-500/20 px-2 py-0.5 rounded-full">Director</span>
             </div>
             <div class="hidden md:flex items-center gap-2 text-purple-300 text-xs border-l border-purple-700/30 pl-3">
-                <div class="w-6 h-6 rounded-full bg-purple-700 flex items-center justify-center text-white text-xs font-bold">
+                <div
+                    class="w-6 h-6 rounded-full bg-purple-700 flex items-center justify-center text-white text-xs font-bold">
                     <span id="user-initial">D</span>
                 </div>
                 <span id="logged-in-user" class="font-medium text-white text-sm">Director</span>
             </div>
         </div>
-
-        <!-- RIGHT: Navigation -->
         <div class="flex items-center gap-1">
             <div class="flex items-center gap-1 bg-purple-800/30 rounded-xl p-1 border border-purple-700/20">
-                <button onclick="window.location.href='/pos'" class="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition flex items-center gap-1.5 text-white bg-emerald-600/80">
-                    <span>🛒</span>
-                    <span class="hidden sm:inline">POS</span>
+                <button onclick="window.location.href='/pos'"
+                    class="px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition flex items-center gap-1.5 text-white bg-emerald-600/80">
+                    <span>🛒</span><span class="hidden sm:inline">POS</span>
                 </button>
-                <button onclick="window.location.href='/'" class="px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition text-purple-200 hover:text-white flex items-center gap-1">
-                    <span>📊</span>
-                    <span class="hidden sm:inline">Dashboard</span>
+                <button onclick="window.location.href='/'"
+                    class="px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition text-purple-200 hover:text-white flex items-center gap-1">
+                    <span>📊</span><span class="hidden sm:inline">Dashboard</span>
                 </button>
-                <button onclick="window.location.href='/director'" class="px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition text-amber-300 hover:text-white flex items-center gap-1 bg-amber-500/20 rounded-lg">
-                    <span>👑</span>
-                    <span class="hidden sm:inline">Director</span>
+                <button onclick="window.location.href='/director'"
+                    class="px-2.5 py-1.5 rounded-lg text-xs font-medium hover:bg-purple-700 transition text-amber-300 hover:text-white flex items-center gap-1 bg-amber-500/20 rounded-lg">
+                    <span>👑</span><span class="hidden sm:inline">Director</span>
                 </button>
             </div>
-
-            <button onclick="toggleMegaMenu()" class="bg-purple-700/50 hover:bg-purple-600 text-white p-2 rounded-xl transition border border-purple-700/30 flex items-center gap-1.5">
+            <button onclick="toggleMegaMenu()"
+                class="bg-purple-700/50 hover:bg-purple-600 text-white p-2 rounded-xl transition border border-purple-700/30 flex items-center gap-1.5">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
                 <span class="text-xs font-medium hidden sm:inline">Menu</span>
             </button>
-
-            <button onclick="logout()" class="hover:bg-red-600/50 p-2 rounded-xl transition text-red-300 hover:text-white">
+            <button onclick="logout()"
+                class="hover:bg-red-600/50 p-2 rounded-xl transition text-red-300 hover:text-white">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                 </svg>
             </button>
         </div>
     </header>
 
-    <!-- MEGA MENU -->
-    <div id="mega-menu" class="hidden fixed top-[60px] left-4 right-4 bg-white/95 backdrop-blur-xl shadow-2xl rounded-2xl border border-gray-100 z-50 max-h-[85vh] overflow-y-auto">
-        <div class="p-6">
+    <!-- MEGA MENU - Clean Version -->
+    <div id="mega-menu"
+        class="hidden fixed top-[60px] left-4 right-4 bg-white/95 backdrop-blur-xl shadow-2xl rounded-2xl border border-gray-100 z-50 max-h-[85vh] overflow-y-auto">
+        <div class="p-4">
             <button onclick="toggleMegaMenu()" class="float-right text-gray-400 hover:text-gray-600 transition p-1">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-2">
-                <div class="space-y-1">
-                    <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2"><span class="text-lg">🛒</span> Sales</div>
-                    <a href="#" onclick="openRecentSalesModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📋</span> Recent Sales<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
-                    <a href="#" onclick="openZReportModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📊</span> Z-Report<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
-                    <a href="#" onclick="openProductSalesModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📈</span> Product Sales<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+            <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-2">
+                <!-- Sales -->
+                <div class="space-y-0.5">
+                    <div
+                        class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
+                        <span class="text-sm">🛒</span> Sales
+                    </div>
+                    <a href="#" onclick="openRecentSalesModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📋
+                        Recent Sales</a>
+                    <a href="#"
+                        onclick="window.location.href='/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_zreport=true'"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊
+                        Z-Report</a>
+                    <a href="#" onclick="openProductSalesModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📈
+                        Product Sales</a>
                 </div>
-                <div class="space-y-1">
-                    <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2"><span class="text-lg">📦</span> Inventory</div>
-                    <a href="#" onclick="openAddProductModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">➕</span> Add Product<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
-                    <a href="#" onclick="openProductCatalogModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📋</span> Catalog<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
-                    <a href="#" onclick="openLowStockModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">⚠️</span> Low Stock<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
-                    <a href="#" onclick="openInventoryValuationModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">💎</span> Valuation<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                <!-- Inventory -->
+                <div class="space-y-0.5">
+                    <div
+                        class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
+                        <span class="text-sm">📦</span> Inventory
+                    </div>
+                    <a href="#" onclick="openAddProductModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">➕
+                        Add Product</a>
+                    <a href="#" onclick="openProductCatalogModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📋
+                        Catalog</a>
+                    <a href="#" onclick="openLowStockModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">⚠️
+                        Low Stock</a>
+                    <a href="#" onclick="openInventoryValuationModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">💎
+                        Valuation</a>
                 </div>
-                <div class="space-y-1">
-                    <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2"><span class="text-lg">🔗</span> Supply Chain</div>
-                    <a href="#" onclick="openPurchaseModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📥</span> New Purchase<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
-                    <a href="#" onclick="openPurchaseReportModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📊</span> Purchase Report<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
-                    <a href="#" onclick="openSupplierModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">👥</span> Suppliers<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
-                    <a href="#" onclick="openTransferModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">🔄</span> New Transfer<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
-                    <a href="#" onclick="openTransferHistoryModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📋</span> Transfer History<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                <!-- Supply Chain -->
+                <div class="space-y-0.5">
+                    <div
+                        class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
+                        <span class="text-sm">🔗</span> Supply Chain
+                    </div>
+                    <a href="#" onclick="openPurchaseModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📥
+                        New Purchase</a>
+                    <a href="#" onclick="openPurchaseReportModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊
+                        Purchase Report</a>
+                    <a href="#" onclick="openSupplierModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">👥
+                        Suppliers</a>
+                    <a href="#" onclick="openTransferModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">🔄
+                        New Transfer</a>
+                    <a href="#" onclick="openTransferHistoryModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📋
+                        Transfer History</a>
                 </div>
-                <div class="space-y-1">
-                    <div class="flex items-center gap-2 text-purple-900 font-bold text-xs uppercase tracking-wider border-b border-purple-100 pb-2 mb-2"><span class="text-lg">💰</span> Finance</div>
-                    <a href="#" onclick="openExpenseModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">➕</span> Add Expense<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
-                    <a href="#" onclick="openExpenseReportModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">📊</span> Expense Report<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
-                    <a href="#" onclick="openCustomerListModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">👥</span> Customers<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
-                    <a href="#" onclick="openDepositModal()" class="flex items-center gap-2 text-sm text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-3 py-2 rounded-lg transition group"><span class="text-base">💰</span> Deposits<span class="ml-auto text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">→</span></a>
+                <!-- Finance -->
+                <div class="space-y-0.5">
+                    <div
+                        class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
+                        <span class="text-sm">💰</span> Finance
+                    </div>
+                    <a href="#" onclick="openExpenseModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">➕
+                        Add Expense</a>
+                    <a href="#" onclick="openExpenseReportModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊
+                        Expense Report</a>
+                    <a href="#" onclick="openCustomerListModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">👥
+                        Customers</a>
+                    <a href="#" onclick="openDepositModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">💰
+                        Deposits</a>
+                    <a href="#"
+                        onclick="window.location.href='/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_statement=true'"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊
+                        Customer Statement</a>
+                </div>
+                <!-- Administration -->
+                <div class="space-y-0.5">
+                    <div
+                        class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
+                        <span class="text-sm">⚙️</span> Administration
+                    </div>
+                    <a href="#" onclick="openUserManagement()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">👥
+                        User Management</a>
+                    <a href="#" onclick="openCompanySettings()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">🏢
+                        Company Settings</a>
                 </div>
             </div>
-            <div class="mt-6 pt-4 border-t border-gray-100 flex justify-between items-center text-xs text-gray-400">
+            <div class="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-400">
                 <span>🕷️ Spide POS v2.0</span>
                 <span id="menu-clock" class="font-mono"></span>
             </div>
@@ -148,7 +289,7 @@
 
     <!-- MAIN CONTENT -->
     <div class="max-w-7xl mx-auto p-6 space-y-6">
-        
+
         <!-- KPI Cards -->
         <div class="stat-grid" id="kpi-cards">
             <div class="stat-card bg-white rounded-xl shadow-sm p-5 border border-gray-200">
@@ -177,7 +318,8 @@
         <div class="bg-white rounded-xl shadow-sm p-5 border border-gray-200">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="font-bold text-gray-800">🏪 Outlet Performance</h3>
-                <button onclick="refreshDashboard()" class="text-xs text-purple-600 hover:text-purple-800 font-medium">🔄 Refresh</button>
+                <button onclick="refreshDashboard()"
+                    class="text-xs text-purple-600 hover:text-purple-800 font-medium">🔄 Refresh</button>
             </div>
             <div class="overflow-x-auto">
                 <table class="w-full text-sm">
@@ -192,7 +334,9 @@
                         </tr>
                     </thead>
                     <tbody id="outlet-rows">
-                        <tr><td colspan="6" class="p-4 text-center text-gray-500">Loading outlets...</td></tr>
+                        <tr>
+                            <td colspan="6" class="p-4 text-center text-gray-500">Loading outlets...</td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
@@ -224,9 +368,6 @@
 
     </div>
 
-    <!-- Include all the modals from POS -->
-    <!-- (Copy the modal HTML from pos.html - you can keep them in a separate include or copy them here) -->
-
     <script>
         // ============================================
         // COOKIE FUNCTIONS
@@ -243,17 +384,28 @@
         }
 
         function logout() {
+            if (!confirm('Are you sure you want to logout?')) return;
             deleteCookie('spide_token');
             deleteCookie('spide_user');
-            deleteCookie('currentShopId');
-            deleteCookie('currentShopName');
             localStorage.removeItem('spide_token');
             localStorage.removeItem('spide_user');
+            localStorage.removeItem('currentShopId');
+            localStorage.removeItem('currentShopName');
             window.location.href = '/login';
         }
 
         function formatCurrency(amount) {
             return 'KES ' + (amount || 0).toFixed(2);
+        }
+
+        function getShopIdFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const shopId = urlParams.get('shop_id');
+            if (shopId) {
+                localStorage.setItem('currentShopId', shopId);
+                return parseInt(shopId);
+            }
+            return parseInt(localStorage.getItem('currentShopId')) || 1;
         }
 
         const token = getCookie('spide_token');
@@ -269,7 +421,7 @@
             menu.classList.toggle('hidden');
         }
 
-        document.addEventListener('click', function(event) {
+        document.addEventListener('click', function (event) {
             const menu = document.getElementById('mega-menu');
             const toggle = document.querySelector('.bg-purple-700\\/50');
             if (menu && !menu.classList.contains('hidden')) {
@@ -280,7 +432,7 @@
         });
 
         document.querySelectorAll('#mega-menu a').forEach(link => {
-            link.addEventListener('click', function() {
+            link.addEventListener('click', function () {
                 document.getElementById('mega-menu').classList.add('hidden');
             });
         });
@@ -304,18 +456,73 @@
             try {
                 const decoded = decodeURIComponent(userCookie);
                 user = JSON.parse(decoded);
-            } catch(e) {}
+            } catch (e) { }
         }
 
         const userEl = document.getElementById('logged-in-user');
         if (userEl && user.username) {
-            userEl.textContent = user.username;
+            userEl.textContent = user.full_name || user.username;
         }
 
         const initialEl = document.getElementById('user-initial');
         if (initialEl) {
-            const name = user.username || 'D';
+            const name = user.full_name || user.username || 'D';
             initialEl.textContent = name.charAt(0).toUpperCase();
+        }
+
+        // ============================================
+        // MODAL FUNCTION PLACEHOLDERS (Redirect to POS)
+        // ============================================
+        function openRecentSalesModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_recent=true';
+        }
+        function openProductSalesModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_product_sales=true';
+        }
+        function openAddProductModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_add_product=true';
+        }
+        function openProductCatalogModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_catalog=true';
+        }
+        function openLowStockModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_low_stock=true';
+        }
+        function openInventoryValuationModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_valuation=true';
+        }
+        function openPurchaseModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_purchase=true';
+        }
+        function openPurchaseReportModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_purchase_report=true';
+        }
+        function openSupplierModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_supplier=true';
+        }
+        function openTransferModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_transfer=true';
+        }
+        function openTransferHistoryModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_transfer_history=true';
+        }
+        function openExpenseModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_expense=true';
+        }
+        function openExpenseReportModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_expense_report=true';
+        }
+        function openCustomerListModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_customers=true';
+        }
+        function openDepositModal() {
+            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_deposit=true';
+        }
+        function openUserManagement() {
+            window.location.href = '/director?open_user_management=true';
+        }
+        function openCompanySettings() {
+            window.location.href = '/director?open_company_settings=true';
         }
 
         // ============================================
@@ -357,30 +564,30 @@
 
             // Outlet Stats
             const outletContainer = document.getElementById('outlet-rows');
-                if (!data.outlet_stats || data.outlet_stats.length === 0) {
-                    outletContainer.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No outlet data available</td></tr>';
-                } else {
-                    let html = '';
-                    data.outlet_stats.forEach(outlet => {
-                        const statusClass = outlet.status === 'active' ? 'text-emerald-600' : 'text-gray-400';
-                        html += `<tr class="outlet-row border-b hover:bg-purple-50/50 transition">
-                            <td class="p-3 font-semibold">
-                                <a href="/?shop_id=${outlet.shop_id || outlet.id}" 
-                                class="text-purple-700 hover:text-purple-900 hover:underline flex items-center gap-1 transition group"
-                                onclick="event.preventDefault(); window.location.href='/?shop_id=${outlet.shop_id || outlet.id}'">
-                                    ${outlet.shop_name || 'Unknown'}
-                                    <span class="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">↗</span>
-                                </a>
-                            </td>
-                            <td class="p-3 text-center font-mono font-bold text-purple-900">${formatCurrency(outlet.today_revenue)}</td>
-                            <td class="p-3 text-center">${outlet.today_transactions || 0}</td>
-                            <td class="p-3 text-center">${outlet.today_items || 0}</td>
-                            <td class="p-3 text-center font-mono">${formatCurrency(outlet.month_revenue)}</td>
-                            <td class="p-3 text-center"><span class="${statusClass}">${outlet.status === 'active' ? '🟢 Active' : '⚪ Inactive'}</span></td>
-                        </tr>`;
-                    });
-                    outletContainer.innerHTML = html;
-                }
+            if (!data.outlet_stats || data.outlet_stats.length === 0) {
+                outletContainer.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">No outlet data available</td></tr>';
+            } else {
+                let html = '';
+                data.outlet_stats.forEach(outlet => {
+                    const statusClass = outlet.status === 'active' ? 'text-emerald-600' : 'text-gray-400';
+                    html += `<tr class="outlet-row border-b hover:bg-purple-50/50 transition">
+                        <td class="p-3 font-semibold">
+                            <a href="/?shop_id=${outlet.shop_id || outlet.id}" 
+                               class="text-purple-700 hover:text-purple-900 hover:underline flex items-center gap-1 transition group"
+                               onclick="event.preventDefault(); window.location.href='/?shop_id=${outlet.shop_id || outlet.id}'">
+                                ${outlet.shop_name || 'Unknown'}
+                                <span class="text-xs text-gray-400 opacity-0 group-hover:opacity-100 transition">↗</span>
+                            </a>
+                        </td>
+                        <td class="p-3 text-center font-mono font-bold text-purple-900">${formatCurrency(outlet.today_revenue)}</td>
+                        <td class="p-3 text-center">${outlet.today_transactions || 0}</td>
+                        <td class="p-3 text-center">${outlet.today_items || 0}</td>
+                        <td class="p-3 text-center font-mono">${formatCurrency(outlet.month_revenue)}</td>
+                        <td class="p-3 text-center"><span class="${statusClass}">${outlet.status === 'active' ? '🟢 Active' : '⚪ Inactive'}</span></td>
+                    </tr>`;
+                });
+                outletContainer.innerHTML = html;
+            }
 
             // Sales Trend
             const trendContainer = document.getElementById('trend-chart');
@@ -433,8 +640,8 @@
             } else {
                 let html = '';
                 data.alerts.forEach(alert => {
-                    const severityClass = alert.severity === 'critical' ? 'severity-critical' : 
-                                        alert.severity === 'high' ? 'severity-high' : 'severity-medium';
+                    const severityClass = alert.severity === 'critical' ? 'severity-critical' :
+                        alert.severity === 'high' ? 'severity-high' : 'severity-medium';
                     html += `<div class="flex items-center justify-between p-2 border-b hover:bg-gray-50">
                         <div>
                             <span class="font-semibold">${alert.product_name}</span>
@@ -450,12 +657,94 @@
             }
         }
 
-        // Initial load and auto-refresh
-        document.addEventListener('DOMContentLoaded', function() {
+        // ============================================
+        // INITIALIZATION
+        // ============================================
+        document.addEventListener('DOMContentLoaded', function () {
             refreshDashboard();
             setInterval(refreshDashboard, 30000);
         });
     </script>
+<!-- COMPANY MANAGEMENT MODAL -->
+<div id="company-management-modal" class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+            <div>
+                <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <span class="bg-indigo-100 p-1.5 rounded-lg">🏢</span>
+                    Company Management
+                </h2>
+                <p class="text-xs text-gray-500">Manage multiple companies (Demo/Live)</p>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="openAddCompanyModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition">➕ Add Company</button>
+                <button onclick="closeCompanyManagement()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto border rounded-xl relative">
+            <table class="w-full text-left border-collapse text-xs">
+                <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                    <tr>
+                        <th class="p-2">Company</th>
+                        <th class="p-2">Registration</th>
+                        <th class="p-2">Currency</th>
+                        <th class="p-2 text-center">Type</th>
+                        <th class="p-2 text-center">Status</th>
+                        <th class="p-2 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="company-list-body">
+                    <tr><td colspan="6" class="p-4 text-center text-gray-500">Loading companies...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="flex justify-end border-t border-gray-100 pt-3">
+            <button onclick="closeCompanyManagement()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">Close</button>
+        </div>
+    </div>
+</div>
 
+<!-- ADD/EDIT COMPANY MODAL -->
+<div id="company-modal" class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+            <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <span class="bg-indigo-100 p-1.5 rounded-lg">🏢</span>
+                <span id="company-modal-title">Add Company</span>
+            </h2>
+            <button onclick="closeCompanyModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        </div>
+        
+        <form id="company-form" onsubmit="saveCompany(event)" class="flex-1 overflow-y-auto">
+            <input type="hidden" id="company-id" value="0">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="space-y-3">
+                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Company Name *</label><input type="text" id="company-name" required placeholder="e.g. ABC Retail Ltd" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
+                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Registration Number</label><input type="text" id="company-reg-number" placeholder="e.g. PVT-2024-001" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
+                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Tax ID (PIN)</label><input type="text" id="company-tax-id" placeholder="e.g. A12345678X" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
+                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Phone</label><input type="text" id="company-phone" placeholder="e.g. 0712345678" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
+                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Email</label><input type="email" id="company-email" placeholder="e.g. info@abc.co.ke" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
+                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Website</label><input type="text" id="company-website" placeholder="e.g. www.abc.co.ke" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
+                </div>
+                <div class="space-y-3">
+                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Address</label><textarea id="company-address" rows="3" placeholder="Physical address..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea></div>
+                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Currency</label><select id="company-currency" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="KES">KES - Kenyan Shilling</option><option value="USD">USD - US Dollar</option><option value="EUR">EUR - Euro</option><option value="GBP">GBP - British Pound</option><option value="TZS">TZS - Tanzanian Shilling</option><option value="UGX">UGX - Ugandan Shilling</option></select></div>
+                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Company Type</label><select id="company-type" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="0">Live Production</option><option value="1">Demo Company</option></select></div>
+                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Status</label><select id="company-status" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="1">Active</option><option value="0">Inactive</option></select></div>
+                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Receipt Footer</label><textarea id="company-receipt-footer" rows="2" placeholder="Thank you for your business!..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea></div>
+                </div>
+            </div>
+            
+            <div id="company-alert" class="hidden mt-4 p-2 rounded-lg text-sm font-medium"></div>
+            
+            <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
+                <button type="button" onclick="closeCompanyModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
+                <button type="submit" id="company-submit-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg transition text-sm">💾 Save Company</button>
+            </div>
+        </form>
+    </div>
+</div>
 </body>
+
 </html>

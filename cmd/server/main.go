@@ -85,6 +85,7 @@ func main() {
 
 	// API Routes - Protected
 	mux.HandleFunc("/api/dashboard/stats", middleware.AuthMiddleware(handlers.DashboardStatsHandler))
+	mux.HandleFunc("/api/dashboard/shop", middleware.AuthMiddleware(handlers.GetShopDashboardHandler))
 	mux.HandleFunc("/api/products", middleware.AuthMiddleware(handlers.GetProductsHandler))
 	mux.HandleFunc("/api/products/create", middleware.AuthMiddleware(handlers.CreateProductHandler))
 	mux.HandleFunc("/api/products/update", middleware.AuthMiddleware(handlers.UpdateProductHandler))
@@ -134,22 +135,49 @@ func main() {
 	mux.HandleFunc("/api/customers/update", middleware.AuthMiddleware(handlers.UpdateCustomerHandler))
 	mux.HandleFunc("/api/customers/delete", middleware.AuthMiddleware(handlers.DeleteCustomerHandler))
 	mux.HandleFunc("/api/customers/search", middleware.AuthMiddleware(handlers.SearchCustomersHandler))
-	
 
 	// Credit sales routes
 	mux.HandleFunc("/api/credit-sales", middleware.AuthMiddleware(handlers.GetCreditSalesHandler))
 	mux.HandleFunc("/api/credit-sales/create", middleware.AuthMiddleware(handlers.CreateCreditSaleHandler))
 	mux.HandleFunc("/api/credit-sales/payments", middleware.AuthMiddleware(handlers.GetCreditPaymentsHandler))
 	mux.HandleFunc("/api/credit-sales/add-payment", middleware.AuthMiddleware(handlers.AddCreditPaymentHandler))
-	
-	
-	//customer statement route
+
+	// Shop/Branch Management Routes
+	mux.HandleFunc("/api/shops", middleware.AuthMiddleware(handlers.GetShopsHandler))
+	mux.HandleFunc("/api/shops/create", middleware.AuthMiddleware(handlers.CreateShopHandler))
+	mux.HandleFunc("/api/shops/update", middleware.AuthMiddleware(handlers.UpdateShopHandler))
+	mux.HandleFunc("/api/shops/delete", middleware.AuthMiddleware(handlers.DeleteShopHandler))
+	mux.HandleFunc("/api/shops/by-company", middleware.AuthMiddleware(handlers.GetShopsByCompanyHandler))
+
+	// Legacy branches route
+	//mux.HandleFunc("/api/branches", middleware.AuthMiddleware(handlers.BranchesHandler))
+
+	// Customer statement route
 	mux.HandleFunc("/api/customers/statement", middleware.AuthMiddleware(handlers.GetCustomerStatementHandler))
 
-	
+	// ✅ Company Settings Routes - Fixed to use mux
+	mux.HandleFunc("/api/company/settings", middleware.AuthMiddleware(handlers.GetCompanySettingsHandler))
+	mux.HandleFunc("/api/company/settings/update", middleware.AuthMiddleware(handlers.UpdateCompanySettingsHandler))
+	mux.HandleFunc("/api/company/logo/upload", middleware.AuthMiddleware(handlers.UploadCompanyLogoHandler))
+
+	// ============================================
+	// COMPANY MANAGEMENT ROUTES (Admin/Director Only)
+	// ============================================
+	// Get all companies
+	mux.HandleFunc("/api/companies", middleware.AuthMiddleware(handlers.GetCompaniesHandler))
+
+	// Create new company
+	mux.HandleFunc("/api/companies/create", middleware.AuthMiddleware(handlers.CreateCompanyHandler))
+
+	// Update company
+	mux.HandleFunc("/api/companies/update", middleware.AuthMiddleware(handlers.UpdateCompanyHandler))
+
+	// Delete company
+	mux.HandleFunc("/api/companies/delete", middleware.AuthMiddleware(handlers.DeleteCompanyHandler))
+
 	// Add this route - TEMPORARY for testing
-	mux.HandleFunc("/api/reset-password", handlers.ResetPasswordHandler)
-	
+	//mux.HandleFunc("/api/reset-password", handlers.ResetPasswordHandler)
+
 	// Server configuration
 	port := getEnv("PORT", "8081")
 	server := &http.Server{

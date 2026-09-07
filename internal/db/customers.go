@@ -7,19 +7,20 @@ import (
 )
 
 type Customer struct {
-	ID             int     `json:"id"`
-	Name           string  `json:"name"`
-	Phone          string  `json:"phone"`
-	Email          string  `json:"email"`
-	IDNumber       sql.NullString  `json:"id_number"`
-	Address        sql.NullString  `json:"address"`
-	Balance        float64 `json:"balance"`
-	DepositBalance float64 `json:"deposit_balance"`
-	CreditLimit    float64 `json:"credit_limit"`
-	Notes          string  `json:"notes"`
-	CreatedBy      string  `json:"created_by"`
-	CreatedAt      string  `json:"created_at"`
-	UpdatedAt      string  `json:"updated_at"`
+	ID             int            `json:"id"`
+	CompanyID      int            `json:"company_id"`
+	Name           string         `json:"name"`
+	Phone          string         `json:"phone"`
+	Email          string         `json:"email"`
+	IDNumber       sql.NullString `json:"id_number"`
+	Address        sql.NullString `json:"address"`
+	Balance        float64        `json:"balance"`
+	DepositBalance float64        `json:"deposit_balance"`
+	CreditLimit    float64        `json:"credit_limit"`
+	Notes          string         `json:"notes"`
+	CreatedBy      string         `json:"created_by"`
+	CreatedAt      string         `json:"created_at"`
+	UpdatedAt      string         `json:"updated_at"`
 }
 
 type CreditSale struct {
@@ -52,73 +53,72 @@ type CreditPayment struct {
 }
 
 type CustomerTransaction struct {
-    Date        string  `json:"date"`
-    Description string  `json:"description"`
-    Type        string  `json:"type"` // sale, payment, deposit
-    Amount      float64 `json:"amount"`
-    SaleID      int     `json:"sale_id,omitempty"`
-    Balance     float64 `json:"balance"`
+	Date        string  `json:"date"`
+	Description string  `json:"description"`
+	Type        string  `json:"type"` // sale, payment, deposit
+	Amount      float64 `json:"amount"`
+	SaleID      int     `json:"sale_id,omitempty"`
+	Balance     float64 `json:"balance"`
 }
 
 type CustomerSummary struct {
-    TotalSales     float64 `json:"total_sales"`
-    TotalPayments  float64 `json:"total_payments"`
-    TotalDeposits  float64 `json:"total_deposits"`
-    CurrentBalance float64 `json:"current_balance"`
+	TotalSales     float64 `json:"total_sales"`
+	TotalPayments  float64 `json:"total_payments"`
+	TotalDeposits  float64 `json:"total_deposits"`
+	CurrentBalance float64 `json:"current_balance"`
 }
 
-
 func CreateCustomer(db *sql.DB, customer *Customer) error {
-    log.Printf("Creating customer: Name='%s', Phone='%s'", customer.Name, customer.Phone)
-    
-    // created_by should be the user ID, not username
-    // We need to get the user ID from the username
-    var userID int
-    err := db.QueryRow("SELECT id FROM users WHERE username = ?", customer.CreatedBy).Scan(&userID)
-    if err != nil {
-        log.Printf("Error getting user ID for '%s': %v", customer.CreatedBy, err)
-        // Default to 1 (admin) if user not found
-        userID = 1
-    }
-    log.Printf("Using user_id: %d for created_by", userID)
-    
-    query := `
+	log.Printf("Creating customer: Name='%s', Phone='%s'", customer.Name, customer.Phone)
+
+	// created_by should be the user ID, not username
+	// We need to get the user ID from the username
+	var userID int
+	err := db.QueryRow("SELECT id FROM users WHERE username = ?", customer.CreatedBy).Scan(&userID)
+	if err != nil {
+		log.Printf("Error getting user ID for '%s': %v", customer.CreatedBy, err)
+		// Default to 1 (admin) if user not found
+		userID = 1
+	}
+	log.Printf("Using user_id: %d for created_by", userID)
+
+	query := `
         INSERT INTO customers (name, phone, email, id_number, address, 
                                credit_limit, balance, deposit_balance, notes, created_by, created_at)
         VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?, NOW())
     `
-    
-    result, err := db.Exec(query,
-        customer.Name,
-        customer.Phone,
-        customer.Email,
-        customer.IDNumber,
-        customer.Address,
-        customer.CreditLimit,
-        customer.Notes,
-        userID,  // Use user ID instead of username
-    )
-    if err != nil {
-        log.Printf("❌ Error creating customer: %v", err)
-        return fmt.Errorf("failed to create customer: %w", err)
-    }
 
-    id, err := result.LastInsertId()
-    if err != nil {
-        log.Printf("❌ Error getting last insert ID: %v", err)
-        return fmt.Errorf("failed to get last insert ID: %w", err)
-    }
-    
-    customer.ID = int(id)
-    log.Printf("✅ Customer created with ID: %d", customer.ID)
+	result, err := db.Exec(query,
+		customer.Name,
+		customer.Phone,
+		customer.Email,
+		customer.IDNumber,
+		customer.Address,
+		customer.CreditLimit,
+		customer.Notes,
+		userID, // Use user ID instead of username
+	)
+	if err != nil {
+		log.Printf("❌ Error creating customer: %v", err)
+		return fmt.Errorf("failed to create customer: %w", err)
+	}
 
-    return nil
+	id, err := result.LastInsertId()
+	if err != nil {
+		log.Printf("❌ Error getting last insert ID: %v", err)
+		return fmt.Errorf("failed to get last insert ID: %w", err)
+	}
+
+	customer.ID = int(id)
+	log.Printf("✅ Customer created with ID: %d", customer.ID)
+
+	return nil
 }
 
 func GetCustomers(db *sql.DB) ([]Customer, error) {
-    log.Println("GetCustomers called")
-    
-    query := `
+	log.Println("GetCustomers called")
+
+	query := `
         SELECT id, name, phone, email, id_number, address, 
                COALESCE(balance, 0) as balance,
                COALESCE(deposit_balance, 0) as deposit_balance,
@@ -129,45 +129,45 @@ func GetCustomers(db *sql.DB) ([]Customer, error) {
         FROM customers
         ORDER BY name
     `
-    rows, err := db.Query(query)
-    if err != nil {
-        log.Printf("GetCustomers query error: %v", err)
-        return nil, fmt.Errorf("failed to get customers: %w", err)
-    }
-    defer rows.Close()
+	rows, err := db.Query(query)
+	if err != nil {
+		log.Printf("GetCustomers query error: %v", err)
+		return nil, fmt.Errorf("failed to get customers: %w", err)
+	}
+	defer rows.Close()
 
-    var customers []Customer
-    for rows.Next() {
-        var c Customer
-        err := rows.Scan(
-            &c.ID,
-            &c.Name,
-            &c.Phone,
-            &c.Email,
-            &c.IDNumber,
-            &c.Address,
-            &c.Balance,
-            &c.DepositBalance,
-            &c.CreditLimit,
-            &c.Notes,
-            &c.CreatedBy,
-            &c.CreatedAt,
-            &c.UpdatedAt,
-        )
-        if err != nil {
-            log.Printf("GetCustomers scan error: %v", err)
-            return nil, err
-        }
-        customers = append(customers, c)
-    }
+	var customers []Customer
+	for rows.Next() {
+		var c Customer
+		err := rows.Scan(
+			&c.ID,
+			&c.Name,
+			&c.Phone,
+			&c.Email,
+			&c.IDNumber,
+			&c.Address,
+			&c.Balance,
+			&c.DepositBalance,
+			&c.CreditLimit,
+			&c.Notes,
+			&c.CreatedBy,
+			&c.CreatedAt,
+			&c.UpdatedAt,
+		)
+		if err != nil {
+			log.Printf("GetCustomers scan error: %v", err)
+			return nil, err
+		}
+		customers = append(customers, c)
+	}
 
-    if err := rows.Err(); err != nil {
-        log.Printf("GetCustomers rows error: %v", err)
-        return nil, fmt.Errorf("error iterating customers: %w", err)
-    }
+	if err := rows.Err(); err != nil {
+		log.Printf("GetCustomers rows error: %v", err)
+		return nil, fmt.Errorf("error iterating customers: %w", err)
+	}
 
-    log.Printf("GetCustomers found %d customers", len(customers))
-    return customers, nil
+	log.Printf("GetCustomers found %d customers", len(customers))
+	return customers, nil
 }
 
 func GetCustomerByID(db *sql.DB, id int) (*Customer, error) {
@@ -251,8 +251,8 @@ func DeleteCustomer(db *sql.DB, id int) error {
 }
 
 func SearchCustomers(db *sql.DB, query string) ([]Customer, error) {
-    // Search by phone number or name
-    sqlQuery := `
+	// Search by phone number or name
+	sqlQuery := `
         SELECT id, name, phone, email, credit_limit, balance, deposit_balance
         FROM customers
         WHERE phone LIKE ? OR name LIKE ?
@@ -266,31 +266,31 @@ func SearchCustomers(db *sql.DB, query string) ([]Customer, error) {
             name
         LIMIT 10
     `
-    
-    searchTerm := "%" + query + "%"
-    exactMatch := query
-    
-    rows, err := db.Query(sqlQuery, searchTerm, searchTerm, exactMatch, searchTerm, searchTerm)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
 
-    var customers []Customer
-    for rows.Next() {
-        var c Customer
-        err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email,
-            &c.CreditLimit, &c.Balance, &c.DepositBalance)
-        if err != nil {
-            return nil, err
-        }
-        customers = append(customers, c)
-    }
-    if err := rows.Err(); err != nil {
-        return nil, err
-    }
+	searchTerm := "%" + query + "%"
+	exactMatch := query
 
-    return customers, nil
+	rows, err := db.Query(sqlQuery, searchTerm, searchTerm, exactMatch, searchTerm, searchTerm)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var customers []Customer
+	for rows.Next() {
+		var c Customer
+		err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email,
+			&c.CreditLimit, &c.Balance, &c.DepositBalance)
+		if err != nil {
+			return nil, err
+		}
+		customers = append(customers, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return customers, nil
 }
 
 func CreateCreditSale(db *sql.DB, creditSale *CreditSale) error {
@@ -533,11 +533,11 @@ func AddCreditPayment(db *sql.DB, payment *CreditPayment) error {
 }
 
 func GetCustomerTransactions(db *sql.DB, customerID int) ([]CustomerTransaction, error) {
-    var transactions []CustomerTransaction
-    var runningBalance float64
+	var transactions []CustomerTransaction
+	var runningBalance float64
 
-    // Get sales transactions
-    salesQuery := `
+	// Get sales transactions
+	salesQuery := `
         SELECT 
             DATE(created_at) as date,
             CONCAT('Sale #', id) as description,
@@ -548,31 +548,31 @@ func GetCustomerTransactions(db *sql.DB, customerID int) ([]CustomerTransaction,
         WHERE customer_id = ?
         ORDER BY created_at ASC
     `
-    salesRows, err := db.Query(salesQuery, customerID)
-    if err != nil {
-        return nil, fmt.Errorf("failed to get sales: %w", err)
-    }
-    defer salesRows.Close()
+	salesRows, err := db.Query(salesQuery, customerID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sales: %w", err)
+	}
+	defer salesRows.Close()
 
-    for salesRows.Next() {
-        var t CustomerTransaction
-        err := salesRows.Scan(&t.Date, &t.Description, &t.Type, &t.Amount, &t.SaleID)
-        if err != nil {
-            return nil, fmt.Errorf("failed to scan sale row: %w", err)
-        }
-        // Sales increase what customer owes
-        runningBalance += t.Amount
-        t.Balance = runningBalance
-        transactions = append(transactions, t)
-    }
+	for salesRows.Next() {
+		var t CustomerTransaction
+		err := salesRows.Scan(&t.Date, &t.Description, &t.Type, &t.Amount, &t.SaleID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan sale row: %w", err)
+		}
+		// Sales increase what customer owes
+		runningBalance += t.Amount
+		t.Balance = runningBalance
+		transactions = append(transactions, t)
+	}
 
-    // ✅ Check for salesRows iteration errors
-    if err = salesRows.Err(); err != nil {
-        return nil, fmt.Errorf("error iterating sales: %w", err)
-    }
+	// ✅ Check for salesRows iteration errors
+	if err = salesRows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating sales: %w", err)
+	}
 
-    // Get deposits (payments made by customer)
-    depositsQuery := `
+	// Get deposits (payments made by customer)
+	depositsQuery := `
         SELECT 
             DATE(created_at) as date,
             CONCAT('Deposit - ', COALESCE(payment_method, 'cash')) as description,
@@ -583,74 +583,107 @@ func GetCustomerTransactions(db *sql.DB, customerID int) ([]CustomerTransaction,
         WHERE customer_id = ?
         ORDER BY created_at ASC
     `
-    depositRows, err := db.Query(depositsQuery, customerID)
-    if err != nil {
-        // Table might not exist - log but don't fail
-        log.Printf("⚠️ Could not fetch deposits: %v", err)
-        return transactions, nil
-    }
-    defer depositRows.Close()
+	depositRows, err := db.Query(depositsQuery, customerID)
+	if err != nil {
+		// Table might not exist - log but don't fail
+		log.Printf("⚠️ Could not fetch deposits: %v", err)
+		return transactions, nil
+	}
+	defer depositRows.Close()
 
-    for depositRows.Next() {
-        var t CustomerTransaction
-        err := depositRows.Scan(&t.Date, &t.Description, &t.Type, &t.Amount, &t.SaleID)
-        if err != nil {
-            log.Printf("⚠️ Error scanning deposit row: %v", err)
-            continue
-        }
-        // Deposits reduce what customer owes
-        runningBalance -= t.Amount
-        t.Balance = runningBalance
-        transactions = append(transactions, t)
-    }
+	for depositRows.Next() {
+		var t CustomerTransaction
+		err := depositRows.Scan(&t.Date, &t.Description, &t.Type, &t.Amount, &t.SaleID)
+		if err != nil {
+			log.Printf("⚠️ Error scanning deposit row: %v", err)
+			continue
+		}
+		// Deposits reduce what customer owes
+		runningBalance -= t.Amount
+		t.Balance = runningBalance
+		transactions = append(transactions, t)
+	}
 
-    // ✅ Check for depositRows iteration errors
-    if err = depositRows.Err(); err != nil {
-        return nil, fmt.Errorf("error iterating deposits: %w", err)
-    }
+	// ✅ Check for depositRows iteration errors
+	if err = depositRows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating deposits: %w", err)
+	}
 
-    return transactions, nil
+	return transactions, nil
 }
 
 func GetCustomerSummary(db *sql.DB, customerID int) (CustomerSummary, error) {
-    var summary CustomerSummary
+	var summary CustomerSummary
 
-    // Get total sales for this customer
-    salesQuery := `
+	// Get total sales for this customer
+	salesQuery := `
         SELECT COALESCE(SUM(total_amount), 0) 
         FROM sales 
         WHERE customer_id = ?
     `
-    err := db.QueryRow(salesQuery, customerID).Scan(&summary.TotalSales)
-    if err != nil {
-        return summary, fmt.Errorf("failed to get total sales: %w", err)
-    }
+	err := db.QueryRow(salesQuery, customerID).Scan(&summary.TotalSales)
+	if err != nil {
+		return summary, fmt.Errorf("failed to get total sales: %w", err)
+	}
 
-    // ✅ Get total deposits from customer_deposits table
-    depositsQuery := `
+	// ✅ Get total deposits from customer_deposits table
+	depositsQuery := `
         SELECT COALESCE(SUM(amount), 0) 
         FROM customer_deposits 
         WHERE customer_id = ?
     `
-    err = db.QueryRow(depositsQuery, customerID).Scan(&summary.TotalDeposits)
-    if err != nil {
-        log.Printf("⚠️ Could not get deposits: %v", err)
-        summary.TotalDeposits = 0
-    }
+	err = db.QueryRow(depositsQuery, customerID).Scan(&summary.TotalDeposits)
+	if err != nil {
+		log.Printf("⚠️ Could not get deposits: %v", err)
+		summary.TotalDeposits = 0
+	}
 
-    // ✅ Get current balance from customers table (deposit_balance)
-    balanceQuery := `
+	// ✅ Get current balance from customers table (deposit_balance)
+	balanceQuery := `
         SELECT COALESCE(deposit_balance, 0) 
         FROM customers 
         WHERE id = ?
     `
-    err = db.QueryRow(balanceQuery, customerID).Scan(&summary.CurrentBalance)
-    if err != nil {
-        return summary, fmt.Errorf("failed to get current balance: %w", err)
-    }
+	err = db.QueryRow(balanceQuery, customerID).Scan(&summary.CurrentBalance)
+	if err != nil {
+		return summary, fmt.Errorf("failed to get current balance: %w", err)
+	}
 
-    log.Printf("📊 Customer %d summary - Sales: %.2f, Deposits: %.2f, Balance: %.2f", 
-        customerID, summary.TotalSales, summary.TotalDeposits, summary.CurrentBalance)
+	log.Printf("📊 Customer %d summary - Sales: %.2f, Deposits: %.2f, Balance: %.2f",
+		customerID, summary.TotalSales, summary.TotalDeposits, summary.CurrentBalance)
 
-    return summary, nil
+	return summary, nil
+}
+
+func GetCustomersByCompany(db *sql.DB, companyID int) ([]Customer, error) {
+	query := `
+        SELECT id, company_id, name, phone, email, id_number, address, 
+               credit_limit, balance, deposit_balance, notes, created_at, updated_at
+        FROM customers
+        WHERE company_id = ?
+        ORDER BY name
+    `
+	rows, err := db.Query(query, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var customers []Customer
+	for rows.Next() {
+		var c Customer
+		err := rows.Scan(
+			&c.ID, &c.CompanyID, &c.Name, &c.Phone, &c.Email,
+			&c.IDNumber, &c.Address, &c.CreditLimit, &c.Balance,
+			&c.DepositBalance, &c.Notes, &c.CreatedAt, &c.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		customers = append(customers, c)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return customers, nil
 }

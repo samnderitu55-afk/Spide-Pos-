@@ -1,19 +1,24 @@
 ﻿package db
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 type Product struct {
-	ID              int64   `json:"id"`
-	Barcode         string  `json:"barcode"`
-	Name            string  `json:"name"`
-	Category        string  `json:"category"`
-	CostPrice       float64 `json:"cost_price"`
-	RetailPrice     float64 `json:"retail_price"`
-	WholesalePrice  float64 `json:"wholesale_price"`
-	WholesaleMinQty int     `json:"wholesale_min_qty"`
-	StockQuantity   int     `json:"stock_quantity"`
-	ReorderLevel    int     `json:"reorder_level"`
-	IsActive        bool    `json:"is_active"`
+	ID              int64     `json:"id"`
+	Barcode         string    `json:"barcode"`
+	Name            string    `json:"name"`
+	Category        string    `json:"category"`
+	CostPrice       float64   `json:"cost_price"`
+	RetailPrice     float64   `json:"retail_price"`
+	WholesalePrice  float64   `json:"wholesale_price"`
+	WholesaleMinQty int       `json:"wholesale_min_qty"`
+	StockQuantity   int       `json:"stock_quantity"`
+	ReorderLevel    int       `json:"reorder_level"`
+	IsActive        bool      `json:"is_active"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
 }
 
 func (p *Product) RenderRowHTML() string {
@@ -52,6 +57,8 @@ type SaleItem struct {
 
 type Sale struct {
 	ID          int64      `json:"id"`
+	CompanyID   int        `json:"company_id"`
+	CustomerID  int        `json:"customer_id"`
 	TotalAmount float64    `json:"total_amount"`
 	CashAmount  float64    `json:"cash_amount"`
 	MpesaAmount float64    `json:"mpesa_amount"`
@@ -64,17 +71,17 @@ type Sale struct {
 }
 
 type SaleRequest struct {
-	TotalAmount float64 `json:"total_amount"`
-	CashAmount  float64 `json:"cash_amount"`
-	MpesaAmount float64 `json:"mpesa_amount"`
-	MpesaCode   string  `json:"mpesa_code"`
-	PaymentType string  `json:"payment_type"`
-	ChangeGiven float64 `json:"change_given,omitempty"`
-	ShopID      int     `json:"shop_id"`
-	CreditAmount float64 `json:"credit_amount"` 
-	CustomerID    int     `json:"customer_id"`     
-    DepositAmount float64 `json:"deposit_amount"`  
-	Items       []struct {
+	TotalAmount   float64 `json:"total_amount"`
+	CashAmount    float64 `json:"cash_amount"`
+	MpesaAmount   float64 `json:"mpesa_amount"`
+	MpesaCode     string  `json:"mpesa_code"`
+	PaymentType   string  `json:"payment_type"`
+	ChangeGiven   float64 `json:"change_given,omitempty"`
+	ShopID        int     `json:"shop_id"`
+	CreditAmount  float64 `json:"credit_amount"`
+	CustomerID    int     `json:"customer_id"`
+	DepositAmount float64 `json:"deposit_amount"`
+	Items         []struct {
 		ProductID int64   `json:"product_id"`
 		Quantity  int     `json:"quantity"`
 		UnitPrice float64 `json:"unit_price"`
@@ -98,35 +105,33 @@ type Expense struct {
 }
 
 type ZReport struct {
-    ReportDate       string             `json:"report_date"`
-    TotalRevenue     float64            `json:"total_revenue"`
-    TotalCost        float64            `json:"total_cost"`
-    TotalProfit      float64            `json:"total_profit"`
-    MarginPercent    float64            `json:"margin_percent"`
-    TotalSalesCount  int                `json:"total_sales_count"`
-    
-    // ✅ Add these fields for deposit and credit
-    TotalCash        float64            `json:"total_cash"`
-    TotalMpesa       float64            `json:"total_mpesa"`
-    TotalDeposit     float64            `json:"total_deposit"`
-    TotalCredit      float64            `json:"total_credit"`
-    
-    CashSalesCount   int                `json:"cash_sales_count"`
-    MpesaSalesCount  int                `json:"mpesa_sales_count"`
-    DepositSalesCount int               `json:"deposit_sales_count"`
-    CreditSalesCount int                `json:"credit_sales_count"`
-    
-    
-    TotalExpenses    float64            `json:"total_expenses"`
-    ExpenseCount     int                `json:"expense_count"`
-    ExpenseBreakdown map[string]float64 `json:"expense_breakdown"`
-    NetProfit        float64            `json:"net_profit"`
-    
-    // Shop info
-    ShopName         string             `json:"shop_name,omitempty"`
-    ShopID           int                `json:"shop_id,omitempty"`
-}
+	ReportDate      string  `json:"report_date"`
+	TotalRevenue    float64 `json:"total_revenue"`
+	TotalCost       float64 `json:"total_cost"`
+	TotalProfit     float64 `json:"total_profit"`
+	MarginPercent   float64 `json:"margin_percent"`
+	TotalSalesCount int     `json:"total_sales_count"`
 
+	// ✅ Add these fields for deposit and credit
+	TotalCash    float64 `json:"total_cash"`
+	TotalMpesa   float64 `json:"total_mpesa"`
+	TotalDeposit float64 `json:"total_deposit"`
+	TotalCredit  float64 `json:"total_credit"`
+
+	CashSalesCount    int `json:"cash_sales_count"`
+	MpesaSalesCount   int `json:"mpesa_sales_count"`
+	DepositSalesCount int `json:"deposit_sales_count"`
+	CreditSalesCount  int `json:"credit_sales_count"`
+
+	TotalExpenses    float64            `json:"total_expenses"`
+	ExpenseCount     int                `json:"expense_count"`
+	ExpenseBreakdown map[string]float64 `json:"expense_breakdown"`
+	NetProfit        float64            `json:"net_profit"`
+
+	// Shop info
+	ShopName string `json:"shop_name,omitempty"`
+	ShopID   int    `json:"shop_id,omitempty"`
+}
 
 type ProductSalesReportItem struct {
 	ProductName  string  `json:"product_name"`
@@ -170,6 +175,7 @@ type StockTransferRequest struct {
 type StockTransfer struct {
 	ID             int     `json:"id"`
 	TransferNumber string  `json:"transfer_number"`
+	CompanyID      int     `json:"company_id"`
 	FromShopID     int     `json:"from_shop_id"`
 	ToShopID       int     `json:"to_shop_id"`
 	TotalItems     int     `json:"total_items"`
