@@ -7,14 +7,21 @@ import (
 )
 
 func CreateProduct(db *sql.DB, p *Product) (int64, error) {
-	// Start a transaction
 	tx, err := db.Begin()
 	if err != nil {
 		return 0, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	// Insert into products table - Updated to include company_id and category_id
+	// ✅ Handle NULL barcode - check if nil or empty string
+	var barcode interface{}
+	if p.Barcode == nil || *p.Barcode == "" {
+		barcode = nil // This will insert NULL in the database
+	} else {
+		barcode = *p.Barcode
+	}
+
+	// ✅ Insert with barcode as NULL if empty
 	query := `
         INSERT INTO products 
         (company_id, barcode, name, category, category_id, cost_price, retail_price, 
@@ -22,9 +29,16 @@ func CreateProduct(db *sql.DB, p *Product) (int64, error) {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
     `
 	result, err := tx.Exec(query,
-		p.CompanyID, p.Barcode, p.Name, p.Category, p.CategoryID,
-		p.CostPrice, p.RetailPrice, p.WholesalePrice,
-		p.WholesaleMinQty, p.ReorderLevel,
+		p.CompanyID,
+		barcode, // ✅ Can be NULL
+		p.Name,
+		p.Category,
+		p.CategoryID,
+		p.CostPrice,
+		p.RetailPrice,
+		p.WholesalePrice,
+		p.WholesaleMinQty,
+		p.ReorderLevel,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create product: %w", err)
@@ -35,8 +49,7 @@ func CreateProduct(db *sql.DB, p *Product) (int64, error) {
 		return 0, fmt.Errorf("failed to get product ID: %w", err)
 	}
 
-	// ✅ Insert into shop_stock for all active shops (not branches)
-	// Only if StockQuantity > 0
+	// Add stock if specified
 	if p.StockQuantity > 0 {
 		shopQuery := `
             INSERT INTO shop_stock (shop_id, product_id, quantity, company_id, created_at, updated_at)
@@ -46,19 +59,15 @@ func CreateProduct(db *sql.DB, p *Product) (int64, error) {
         `
 		_, err = tx.Exec(shopQuery, id, p.StockQuantity, p.CompanyID, p.CompanyID)
 		if err != nil {
-			// Log error but don't fail the transaction - stock can be added later
 			log.Printf("⚠️ Warning: Failed to create shop stock: %v", err)
-			// Continue without stock
 		}
 	}
 
-	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return 0, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	log.Printf("✅ Product created: %s (ID: %d) with stock: %d", p.Name, id, p.StockQuantity)
-
+	log.Printf("✅ Product created: ID=%d, Name=%s, Barcode=%v", id, p.Name, barcode)
 	return id, nil
 }
 
@@ -70,6 +79,14 @@ func UpdateProduct(db *sql.DB, p *Product) error {
 	}
 	defer tx.Rollback()
 
+	// ✅ Handle barcode - if empty string, use NULL
+	var barcode interface{}
+	if p.Barcode == nil || *p.Barcode == "" {
+		barcode = nil
+	} else {
+		barcode = *p.Barcode
+	}
+
 	// Update products table
 	query := `
         UPDATE products 
@@ -79,7 +96,7 @@ func UpdateProduct(db *sql.DB, p *Product) error {
         WHERE id = ?
     `
 	_, err = tx.Exec(query,
-		p.Barcode, p.Name, p.Category,
+		barcode, p.Name, p.Category,
 		p.CostPrice, p.RetailPrice, p.WholesalePrice,
 		p.WholesaleMinQty, p.ReorderLevel,
 		p.ID,
@@ -126,14 +143,25 @@ func GetAllProducts(db *sql.DB) ([]Product, error) {
 	var products []Product
 	for rows.Next() {
 		var p Product
+		var barcodePtr *string
+
 		err := rows.Scan(
-			&p.ID, &p.Barcode, &p.Name, &p.Category,
-			&p.CostPrice, &p.RetailPrice, &p.WholesalePrice,
-			&p.WholesaleMinQty, &p.ReorderLevel, &p.StockQuantity,
+			&p.ID,
+			&barcodePtr,
+			&p.Name,
+			&p.Category,
+			&p.CostPrice,
+			&p.RetailPrice,
+			&p.WholesalePrice,
+			&p.WholesaleMinQty,
+			&p.ReorderLevel,
+			&p.StockQuantity,
 		)
 		if err != nil {
 			return nil, err
 		}
+
+		p.Barcode = barcodePtr
 		products = append(products, p)
 	}
 
@@ -227,22 +255,47 @@ func GetProductByBarcodeAndShop(db *sql.DB, barcode string, companyID int, shopI
 	}
 
 	query := `
-        SELECT p.id, p.company_id, p.barcode, p.name, p.category, p.category_id,
-               p.cost_price, p.retail_price, p.wholesale_price, p.wholesale_min_qty,
-               p.reorder_level, p.created_at, p.updated_at,
-               COALESCE(ss.quantity, 0) as stock_quantity
+        SELECT 
+            p.id, 
+            p.company_id, 
+            p.barcode, 
+            p.name, 
+            p.category, 
+            p.category_id,
+            p.cost_price, 
+            p.retail_price, 
+            p.wholesale_price, 
+            p.wholesale_min_qty,
+            COALESCE(ss.quantity, 0) as stock_quantity,
+            p.reorder_level, 
+            p.is_active,
+            p.created_at, 
+            p.updated_at
         FROM products p
         LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ? AND ss.company_id = ?
         WHERE p.barcode = ? AND p.company_id = ?
         LIMIT 1
     `
+
 	var p Product
+	var barcodePtr *string
+
 	err := db.QueryRow(query, shopID, companyID, barcode, companyID).Scan(
-		&p.ID, &p.CompanyID, &p.Barcode, &p.Name, &p.Category, &p.CategoryID,
-		&p.CostPrice, &p.RetailPrice, &p.WholesalePrice,
-		&p.WholesaleMinQty, &p.ReorderLevel,
-		&p.CreatedAt, &p.UpdatedAt,
+		&p.ID,
+		&p.CompanyID,
+		&barcodePtr,
+		&p.Name,
+		&p.Category,
+		&p.CategoryID,
+		&p.CostPrice,
+		&p.RetailPrice,
+		&p.WholesalePrice,
+		&p.WholesaleMinQty,
 		&p.StockQuantity,
+		&p.ReorderLevel,
+		&p.IsActive,
+		&p.CreatedAt,
+		&p.UpdatedAt,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -250,6 +303,9 @@ func GetProductByBarcodeAndShop(db *sql.DB, barcode string, companyID int, shopI
 	if err != nil {
 		return nil, err
 	}
+
+	p.Barcode = barcodePtr
+
 	return &p, nil
 }
 
@@ -339,44 +395,6 @@ func GetProductsByShop(db *sql.DB, shopID int) ([]Product, error) {
 	return products, nil
 }
 
-func GetProductsByShopAndCompany(db *sql.DB, shopID, companyID int) ([]Product, error) {
-	query := `
-        SELECT 
-            p.id, p.barcode, p.name, p.category, p.cost_price, 
-            p.retail_price, p.wholesale_price, p.wholesale_min_qty,
-            p.reorder_level, p.created_at, p.updated_at,
-            COALESCE(ss.quantity, 0) as stock_quantity
-        FROM products p
-        LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ? AND ss.company_id = ?
-        WHERE p.company_id = ?
-        ORDER BY p.name
-    `
-	rows, err := db.Query(query, shopID, companyID, companyID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var products []Product
-	for rows.Next() {
-		var p Product
-		err := rows.Scan(
-			&p.ID, &p.Barcode, &p.Name, &p.Category,
-			&p.CostPrice, &p.RetailPrice, &p.WholesalePrice,
-			&p.WholesaleMinQty, &p.ReorderLevel,
-			&p.CreatedAt, &p.UpdatedAt, &p.StockQuantity,
-		)
-		if err != nil {
-			return nil, err
-		}
-		products = append(products, p)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating products: %w", err)
-	}
-	return products, nil
-}
-
 func AddStockToShop(db *sql.DB, shopID, productID, quantity, companyID int) error {
 	query := `
         INSERT INTO shop_stock (shop_id, product_id, quantity, company_id, created_at, updated_at)
@@ -385,4 +403,340 @@ func AddStockToShop(db *sql.DB, shopID, productID, quantity, companyID int) erro
     `
 	_, err := db.Exec(query, shopID, productID, quantity, companyID, quantity)
 	return err
+}
+
+// SearchProductsByCompany - Search products by company only (master catalog)
+// Optionally includes stock quantity for a specific shop
+func SearchProductsByCompany(db *sql.DB, query string, companyID int, shopID int) ([]Product, error) {
+	if query == "" {
+		return []Product{}, nil
+	}
+
+	searchTerm := "%" + query + "%"
+
+	sqlQuery := `
+        SELECT 
+            p.id, 
+            p.company_id,
+            p.barcode, 
+            p.name, 
+            p.category, 
+            p.category_id,
+            p.cost_price, 
+            p.retail_price, 
+            p.wholesale_price, 
+            p.wholesale_min_qty,
+            COALESCE(ss.quantity, 0) as stock_quantity,
+            p.reorder_level, 
+            p.is_active,
+            p.created_at,
+            p.updated_at
+        FROM products p
+        LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ? AND ss.company_id = ?
+        WHERE p.is_active = 1 
+            AND p.company_id = ?
+            AND (p.name LIKE ? OR p.barcode LIKE ?)
+        ORDER BY 
+            CASE 
+                WHEN p.barcode = ? THEN 1
+                WHEN p.name LIKE ? THEN 2
+                ELSE 3
+            END,
+            p.name
+        LIMIT 20
+    `
+
+	rows, err := db.Query(sqlQuery,
+		shopID,
+		companyID,
+		companyID,
+		searchTerm, searchTerm,
+		query,
+		searchTerm,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search products: %w", err)
+	}
+	defer rows.Close()
+
+	var products []Product
+	for rows.Next() {
+		var p Product
+		var barcodePtr *string
+
+		err := rows.Scan(
+			&p.ID,
+			&p.CompanyID,
+			&barcodePtr,
+			&p.Name,
+			&p.Category,
+			&p.CategoryID,
+			&p.CostPrice,
+			&p.RetailPrice,
+			&p.WholesalePrice,
+			&p.WholesaleMinQty,
+			&p.StockQuantity,
+			&p.ReorderLevel,
+			&p.IsActive,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		// ✅ Set barcode from pointer
+		p.Barcode = barcodePtr
+
+		products = append(products, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating products: %w", err)
+	}
+
+	if len(products) == 0 {
+		log.Printf("🔍 No products found for company %d with query: %s", companyID, query)
+	}
+
+	return products, nil
+}
+
+// GetProductsByCompany - Get all products for a company (master catalog)
+func GetProductsByCompany(db *sql.DB, companyID int, shopID int) ([]Product, error) {
+	query := `
+        SELECT 
+            p.id, 
+            p.company_id, 
+            p.barcode, 
+            p.name, 
+            p.category, 
+            p.category_id,
+            p.cost_price, 
+            p.retail_price, 
+            p.wholesale_price, 
+            p.wholesale_min_qty,
+            p.reorder_level, 
+            p.is_active,
+            p.created_at, 
+            p.updated_at,
+            COALESCE(ss.quantity, 0) as stock_quantity
+        FROM products p
+        LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ? AND ss.company_id = ?
+        WHERE p.company_id = ? AND p.is_active = 1
+        ORDER BY p.name ASC
+    `
+
+	rows, err := db.Query(query, shopID, companyID, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get products with stock: %w", err)
+	}
+	defer rows.Close()
+
+	var products []Product
+	for rows.Next() {
+		var p Product
+		err := rows.Scan(
+			&p.ID,
+			&p.CompanyID,
+			&p.Barcode,
+			&p.Name,
+			&p.Category,
+			&p.CategoryID,
+			&p.CostPrice,
+			&p.RetailPrice,
+			&p.WholesalePrice,
+			&p.WholesaleMinQty,
+			&p.ReorderLevel,
+			&p.IsActive,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+			&p.StockQuantity,
+		)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating products: %w", err)
+	}
+
+	return products, nil
+}
+
+// GetProductByNameExact - Get product by exact name match
+func GetProductByNameExact(db *sql.DB, name string, companyID int) (*Product, error) {
+	query := `
+        SELECT id, company_id, barcode, name, category, category_id,
+               cost_price, retail_price, wholesale_price, wholesale_min_qty,
+               reorder_level, created_at, updated_at
+        FROM products
+        WHERE name = ? AND company_id = ?
+        LIMIT 1
+    `
+	var p Product
+	var barcodePtr *string
+
+	err := db.QueryRow(query, name, companyID).Scan(
+		&p.ID,
+		&p.CompanyID,
+		&barcodePtr,
+		&p.Name,
+		&p.Category,
+		&p.CategoryID,
+		&p.CostPrice,
+		&p.RetailPrice,
+		&p.WholesalePrice,
+		&p.WholesaleMinQty,
+		&p.ReorderLevel,
+		&p.CreatedAt,
+		&p.UpdatedAt,
+	)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	p.Barcode = barcodePtr
+	return &p, nil
+}
+
+// GetProductsByNameFuzzy - Get products by fuzzy name match (contains)
+func GetProductsByNameFuzzy(db *sql.DB, name string, companyID int) ([]Product, error) {
+	searchTerm := "%" + name + "%"
+	query := `
+        SELECT id, company_id, barcode, name, category, category_id,
+               cost_price, retail_price, wholesale_price, wholesale_min_qty,
+               reorder_level, created_at, updated_at
+        FROM products
+        WHERE name LIKE ? AND company_id = ?
+        LIMIT 10
+    `
+	rows, err := db.Query(query, searchTerm, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []Product
+	for rows.Next() {
+		var p Product
+		var barcodePtr *string
+		err := rows.Scan(
+			&p.ID,
+			&p.CompanyID,
+			&barcodePtr,
+			&p.Name,
+			&p.Category,
+			&p.CategoryID,
+			&p.CostPrice,
+			&p.RetailPrice,
+			&p.WholesalePrice,
+			&p.WholesaleMinQty,
+			&p.ReorderLevel,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		p.Barcode = barcodePtr
+		products = append(products, p)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return products, nil
+}
+
+// UpdateProductBarcode - Update a product's barcode
+func UpdateProductBarcode(db *sql.DB, productID int64, barcode string) error {
+	// Convert empty string to NULL
+	var barcodePtr interface{}
+	if barcode == "" {
+		barcodePtr = nil
+	} else {
+		barcodePtr = barcode
+	}
+
+	query := `
+        UPDATE products 
+        SET barcode = ?, updated_at = NOW()
+        WHERE id = ?
+    `
+	_, err := db.Exec(query, barcodePtr, productID)
+	return err
+}
+
+// GetProductsByCompanyWithStock - Get all products for a company with stock for a specific shop
+func GetProductsByCompanyWithStock(db *sql.DB, companyID int, shopID int) ([]Product, error) {
+	query := `
+        SELECT 
+            p.id, 
+            p.company_id, 
+            p.barcode, 
+            p.name, 
+            p.category, 
+            p.category_id,
+            p.cost_price, 
+            p.retail_price, 
+            p.wholesale_price, 
+            p.wholesale_min_qty,
+            COALESCE(ss.quantity, 0) as stock_quantity,
+            p.reorder_level, 
+            p.is_active,
+            p.created_at, 
+            p.updated_at
+        FROM products p
+        LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ? AND ss.company_id = ?
+        WHERE p.company_id = ? AND p.is_active = 1
+        ORDER BY p.name ASC
+    `
+
+	rows, err := db.Query(query, shopID, companyID, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get products with stock: %w", err)
+	}
+	defer rows.Close()
+
+	var products []Product
+	for rows.Next() {
+		var p Product
+		var barcodePtr *string
+
+		err := rows.Scan(
+			&p.ID,
+			&p.CompanyID,
+			&barcodePtr,
+			&p.Name,
+			&p.Category,
+			&p.CategoryID,
+			&p.CostPrice,
+			&p.RetailPrice,
+			&p.WholesalePrice,
+			&p.WholesaleMinQty,
+			&p.StockQuantity,
+			&p.ReorderLevel,
+			&p.IsActive,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		p.Barcode = barcodePtr
+		products = append(products, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating products: %w", err)
+	}
+
+	log.Printf("📦 Retrieved %d products with stock for company %d, shop %d", len(products), companyID, shopID)
+	return products, nil
 }

@@ -651,31 +651,48 @@
                         class="text-gray-400 hover:text-gray-600 font-bold text-xl ml-2">✕</button>
                 </div>
             </div>
-            <div class="overflow-y-auto flex-1 border rounded-xl relative">
-                <table class="w-full text-left border-collapse text-sm">
-                    <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
-                        <tr>
-                            <th class="p-3">Barcode / SKU</th>
-                            <th class="p-3">Product Name</th>
-                            <th class="p-3">Category</th>
-                            <th class="p-3 text-right">Retail Price</th>
-                            <th class="p-3 text-right">Wholesale Price</th>
-                            <th class="p-3 text-center">Stock</th>
-                            <th class="p-3 text-center">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody id="product-catalog-rows">
-                        <tr>
-                            <td colspan="7" class="p-4 text-center text-gray-500">Loading products...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="flex justify-end border-t pt-3">
-                <button onclick="closeProductCatalogModal()"
-                    class="bg-gray-200 text-gray-800 font-semibold px-5 py-2 rounded-xl hover:bg-gray-300 transition">Close</button>
-            </div>
+
+            <!-- ✅ SEARCH BAR - ADD THIS -->
+            <<div class="flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200">
+                <div class="flex-1 relative">
+                    <input type="text" id="catalog-search-input" placeholder="🔍 Search by product name or barcode..."
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
+                        onkeyup="filterCatalog()" oninput="filterCatalog()">
+                    <span id="catalog-search-count"
+                        class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></span>
+                </div>
+                <button onclick="clearCatalogSearch()"
+                    class="text-gray-400 hover:text-gray-600 text-sm font-medium px-2 py-1">
+                    ✕ Clear
+                </button>
         </div>
+
+        <div class="overflow-y-auto flex-1 border rounded-xl relative">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                    <tr>
+                        <th class="p-3">Barcode / SKU</th>
+                        <th class="p-3">Product Name</th>
+                        <th class="p-3">Category</th>
+                        <th class="p-3 text-right">Retail Price</th>
+                        <th class="p-3 text-right">Wholesale Price</th>
+                        <th class="p-3 text-center">Stock</th>
+                        <th class="p-3 text-center">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="product-catalog-rows">
+                    <tr>
+                        <td colspan="7" class="p-4 text-center text-gray-500">Loading products...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        <div class="flex justify-between items-center border-t pt-3">
+            <span id="catalog-total-count" class="text-xs text-gray-400"></span>
+            <button onclick="closeProductCatalogModal()"
+                class="bg-gray-200 text-gray-800 font-semibold px-5 py-2 rounded-xl hover:bg-gray-300 transition">Close</button>
+        </div>
+    </div>
     </div>
 
     <!-- ============================================ -->
@@ -719,6 +736,50 @@
         function deleteCookie(name) {
             document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/';
         }
+
+        // ✅ Make sure filterCatalog is globally accessible
+        window.filterCatalog = function () {
+            const searchInput = document.getElementById('catalog-search-input');
+            if (!searchInput) {
+                console.error('❌ Search input not found!');
+                return;
+            }
+
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            console.log('🔍 filterCatalog called with:', searchTerm);
+            console.log('📦 Total products:', allProducts.length);
+
+            if (!searchTerm) {
+                filteredProducts = [...allProducts];
+                document.getElementById('catalog-search-count').textContent = '';
+            } else {
+                filteredProducts = allProducts.filter(product => {
+                    const nameMatch = product.name?.toLowerCase().includes(searchTerm) || false;
+                    const barcode = product.barcode || '';
+                    const barcodeMatch = barcode.toLowerCase().includes(searchTerm);
+                    const categoryMatch = product.category?.toLowerCase().includes(searchTerm) || false;
+                    return nameMatch || barcodeMatch || categoryMatch;
+                });
+
+                const countEl = document.getElementById('catalog-search-count');
+                if (countEl) {
+                    countEl.textContent = `${filteredProducts.length} result${filteredProducts.length !== 1 ? 's' : ''}`;
+                }
+            }
+
+            console.log('🔍 Found:', filteredProducts.length, 'products');
+            renderProductCatalog(filteredProducts);
+            updateCatalogCounts();
+        };
+
+        // ============================================
+        // CUSTOMER VARIABLES
+        // ============================================
+
+        let selectedCustomerId = 1; // Default to Walk-in Customer
+        let customerDepositBalance = 0;
+        let customerCreditLimit = 0;
+        let currentSelectedCustomer = null;
 
         // ============================================
         // SHOP MANAGEMENT
@@ -779,6 +840,22 @@
             }
         }
 
+        function openShopManagement() {
+            // Open the shop selector modal
+            const modal = document.getElementById('shop-selector-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                renderShopList();
+            } else {
+                // If modal doesn't exist, use changeShop
+                if (typeof changeShop === 'function') {
+                    changeShop();
+                } else {
+                    alert('Shop management will be available soon.');
+                }
+            }
+        }
+
         function showNotification(message) {
             const notif = document.createElement('div');
             notif.className = 'fixed top-20 right-4 bg-emerald-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 transition-all duration-500';
@@ -824,22 +901,75 @@
         function renderSearchDropdown(items) {
             const dropdown = document.getElementById('search-results-dropdown');
             selectedSearchIndex = -1;
+
+            // ✅ Show friendly "no results" message
             if (!items || items.length === 0) {
-                dropdown.innerHTML = '<div class="p-3 text-center text-sm text-gray-500">No products found</div>';
+                dropdown.innerHTML = `
+            <div class="p-6 text-center bg-white rounded-lg">
+                <div class="text-4xl mb-3">🔍</div>
+                <div class="text-sm font-semibold text-gray-700">No products found</div>
+                <div class="text-xs text-gray-500 mt-1">No items match your search in this company</div>
+                <div class="text-xs text-gray-400 mt-2 flex flex-col gap-1">
+                    <span>💡 Try a different search term</span>
+                    <span>📱 Check the barcode is correct</span>
+                    <span>➕ You may need to add this product first</span>
+                </div>
+                <button onclick="openAddProductModal()" 
+                        class="mt-3 text-purple-600 hover:text-purple-800 text-xs font-semibold underline">
+                    ➕ Add New Product
+                </button>
+            </div>
+        `;
                 dropdown.classList.remove('hidden');
                 return;
             }
+
+            // ✅ Show results with stock info
             let html = '';
+            const companyName = localStorage.getItem('company_name') || 'Your Company';
+
+            // ✅ Add header showing which company's products are being searched
+            html += `
+        <div class="px-3 py-2 bg-purple-50 border-b border-purple-100 text-[10px] text-purple-600 font-semibold flex justify-between">
+            <span>📦 Products from ${companyName}</span>
+            <span>${items.length} result${items.length > 1 ? 's' : ''}</span>
+        </div>
+    `;
+
             items.forEach((item, index) => {
                 const price = item.retail_price || 0;
                 const stock = item.stock_quantity || 0;
                 const stockClass = stock <= 0 ? 'text-red-500' : 'text-green-600';
                 const stockText = stock <= 0 ? 'Out of Stock' : stock + ' available';
-                html += `<div id="search-item-${index}" onclick="selectSearchResult(${index})" class="p-3 hover:bg-purple-50 cursor-pointer flex justify-between items-center transition border-b last:border-b-0">
-                    <div><div class="font-bold text-gray-900 text-sm">${item.name}</div><div class="text-xs text-gray-500">${item.barcode ? '📱 ' + item.barcode : ''} ${item.category ? ' • ' + item.category : ''}<span class="${stockClass} ml-1">| Stock: ${stockText}</span></div></div>
-                    <div class="text-right"><div class="font-bold text-purple-700 text-sm">KES ${price.toFixed(2)}</div>${stock > 0 ? '<span class="text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full">+ Add</span>' : '<span class="text-[10px] bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded-full">Out of Stock</span>'}</div>
-                </div>`;
+                const stockBadge = stock <= 0 ?
+                    '<span class="text-[10px] bg-red-100 text-red-800 font-bold px-2 py-0.5 rounded-full">Out of Stock</span>' :
+                    `<span class="text-[10px] bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded-full">${stock} in stock</span>`;
+
+                html += `<div id="search-item-${index}" 
+                    onclick="selectSearchResult(${index})" 
+                    class="p-3 hover:bg-purple-50 cursor-pointer flex justify-between items-center transition border-b last:border-b-0 group">
+            <div class="flex-1 min-w-0">
+                <div class="font-bold text-gray-900 text-sm truncate">${item.name}</div>
+                <div class="text-xs text-gray-500 flex items-center gap-2 flex-wrap">
+                    ${item.barcode ? `<span class="font-mono text-gray-400">📱 ${item.barcode}</span>` : ''}
+                    ${item.category ? `<span class="text-gray-400">• ${item.category}</span>` : ''}
+                    <span class="${stockClass} font-medium">| ${stockText}</span>
+                </div>
+                <div class="text-[10px] text-gray-400 mt-0.5">
+                    Company catalog • ${stock > 0 ? 'Available at this shop' : 'Not in stock at this shop'}
+                </div>
+            </div>
+            <div class="text-right ml-4 flex flex-col items-end flex-shrink-0">
+                <div class="font-bold text-purple-700 text-sm">KES ${price.toFixed(2)}</div>
+                ${stockBadge}
+                ${stock > 0 ?
+                        `<span class="text-[10px] bg-purple-100 text-purple-800 font-bold px-2 py-0.5 rounded-full mt-1 opacity-0 group-hover:opacity-100 transition">Click to add</span>` :
+                        `<span class="text-[10px] text-gray-400 mt-1">Cannot add</span>`
+                    }
+            </div>
+        </div>`;
             });
+
             dropdown.innerHTML = html;
             dropdown.classList.remove('hidden');
         }
@@ -988,28 +1118,60 @@
 
         function updateRowTotals(inputElement, isManualPriceChange) {
             const row = inputElement.closest('tr');
+            if (!row) return;
+
             const qtyInput = row.querySelector('.cart-qty-input');
             const priceInput = row.querySelector('.cart-price-input');
+
+            // ✅ Get max stock from data attribute
+            const maxStock = parseInt(row.getAttribute('data-stock')) || 999;
             let qty = parseInt(qtyInput.value) || 1;
+
+            // ✅ Validate quantity against stock
+            if (qty > maxStock) {
+                qty = maxStock;
+                qtyInput.value = maxStock;
+                showNotification('Only ' + maxStock + ' items available in stock', 'warning');
+            }
+            if (qty < 1) {
+                qty = 1;
+                qtyInput.value = 1;
+            }
+
             let currentPrice = parseFloat(priceInput.value) || 0;
+
+            // ✅ Handle wholesale pricing
             const wholesaleQty = parseInt(row.getAttribute('data-wholesale-threshold')) || 0;
             const retailPrice = parseFloat(row.getAttribute('data-retail-price')) || 0;
             const wholesalePrice = parseFloat(row.getAttribute('data-wholesale-price')) || 0;
             const badgeSpan = row.querySelector('.price-badge');
+
             if (!isManualPriceChange) {
                 if (wholesaleQty > 0 && qty >= wholesaleQty && wholesalePrice > 0) {
                     currentPrice = wholesalePrice;
-                    badgeSpan.innerHTML = '<span class="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded font-semibold">Wholesale</span>';
+                    if (badgeSpan) {
+                        badgeSpan.innerHTML = '<span class="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded font-semibold">Wholesale</span>';
+                    }
                 } else {
                     currentPrice = retailPrice;
-                    badgeSpan.innerHTML = '<span class="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded">Retail</span>';
+                    if (badgeSpan) {
+                        badgeSpan.innerHTML = '<span class="bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded">Retail</span>';
+                    }
                 }
                 priceInput.value = currentPrice.toFixed(2);
             } else {
-                badgeSpan.innerHTML = '<span class="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded font-semibold">Custom</span>';
+                if (badgeSpan) {
+                    badgeSpan.innerHTML = '<span class="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded font-semibold">Custom</span>';
+                }
             }
+
+            // ✅ Update subtotal
             const subtotal = qty * currentPrice;
-            row.querySelector('.subtotal-td').innerText = 'KES ' + subtotal.toFixed(2);
+            const subtotalTd = row.querySelector('.subtotal-td');
+            if (subtotalTd) {
+                subtotalTd.innerText = 'KES ' + subtotal.toFixed(2);
+            }
+
             updateCartTotals();
         }
 
@@ -1022,63 +1184,75 @@
         // PAYMENT FUNCTIONS
         // ============================================
         function openPaymentModal() {
-            if (totalAmount <= 0) { alert('Cart is empty!'); return; }
+            if (totalAmount <= 0) {
+                alert('Cart is empty!');
+                return;
+            }
+
+            console.log('💰 Opening payment modal - Total:', totalAmount);
+
+            // ✅ Ensure customer is set (default to Walk-in)
+            if (!selectedCustomerId || selectedCustomerId === 0) {
+                selectedCustomerId = 1; // Walk-in Customer
+                console.log('👤 Defaulting to Walk-in Customer (ID: 1)');
+            }
+
             document.getElementById('modal-total').innerText = 'KES ' + totalAmount.toFixed(2);
-            document.getElementById('cash-input').value = '0.00';
+            document.getElementById('cash-input').value = totalAmount.toFixed(2);
             document.getElementById('mpesa-input').value = '0.00';
             document.getElementById('deposit-input').value = '0.00';
-            document.getElementById('cash-input').readOnly = false;
             document.getElementById('payment-modal').classList.remove('hidden');
-            checkCustomerDeposit();
+
+            // ✅ Check if customer has deposit/credit
+            if (selectedCustomerId) {
+                checkCustomerDeposit();
+            }
+
+            // ✅ Calculate initial split
+            calculateSplit();
         }
 
         function closePaymentModal() {
             document.getElementById('payment-modal').classList.add('hidden');
         }
-
         function calculateSplit() {
             const cash = parseFloat(document.getElementById('cash-input').value) || 0;
             const mpesa = parseFloat(document.getElementById('mpesa-input').value) || 0;
             const deposit = parseFloat(document.getElementById('deposit-input').value) || 0;
             const total = parseFloat(document.getElementById('modal-total').innerText.replace('KES', '').trim()) || 0;
+
             const totalPaid = cash + mpesa + deposit;
             const remaining = total - totalPaid;
+
             const statusBox = document.getElementById('payment-status');
             const confirmBtn = document.getElementById('confirm-sale-btn');
-            console.log('💰 calculateSplit: Total:', total, 'Cash:', cash, 'Mpesa:', mpesa, 'Deposit:', deposit, 'Total Paid:', totalPaid, 'Remaining:', remaining, 'Credit Limit:', customerCreditLimit);
-            const hasCredit = selectedCustomerId && customerCreditLimit > 0;
-            const canUseCredit = hasCredit && remaining > 0 && remaining <= customerCreditLimit;
-            const isFullyPaid = totalPaid >= total - 0.009;
-            if (isFullyPaid || canUseCredit) {
+
+            // ✅ Ensure customer ID is set
+            const customerId = selectedCustomerId || 1;
+            const creditLimit = customerCreditLimit || 0;
+
+            console.log('💰 Payment calculation - Total:', total, 'Paid:', totalPaid, 'Remaining:', remaining);
+
+            if (totalPaid >= total - 0.009) {
                 confirmBtn.disabled = false;
-                if (canUseCredit && !isFullyPaid) {
-                    statusBox.className = 'text-sm font-semibold text-center py-2 rounded-lg bg-purple-100 text-purple-800';
-                    statusBox.innerText = '✅ Remaining KES ' + remaining.toFixed(2) + ' will be charged to credit';
-                } else if (deposit > 0 && cash === 0 && mpesa === 0 && remaining <= 0) {
-                    statusBox.className = 'text-sm font-semibold text-center py-2 rounded-lg bg-green-100 text-green-800';
-                    statusBox.innerText = '✅ Using deposit balance: KES ' + deposit.toFixed(2);
-                } else if (deposit > 0 && remaining > 0 && canUseCredit) {
-                    statusBox.className = 'text-sm font-semibold text-center py-2 rounded-lg bg-purple-100 text-purple-800';
-                    statusBox.innerText = '✅ Deposit: KES ' + deposit.toFixed(2) + ' | Credit: KES ' + remaining.toFixed(2);
+                const change = totalPaid - total;
+                if (change > 0.01) {
+                    statusBox.className = 'text-sm font-semibold text-center py-2 rounded-lg bg-blue-100 text-blue-800';
+                    statusBox.innerText = '✅ Change Due: KES ' + change.toFixed(2);
                 } else {
-                    const change = Math.max(0, cash - (total - mpesa - deposit));
-                    if (change > 0) {
-                        statusBox.className = 'text-sm font-semibold text-center py-2 rounded-lg bg-blue-100 text-blue-800';
-                        statusBox.innerText = 'Change Due: KES ' + change.toFixed(2);
-                    } else {
-                        statusBox.className = 'text-sm font-semibold text-center py-2 rounded-lg bg-emerald-100 text-emerald-800';
-                        statusBox.innerText = '✓ Amount Covered';
-                    }
+                    statusBox.className = 'text-sm font-semibold text-center py-2 rounded-lg bg-emerald-100 text-emerald-800';
+                    statusBox.innerText = '✅ Payment Complete!';
                 }
             } else {
                 confirmBtn.disabled = true;
                 statusBox.className = 'text-sm font-semibold text-center py-2 rounded-lg bg-amber-100 text-amber-800';
-                if (selectedCustomerId && customerCreditLimit > 0) {
-                    statusBox.innerText = 'Remaining: KES ' + remaining.toFixed(2) + ' (Credit limit: KES ' + customerCreditLimit.toFixed(2) + ')';
-                } else if (selectedCustomerId && customerCreditLimit === 0) {
-                    statusBox.innerText = 'Remaining: KES ' + remaining.toFixed(2) + ' (No credit limit set)';
-                } else {
-                    statusBox.innerText = 'Remaining: KES ' + remaining.toFixed(2);
+                statusBox.innerText = '⚠️ Remaining: KES ' + remaining.toFixed(2);
+
+                // ✅ Check if credit can cover the remaining
+                if (selectedCustomerId && customerCreditLimit > 0 && remaining <= customerCreditLimit) {
+                    statusBox.className = 'text-sm font-semibold text-center py-2 rounded-lg bg-purple-100 text-purple-800';
+                    statusBox.innerText = '✅ Credit will cover remaining: KES ' + remaining.toFixed(2);
+                    confirmBtn.disabled = false;
                 }
             }
         }
@@ -1089,40 +1263,52 @@
             const deposit = parseFloat(document.getElementById('deposit-input').value) || 0;
             const mpesaCode = document.getElementById('mpesa-code').value.trim();
             const totalPayable = totalAmount;
+
             const totalPaid = cash + mpesa + deposit;
             const remaining = totalPayable - totalPaid;
-            let paymentType = 'cash';
-            let creditAmount = 0;
-            if (selectedCustomerId && customerCreditLimit > 0 && remaining > 0) {
-                if (remaining <= customerCreditLimit) {
-                    creditAmount = remaining;
-                    console.log('✅ Using credit for remaining:', creditAmount);
+
+            // ✅ Ensure customer ID is set (default to Walk-in)
+            const customerId = selectedCustomerId || 1;
+
+            // ✅ Validate payment
+            if (totalPaid < totalPayable - 0.009) {
+                if (selectedCustomerId && customerCreditLimit > 0 && remaining <= customerCreditLimit) {
+                    // Credit will cover the remaining
+                } else if (selectedCustomerId && customerDepositBalance > 0 && remaining <= customerDepositBalance) {
+                    // Deposit will cover the remaining
                 } else {
-                    alert('❌ Remaining KES ' + remaining.toFixed(2) + ' exceeds credit limit of KES ' + customerCreditLimit.toFixed(2) + '. Please pay the difference.');
+                    alert('❌ Insufficient payment. Please enter the full amount.');
                     return;
                 }
-            } else if (remaining > 0 && !selectedCustomerId) {
-                alert('❌ Please select a customer to use credit or deposit.');
-                return;
-            } else if (remaining > 0 && selectedCustomerId && customerCreditLimit === 0) {
-                alert('❌ This customer has no credit limit. Please pay the remaining KES ' + remaining.toFixed(2) + ' with Cash or M-Pesa.');
-                return;
             }
-            if (creditAmount > 0) {
-                paymentType = 'credit';
-            } else if (deposit > 0 && (cash > 0 || mpesa > 0)) {
+
+            // ✅ Determine payment type
+            let paymentType = 'cash';
+            let creditAmount = 0;
+            let depositAmount = deposit;
+
+            if (remaining > 0 && selectedCustomerId && customerCreditLimit > 0) {
+                if (remaining <= customerCreditLimit) {
+                    creditAmount = remaining;
+                    paymentType = 'credit';
+                } else {
+                    alert('❌ Remaining KES ' + remaining.toFixed(2) + ' exceeds credit limit of KES ' + customerCreditLimit.toFixed(2));
+                    return;
+                }
+            } else if (remaining > 0 && selectedCustomerId && customerDepositBalance > 0) {
+                depositAmount = Math.min(remaining, customerDepositBalance);
                 paymentType = 'deposit';
-            } else if (deposit > 0) {
+            } else if (deposit > 0 && totalPaid >= totalPayable - 0.009) {
                 paymentType = 'deposit';
             } else if (mpesa > 0 && cash > 0) {
                 paymentType = 'split';
             } else if (mpesa > 0) {
                 paymentType = 'mpesa';
-            } else if (cash > 0) {
-                paymentType = 'cash';
             }
-            console.log('💰 Payment Type:', paymentType, 'Cash:', cash, 'Deposit:', deposit, 'Credit:', creditAmount, 'Total Paid:', cash + mpesa + deposit + creditAmount);
 
+            console.log('💰 Payment Type:', paymentType, 'Cash:', cash, 'Mpesa:', mpesa, 'Deposit:', depositAmount, 'Credit:', creditAmount);
+
+            // ✅ Get cart items
             const rows = document.querySelectorAll('#cart-items tr');
             const items = [];
             rows.forEach(row => {
@@ -1131,55 +1317,89 @@
                 const productId = parseInt(row.getAttribute('data-product-id')) || 0;
                 const productName = row.querySelector('td:first-child')?.textContent?.trim() || 'Product';
                 const subtotalTd = row.querySelector('.subtotal-td');
+
                 if (qtyInput && priceInput && productId > 0) {
                     const qty = parseInt(qtyInput.value) || 1;
                     const unitPrice = parseFloat(priceInput.value) || 0;
                     const subtotal = subtotalTd ? parseFloat(subtotalTd.innerText.replace('KES', '').trim()) : (qty * unitPrice);
-                    items.push({ product_id: productId, product_name: productName, quantity: qty, unit_price: unitPrice, subtotal: subtotal });
+                    items.push({
+                        product_id: productId,
+                        product_name: productName,
+                        quantity: qty,
+                        unit_price: unitPrice,
+                        subtotal: subtotal
+                    });
                 }
             });
-            if (items.length === 0) { alert('No valid products found in cart.'); return; }
 
+            if (items.length === 0) {
+                alert('❌ No valid products found in cart.');
+                return;
+            }
+
+            // ✅ Build payload
             const payload = {
-                total_amount: totalAmount,
+                total_amount: totalPayable,
                 cash_amount: cash,
                 mpesa_amount: mpesa,
                 mpesa_code: mpesaCode,
                 payment_type: paymentType,
                 items: items,
-                shop_id: currentShop.id,
-                deposit_amount: deposit || 0,
+                shop_id: currentShop.id || 1,
+                deposit_amount: depositAmount || 0,
                 credit_amount: creditAmount || 0,
                 customer_id: parseInt(selectedCustomerId, 10) || 0,
-                previous_balance: customerDepositBalance - deposit || 0
+                change_given: 0
             };
+
+            // ✅ Calculate change for cash payments
+            if (paymentType === 'cash' || paymentType === 'split') {
+                const totalPaidAmount = cash + mpesa + depositAmount + creditAmount;
+                if (totalPaidAmount > totalPayable) {
+                    payload.change_given = totalPaidAmount - totalPayable;
+                }
+            }
+
             console.log('📦 Payload:', payload);
 
             try {
                 const response = await fetch('/api/sales/checkout', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + getCookie('spide_token') },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + getCookie('spide_token')
+                    },
                     body: JSON.stringify(payload)
                 });
+
                 if (response.ok) {
                     const result = await response.json();
-                    payload.credit_amount = creditAmount;
+                    console.log('✅ Sale complete:', result);
+
+                    // ✅ Print receipt
                     printThermalReceipt(payload, result.sale_id);
+
+                    // ✅ Clear cart
                     document.getElementById('cart-items').innerHTML = '';
                     updateCartTotals();
                     closePaymentModal();
-                    document.getElementById('deposit-input').value = '0';
-                    customerDepositBalance = 0;
-                    if (selectedCustomerId) { loadCustomerSelector(); }
-                    showNotification('✅ Sale completed!');
+
+                    // ✅ Reset customer
+                    if (selectedCustomerId) {
+                        loadCustomerSelector();
+                    }
+
+                    showNotification('✅ Sale completed! Receipt #' + result.sale_id, 'success');
                 } else {
                     const error = await response.text();
                     console.error('Server error:', error);
-                    alert('Server error: ' + error);
+                    alert('❌ Server error: ' + error);
                 }
-            } catch (err) { alert('Network error.'); console.error(err); }
+            } catch (err) {
+                console.error('Network error:', err);
+                alert('❌ Network error. Please try again.');
+            }
         }
-
         function updateDepositCalculation() {
             const depositAmount = parseFloat(document.getElementById('deposit-input').value) || 0;
             const total = parseFloat(document.getElementById('modal-total').innerText.replace('KES', '').trim()) || 0;
@@ -1454,40 +1674,88 @@
             const alertBox = document.getElementById('modalAlert');
             const editId = document.getElementById('addProductForm').dataset.editId;
             const isEdit = editId && editId !== '';
-            const wholesalePrice = parseFloat(document.getElementById('prodWholesalePrice').value) || 0;
-            const wholesaleQty = parseInt(document.getElementById('prodWholesaleQty').value) || 0;
-            if (wholesalePrice > 0 && wholesaleQty <= 0) {
+
+            // ✅ Get barcode - allow empty string
+            const barcodeValue = document.getElementById('prodSku').value.trim();
+
+            // ✅ Build payload - allow empty barcode
+            const payload = {
+                id: isEdit ? parseInt(editId) : 0,
+                barcode: barcodeValue, // Can be empty string
+                name: document.getElementById('prodName').value.trim(),
+                category: document.getElementById('prodCategory').value.trim(),
+                cost_price: parseFloat(document.getElementById('prodBuyingPrice').value) || 0,
+                retail_price: parseFloat(document.getElementById('prodSellingPrice').value) || 0,
+                wholesale_price: parseFloat(document.getElementById('prodWholesalePrice').value) || 0,
+                wholesale_min_qty: parseInt(document.getElementById('prodWholesaleQty').value) || 0,
+                stock_quantity: parseInt(document.getElementById('prodStockQty').value) || 0,
+                reorder_level: parseInt(document.getElementById('prodReorderLevel').value) || 5
+            };
+
+            // Validate required fields
+            if (!payload.name) {
+                alertBox.className = 'p-3 rounded-lg text-sm font-medium bg-red-100 text-red-800 border border-red-200';
+                alertBox.innerText = 'Product name is required';
+                alertBox.classList.remove('hidden');
+                return;
+            }
+
+            if (payload.cost_price <= 0) {
+                alertBox.className = 'p-3 rounded-lg text-sm font-medium bg-red-100 text-red-800 border border-red-200';
+                alertBox.innerText = 'Cost price must be greater than 0';
+                alertBox.classList.remove('hidden');
+                return;
+            }
+
+            if (payload.retail_price <= 0) {
+                alertBox.className = 'p-3 rounded-lg text-sm font-medium bg-red-100 text-red-800 border border-red-200';
+                alertBox.innerText = 'Retail price must be greater than 0';
+                alertBox.classList.remove('hidden');
+                return;
+            }
+
+            // ✅ Validate wholesale
+            if (payload.wholesale_price > 0 && payload.wholesale_min_qty <= 0) {
                 alertBox.className = 'p-3 rounded-lg text-sm font-medium bg-amber-100 text-amber-800 border border-amber-200';
                 alertBox.innerText = 'Minimum wholesale quantity must be greater than 0 when wholesale price is set.';
                 alertBox.classList.remove('hidden');
                 return;
             }
-            const payload = {
-                id: isEdit ? parseInt(editId) : 0,
-                barcode: document.getElementById('prodSku').value.trim(),
-                name: document.getElementById('prodName').value.trim(),
-                category: document.getElementById('prodCategory').value.trim(),
-                cost_price: parseFloat(document.getElementById('prodBuyingPrice').value) || 0,
-                retail_price: parseFloat(document.getElementById('prodSellingPrice').value) || 0,
-                wholesale_price: wholesalePrice,
-                wholesale_min_qty: wholesaleQty,
-                stock_quantity: parseInt(document.getElementById('prodStockQty').value) || 0,
-                reorder_level: parseInt(document.getElementById('prodReorderLevel').value) || 5
-            };
+
             const url = isEdit ? '/api/products/update' : '/api/products/create';
             const method = isEdit ? 'PUT' : 'POST';
+
             saveBtn.disabled = true;
             saveBtn.innerText = 'Saving...';
             alertBox.classList.add('hidden');
+
             try {
-                const response = await fetch(url, { method: method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                console.log('📦 Saving product:', payload);
+
+                const response = await fetch(url, {
+                    method: method,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + getCookie('spide_token')
+                    },
+                    body: JSON.stringify(payload)
+                });
+
                 const result = await response.json();
+
                 if (response.ok) {
                     alertBox.className = 'p-3 rounded-lg text-sm font-medium bg-green-100 text-green-800 border border-green-200';
                     alertBox.innerText = 'Product "' + result.name + '" ' + (isEdit ? 'updated' : 'created') + ' successfully!';
                     alertBox.classList.remove('hidden');
+
+                    // ✅ Clear form
                     document.getElementById('addProductForm').reset();
-                    await loadProducts();
+
+                    // ✅ Reload products if catalog is open
+                    if (!document.getElementById('product-catalog-modal').classList.contains('hidden')) {
+                        loadProducts();
+                    }
+
                     setTimeout(() => closeAddProductModal(), 1500);
                 } else {
                     alertBox.className = 'p-3 rounded-lg text-sm font-medium bg-red-100 text-red-800 border border-red-200';
@@ -1495,67 +1763,277 @@
                     alertBox.classList.remove('hidden');
                 }
             } catch (error) {
+                console.error('Save error:', error);
                 alertBox.className = 'p-3 rounded-lg text-sm font-medium bg-red-100 text-red-800 border border-red-200';
                 alertBox.innerText = 'Network error. Please try again.';
                 alertBox.classList.remove('hidden');
             } finally {
                 saveBtn.disabled = false;
-                saveBtn.innerText = 'Save Product';
+                saveBtn.innerText = isEdit ? '💾 Update Product' : '💾 Save Product';
                 delete document.getElementById('addProductForm').dataset.editId;
-                document.querySelector('#addProductModal h3').innerHTML = '📦 Add New Stock Item';
+                document.querySelector('#addProductModal h3').innerHTML = isEdit ? '✏️ Edit Product' : '📦 Add New Stock Item';
             }
         }
 
         // ============================================
         // PRODUCT CATALOG
         // ============================================
+
+        let allProducts = [];
+        let filteredProducts = [];
         function openProductCatalogModal() {
-            document.getElementById('product-catalog-modal').classList.remove('hidden');
-            loadProducts();
-        }
+            console.log('📦 Opening product catalog...');
+            const modal = document.getElementById('product-catalog-modal');
+            if (modal) {
+                modal.classList.remove('hidden');
+                isCatalogOpen = true;
 
-        function closeProductCatalogModal() {
-            document.getElementById('product-catalog-modal').classList.add('hidden');
-        }
-
-        async function loadProducts() {
-            const tbody = document.getElementById('product-catalog-rows');
-            if (!tbody) return;
-            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">Loading products...</td></tr>';
-            try {
-                const shopId = currentShop?.id || localStorage.getItem('currentShopId') || 1;
-                const token = getCookie('spide_token');
-                const response = await fetch('/api/products?shop_id=' + shopId, { headers: { 'Authorization': 'Bearer ' + token } });
-                if (!response.ok) throw new Error('Failed to load products');
-                const products = await response.json();
-                if (!products || products.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No products found.</td></tr>';
-                    return;
+                // Clear search input when opening
+                const searchInput = document.getElementById('catalog-search-input');
+                if (searchInput) {
+                    searchInput.value = '';
+                    // ✅ Clear the search count
+                    document.getElementById('catalog-search-count').textContent = '';
                 }
-                let html = '';
-                products.forEach(p => {
-                    const isLowStock = p.stock_quantity <= p.reorder_level;
-                    const stockBadge = isLowStock ? '<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">' + p.stock_quantity + ' (Low)</span>' : '<span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full">' + p.stock_quantity + '</span>';
-                    html += `<tr class="border-b hover:bg-purple-50/50 transition">
-                        <td class="p-3 font-mono text-xs text-gray-500 font-semibold">${p.barcode || 'N/A'}</td>
-                        <td class="p-3 font-semibold text-gray-900">${p.name}</td>
-                        <td class="p-3 text-gray-500 text-xs">${p.category || 'General'}</td>
-                        <td class="p-3 text-right font-mono font-bold text-purple-900">KES ${(p.retail_price ? p.retail_price.toFixed(2) : '0.00')}</td>
-                        <td class="p-3 text-right font-mono text-gray-700">KES ${(p.wholesale_price ? p.wholesale_price.toFixed(2) : '0.00')}</td>
-                        <td class="p-3 text-center">${stockBadge}</td>
-                        <td class="p-3 text-center"><button onclick='editProduct(${JSON.stringify(p)})' class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-lg transition">✏️ Edit</button></td>
-                    </tr>`;
+
+                // ✅ Always load products fresh when opening
+                loadProducts().then(() => {
+                    // Focus search after products load
+                    setTimeout(() => {
+                        document.getElementById('catalog-search-input')?.focus();
+                    }, 300);
                 });
-                tbody.innerHTML = html;
-            } catch (err) {
-                tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-600 font-mono text-xs">⚠️ ' + err.message + '</td></tr>';
+            } else {
+                console.error('Product catalog modal not found!');
+                alert('Product catalog modal not found. Please refresh the page.');
             }
         }
 
+        function closeProductCatalogModal() {
+            const modal = document.getElementById('product-catalog-modal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        // ✅ Make allProducts a global variable
+
+        let isCatalogOpen = false;
+
+        async function loadProducts() {
+            const tbody = document.getElementById('product-catalog-rows');
+            if (!tbody) {
+                console.error('Product catalog tbody not found!');
+                return;
+            }
+
+            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">Loading products...</td></tr>';
+
+            try {
+                const shopId = currentShop?.id || localStorage.getItem('currentShopId') || 1;
+                const token = getCookie('spide_token');
+
+                console.log('📦 Loading products for shop:', shopId);
+
+                const response = await fetch('/api/products?shop_id=' + shopId, {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load products: ' + response.status);
+                }
+
+                const products = await response.json();
+                console.log('📦 Products loaded:', products.length);
+
+                // ✅ IMPORTANT: Store products in the global variable
+                allProducts = products || [];
+                filteredProducts = [...allProducts];
+
+                console.log('📦 allProducts now has:', allProducts.length, 'products');
+
+                updateCatalogCounts();
+
+                if (!allProducts || allProducts.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No products found in catalog.</td></tr>';
+                    document.getElementById('catalog-total-count').textContent = '0 products';
+                    return;
+                }
+
+                renderProductCatalog(allProducts);
+
+            } catch (err) {
+                console.error('Error loading products:', err);
+                tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-500">Error loading products: ' + err.message + '</td></tr>';
+            }
+        }
+
+        // ✅ Search/Filter Function
+        function filterCatalog() {
+            const searchInput = document.getElementById('catalog-search-input');
+            if (!searchInput) {
+                console.error('❌ Search input not found!');
+                return;
+            }
+
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            console.log('🔍 Search term:', searchTerm);
+            console.log('📦 allProducts count:', allProducts.length);
+
+            // ✅ If products aren't loaded yet, try loading them
+            if (allProducts.length === 0) {
+                console.log('⚠️ No products loaded, attempting to load...');
+                loadProducts().then(() => {
+                    // After loading, try the search again
+                    filterCatalog();
+                });
+                return;
+            }
+
+            // If no search term, show all products
+            if (!searchTerm) {
+                filteredProducts = [...allProducts];
+                document.getElementById('catalog-search-count').textContent = '';
+            } else {
+                // Filter products
+                filteredProducts = allProducts.filter(product => {
+                    const nameMatch = product.name?.toLowerCase().includes(searchTerm) || false;
+                    const barcode = product.barcode || '';
+                    const barcodeMatch = barcode.toLowerCase().includes(searchTerm);
+                    const categoryMatch = product.category?.toLowerCase().includes(searchTerm) || false;
+                    return nameMatch || barcodeMatch || categoryMatch;
+                });
+
+                const countEl = document.getElementById('catalog-search-count');
+                if (countEl) {
+                    countEl.textContent = `${filteredProducts.length} result${filteredProducts.length !== 1 ? 's' : ''}`;
+                }
+            }
+
+            console.log('🔍 Found:', filteredProducts.length, 'products');
+            renderProductCatalog(filteredProducts);
+            updateCatalogCounts();
+        }
+
+        function updateCatalogCounts() {
+            const totalEl = document.getElementById('catalog-total-count');
+            if (totalEl) {
+                totalEl.textContent = `Showing ${filteredProducts.length} of ${allProducts.length} products`;
+            }
+        }
+
+        function renderProductCatalog(products) {
+            const tbody = document.getElementById('product-catalog-rows');
+            if (!tbody) return;
+
+            // ✅ Check if products is null or undefined
+            if (!products) {
+                products = [];
+            }
+
+            if (!products || products.length === 0) {
+                const searchTerm = document.getElementById('catalog-search-input')?.value || '';
+                tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="p-4 text-center">
+                    <div class="text-gray-400">
+                        <div class="text-2xl mb-2">🔍</div>
+                        <p class="text-sm font-medium text-gray-500">${searchTerm ? 'No products match "' + searchTerm + '"' : 'No products found'}</p>
+                        ${searchTerm ? '<p class="text-xs text-gray-400 mt-1">Try a different search term</p>' : ''}
+                        <button onclick="clearCatalogSearch()" class="mt-2 text-purple-600 hover:text-purple-800 text-xs font-semibold underline">
+                            Clear Search
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+                return;
+            }
+            let html = '';
+            products.forEach(p => {
+                // ✅ Handle NULL barcode
+                const barcodeDisplay = p.barcode ? p.barcode : 'N/A';
+
+                // ✅ Stock status
+                const stock = p.stock_quantity || 0;
+                const isLowStock = stock <= p.reorder_level && stock > 0;
+                const isOutOfStock = stock <= 0;
+
+                let stockBadge = '';
+                let stockClass = '';
+                if (isOutOfStock) {
+                    stockBadge = '<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">Out of Stock</span>';
+                    stockClass = 'text-red-600 font-bold';
+                } else if (isLowStock) {
+                    stockBadge = '<span class="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">' + stock + ' (Low)</span>';
+                    stockClass = 'text-amber-600 font-bold';
+                } else {
+                    stockBadge = '<span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full">' + stock + '</span>';
+                    stockClass = 'text-emerald-600';
+                }
+
+                html += `<tr class="border-b hover:bg-purple-50/50 transition" data-product-id="${p.id}">
+            <td class="p-3 font-mono text-xs text-gray-500 font-semibold">${barcodeDisplay}</td>
+            <td class="p-3 font-semibold text-gray-900">${p.name}</td>
+            <td class="p-3 text-gray-500 text-xs">${p.category || 'General'}</td>
+            <td class="p-3 text-right font-mono font-bold text-purple-900">KES ${(p.retail_price || 0).toFixed(2)}</td>
+            <td class="p-3 text-right font-mono text-gray-700">KES ${(p.wholesale_price || 0).toFixed(2)}</td>
+            <td class="p-3 text-center ${stockClass}">${stockBadge}</td>
+            <td class="p-3 text-center">
+                <button onclick='editProduct(${JSON.stringify(p)})' 
+                        class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-lg transition">
+                    ✏️ Edit
+                </button>
+                <button onclick='quickUpdateStock(${p.id}, "${p.name.replace(/"/g, '\\"')}", ${stock})' 
+                        class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg transition ml-1">
+                    📦 Stock
+                </button>
+            </td>
+        </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        // ✅ Debug function - type checkProducts() in console
+        function checkProducts() {
+            console.log('📦 allProducts:', allProducts);
+            console.log('📦 allProducts count:', allProducts.length);
+            console.log('📦 filteredProducts:', filteredProducts);
+            console.log('📦 filteredProducts count:', filteredProducts.length);
+            if (allProducts.length > 0) {
+                console.log('📦 First product:', allProducts[0]);
+            }
+        }
+
+        // Make it globally accessible
+        window.checkProducts = checkProducts;
+
+        // ✅ Keyboard shortcut: Ctrl+F or Cmd+F to focus search
+        document.addEventListener('keydown', function (e) {
+            const modal = document.getElementById('product-catalog-modal');
+            if (modal && !modal.classList.contains('hidden')) {
+                // Ctrl+F or Cmd+F
+                if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                    e.preventDefault();
+                    document.getElementById('catalog-search-input')?.focus();
+                }
+                // Escape to close
+                if (e.key === 'Escape') {
+                    const searchInput = document.getElementById('catalog-search-input');
+                    if (searchInput && searchInput.value) {
+                        searchInput.value = '';
+                        filterCatalog();
+                    } else {
+                        closeProductCatalogModal();
+                    }
+                }
+            }
+        });
         function editProduct(product) {
             closeProductCatalogModal();
             setTimeout(function () {
-                document.getElementById('prodSku').value = product.barcode || '';
+                // ✅ Handle NULL barcode properly
+                const barcode = product.barcode || '';
+
+                document.getElementById('prodSku').value = barcode;
                 document.getElementById('prodName').value = product.name || '';
                 document.getElementById('prodCategory').value = product.category || '';
                 document.getElementById('prodBuyingPrice').value = product.cost_price || 0;
@@ -1564,12 +2042,217 @@
                 document.getElementById('prodWholesaleQty').value = product.wholesale_min_qty || 0;
                 document.getElementById('prodStockQty').value = product.stock_quantity || 0;
                 document.getElementById('prodReorderLevel').value = product.reorder_level || 5;
+
+                // ✅ Store the product ID for update
                 document.getElementById('addProductForm').dataset.editId = product.id;
                 document.querySelector('#addProductModal h3').innerHTML = '✏️ Edit Product';
                 document.getElementById('saveProductBtn').innerText = '💾 Update Product';
+
+                // ✅ If barcode is empty, show a placeholder
+                if (!barcode) {
+                    document.getElementById('prodSku').placeholder = 'No barcode (leave blank to keep)';
+                }
+
                 openAddProductModal();
             }, 300);
         }
+
+        // ============================================
+        // QUICK STOCK UPDATE
+        // ============================================
+
+        function quickUpdateStock(productId, productName, currentStock) {
+            // ✅ Create a simple modal for stock update
+            const modal = document.createElement('div');
+            modal.id = 'stock-update-modal';
+            modal.className = 'fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4';
+            modal.innerHTML = `
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+                    <span class="bg-emerald-100 p-1.5 rounded-lg">📦</span>
+                    Update Stock
+                </h2>
+                <button onclick="closeStockUpdate()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+            
+            <div>
+                <p class="text-sm font-medium text-gray-700">Product: <span class="text-purple-700">${productName}</span></p>
+                <p class="text-xs text-gray-500 mt-1">Current Stock: <span class="font-bold">${currentStock}</span></p>
+            </div>
+            
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">New Stock Quantity</label>
+                <input type="number" id="stock-quantity-input" value="${currentStock}" min="0" 
+                       class="w-full px-3 py-2 border rounded-lg text-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            </div>
+            
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Adjustment Type</label>
+                <select id="stock-adjustment-type" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    <option value="set">Set Exact Quantity</option>
+                    <option value="add">Add to Current</option>
+                    <option value="subtract">Subtract from Current</option>
+                </select>
+            </div>
+            
+            <div id="stock-update-alert" class="hidden p-2 rounded-lg text-sm font-medium"></div>
+            
+            <div class="flex gap-3 pt-4 border-t border-gray-100">
+                <button onclick="closeStockUpdate()" 
+                        class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">
+                    Cancel
+                </button>
+                <button onclick="saveStockUpdate(${productId})" 
+                        class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 rounded-lg transition text-sm">
+                    💾 Update Stock
+                </button>
+            </div>
+        </div>
+    `;
+
+            document.body.appendChild(modal);
+            modal.classList.remove('hidden');
+
+            // Focus the input
+            setTimeout(() => {
+                document.getElementById('stock-quantity-input')?.focus();
+                document.getElementById('stock-quantity-input')?.select();
+            }, 100);
+        }
+
+        function closeStockUpdate() {
+            const modal = document.getElementById('stock-update-modal');
+            if (modal) {
+                modal.classList.add('hidden');
+                setTimeout(() => modal.remove(), 300);
+            }
+        }
+        async function saveStockUpdate(productId) {
+            const quantityInput = document.getElementById('stock-quantity-input');
+            const adjustmentType = document.getElementById('stock-adjustment-type').value;
+            const alertBox = document.getElementById('stock-update-alert');
+            const submitBtn = document.querySelector('#stock-update-modal .bg-emerald-600');
+
+            if (!quantityInput) {
+                console.error('Quantity input not found');
+                return;
+            }
+
+            const newQuantity = parseInt(quantityInput.value) || 0;
+            if (newQuantity < 0) {
+                showStockAlert('Quantity cannot be negative', 'error');
+                return;
+            }
+
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Saving...';
+            }
+
+            alertBox?.classList.add('hidden');
+
+            try {
+                const token = getCookie('spide_token');
+                if (!token) {
+                    showStockAlert('❌ Not authenticated. Please login again.', 'error');
+                    return;
+                }
+
+                const shopId = currentShop?.id || localStorage.getItem('currentShopId') || 1;
+
+                const payload = {
+                    product_id: productId,
+                    quantity: newQuantity,
+                    adjustment_type: adjustmentType,
+                    shop_id: parseInt(shopId) || 1
+                };
+
+                console.log('📦 Sending stock update:', payload);
+
+                const response = await fetch('/api/products/update-stock', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: JSON.stringify(payload)
+                });
+
+                // ✅ Check if response is OK first
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error('Server error response:', text);
+
+                    // Check if it's HTML (likely an error page)
+                    if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+                        showStockAlert('❌ Server error (check logs). Please try again.', 'error');
+                    } else {
+                        showStockAlert('❌ Error: ' + (text || 'Unknown error'), 'error');
+                    }
+                    return;
+                }
+
+                // ✅ Try to parse as JSON
+                let result;
+                const responseText = await response.text();
+                console.log('📦 Response text:', responseText);
+
+                // ✅ Check if response is empty
+                if (!responseText || responseText.trim() === '') {
+                    showStockAlert('❌ Server returned empty response', 'error');
+                    return;
+                }
+
+                try {
+                    result = JSON.parse(responseText);
+                } catch (parseError) {
+                    console.error('Failed to parse JSON:', responseText);
+                    showStockAlert('❌ Server returned invalid response format', 'error');
+                    return;
+                }
+
+                if (result.success) {
+                    showStockAlert('✅ Stock updated! New quantity: ' + result.new_quantity, 'success');
+
+                    setTimeout(() => {
+                        closeStockUpdate();
+                        loadProducts();
+                    }, 1500);
+                } else {
+                    showStockAlert('❌ Error: ' + (result.error || result.message || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Stock update error:', error);
+                showStockAlert('❌ Network error: ' + error.message, 'error');
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = '💾 Update Stock';
+                }
+            }
+        }
+        function showStockAlert(message, type) {
+            const alertBox = document.getElementById('stock-update-alert');
+            if (!alertBox) return;
+
+            alertBox.textContent = message;
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium ' +
+                (type === 'success' ? 'bg-green-100 text-green-700 border border-green-200' :
+                    type === 'error' ? 'bg-red-100 text-red-700 border border-red-200' :
+                        'bg-amber-100 text-amber-700 border border-amber-200');
+            alertBox.classList.remove('hidden');
+        }
+
+        function clearCatalogSearch() {
+            const searchInput = document.getElementById('catalog-search-input');
+            if (searchInput) {
+                searchInput.value = '';
+                filterCatalog();
+                searchInput.focus();
+            }
+        }
+
 
         // ============================================
         // LOW STOCK ALERTS
@@ -1616,7 +2299,7 @@
         // ============================================
         function openInventoryValuationModal() {
             document.getElementById('inventory-valuation-modal').classList.remove('hidden');
-            loadBranchesForValuation();
+            loadShopsForValuation();
             loadInventoryValuation();
         }
 
@@ -1624,21 +2307,21 @@
             document.getElementById('inventory-valuation-modal').classList.add('hidden');
         }
 
-        async function loadBranchesForValuation() {
+        async function loadShopsForValuation() {
             try {
-                const response = await fetch('/api/branches');
+                const response = await fetch('/api/shops');
                 if (!response.ok) return;
-                const branches = await response.json();
+                const shops = await response.json();
                 const select = document.getElementById('valuation-branch-select');
                 if (!select) return;
-                select.innerHTML = '<option value="0">All Branches</option>';
-                branches.forEach(b => {
+                select.innerHTML = '<option value="0">All Shops</option>';
+                shops.forEach(b => {
                     const opt = document.createElement('option');
                     opt.value = b.id;
                     opt.textContent = b.name;
                     select.appendChild(opt);
                 });
-            } catch (e) { console.error('Error loading branches:', e); }
+            } catch (e) { console.error('Error loading shops:', e); }
         }
 
         async function loadInventoryValuation() {
@@ -1770,21 +2453,21 @@
         async function loadZReportShops() {
             try {
                 const token = getCookie('spide_token');
-                const response = await fetch('/api/branches', { headers: { 'Authorization': 'Bearer ' + token } });
+                const response = await fetch('/api/shops', { headers: { 'Authorization': 'Bearer ' + token } });
                 if (!response.ok) { console.error('Failed to load shops:', response.status); return; }
-                const branches = await response.json();
+                const shops = await response.json();
                 const select = document.getElementById('zreport-shop-filter');
                 if (!select) { console.error('Shop filter select not found!'); return; }
                 const currentValue = select.value;
                 select.innerHTML = '<option value="0">All Shops</option>';
-                branches.forEach(b => {
+                shops.forEach(b => {
                     const opt = document.createElement('option');
                     opt.value = b.id;
                     opt.textContent = b.name;
                     select.appendChild(opt);
                 });
                 if (currentValue) { select.value = currentValue; }
-                console.log('✅ Shops loaded:', branches.length);
+                console.log('✅ Shops loaded:', shops.length);
             } catch (e) { console.error('Error loading shops:', e); }
         }
 
@@ -2091,7 +2774,7 @@
         async function loadUserShops() {
             try {
                 const token = getCookie('spide_token');
-                const response = await fetch('/api/branches', {
+                const response = await fetch('/api/shops', {
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
                 if (!response.ok) return;
@@ -2249,7 +2932,7 @@
                 const data = await response.json();
                 console.log('✅ Company settings loaded:', data);
 
-                // Populate the form with current company data
+                // Populate the form
                 document.getElementById('company-name').value = data.company_name || '';
                 document.getElementById('company-reg-number').value = data.registration_number || '';
                 document.getElementById('company-tax-id').value = data.tax_id || '';
@@ -2260,22 +2943,25 @@
                 document.getElementById('company-currency').value = data.currency || 'KES';
                 document.getElementById('company-receipt-footer').value = data.receipt_footer || '';
 
-                // Store company ID for updates
+                // Store company ID
                 const form = document.getElementById('company-settings-form');
                 if (form) {
                     form.dataset.companyId = data.id || 0;
                 }
 
-                // Show logo preview
-                if (data.logo_path) {
+                // ✅ Fix: Handle logo safely
+                if (data.logo_path && !data.logo_path.includes('[object')) {
                     const preview = document.getElementById('logo-preview');
                     if (preview) {
-                        preview.innerHTML = `<img src="${data.logo_path}" class="w-full h-full object-contain rounded-lg">`;
+                        preview.innerHTML = `<img src="${data.logo_path}" class="w-full h-full object-contain rounded-lg" onerror="this.style.display='none';this.parentElement.innerHTML='🏢'">`;
+                    }
+                } else {
+                    const preview = document.getElementById('logo-preview');
+                    if (preview) {
+                        preview.innerHTML = '🏢';
                     }
                 }
 
-                // ✅ Disable company name field if it's not allowed to change
-                // (Optional: only allow company name change for admins/directors)
                 const userRole = getCurrentUserRole();
                 if (userRole === 'admin' || userRole === 'director') {
                     document.getElementById('company-name').disabled = false;
@@ -2611,7 +3297,7 @@
         async function loadShops() {
             try {
                 const token = getCookie('spide_token');
-                const response = await fetch('/api/branches', { headers: { 'Authorization': 'Bearer ' + token } });
+                const response = await fetch('/api/shops', { headers: { 'Authorization': 'Bearer ' + token } });
                 if (response.ok) {
                     const data = await response.json();
                     shops.length = 0;
@@ -2643,7 +3329,7 @@
                         currentShop.name = shop.name;
                         console.log('📍 POS loaded with shop from API:', shop.name);
                     } else {
-                        fetch('/api/branches')
+                        fetch('/api/shops')
                             .then(res => res.json())
                             .then(data => {
                                 const foundShop = data.find(s => s.id === shopId);
@@ -2698,6 +3384,53 @@
                         }
                     });
                 }
+
+                // ✅ Setup catalog search
+                document.addEventListener('DOMContentLoaded', function () {
+                    // Search input - filter on input
+                    const searchInput = document.getElementById('catalog-search-input');
+                    if (searchInput) {
+                        searchInput.addEventListener('input', filterCatalog);
+                        searchInput.addEventListener('keydown', function (e) {
+                            // Escape key to clear
+                            if (e.key === 'Escape') {
+                                if (this.value) {
+                                    this.value = '';
+                                    filterCatalog();
+                                } else {
+                                    closeProductCatalogModal();
+                                }
+                            }
+                        });
+                    }
+                });
+
+                // ✅ Also handle when modal opens/closes
+                document.addEventListener('keydown', function (e) {
+                    const modal = document.getElementById('product-catalog-modal');
+                    if (modal && !modal.classList.contains('hidden')) {
+                        // Ctrl+F or Cmd+F to focus search
+                        if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                            e.preventDefault();
+                            document.getElementById('catalog-search-input')?.focus();
+                            document.getElementById('catalog-search-input')?.select();
+                        }
+                        // Escape to close
+                        if (e.key === 'Escape') {
+                            const searchInput = document.getElementById('catalog-search-input');
+                            if (searchInput && searchInput.value) {
+                                searchInput.value = '';
+                                filterCatalog();
+                            } else {
+                                // Only close if search is empty
+                                // Actually, let's close anyway
+                                closeProductCatalogModal();
+                            }
+                        }
+                    }
+                });
+
+
                 console.log('🕷️ Spide POS Ready! - Current Shop:', currentShop.name);
                 console.log('🕷️ Current Shop ID:', currentShop.id);
             }).catch(err => {
@@ -2795,7 +3528,6 @@
         let customerSearchResults = [];
         let customerSearchTimeout = null;
         let selectedCustomerIndex = -1;
-        let currentSelectedCustomer = null;
 
         // Load customer selector dropdown
         async function loadCustomerSelector() {
@@ -3116,6 +3848,14 @@
 
         // Check customer deposit when payment modal opens
         async function checkCustomerDeposit() {
+            // ✅ Ensure customer ID is set
+            const customerId = selectedCustomerId || 1;
+
+            if (customerId <= 0) {
+                document.getElementById('deposit-section').style.display = 'none';
+                return;
+            }
+
             if (!selectedCustomerId) {
                 document.getElementById('deposit-section').style.display = 'none';
                 return;
@@ -3210,24 +3950,79 @@
         function showSetupStep(step) {
             // Hide all steps
             for (let i = 1; i <= 4; i++) {
-                document.getElementById('setup-step-' + i).classList.add('hidden');
+                const el = document.getElementById('setup-step-' + i);
+                if (el) el.classList.add('hidden');
             }
+
             // Show current step
-            document.getElementById('setup-step-' + step).classList.remove('hidden');
+            const currentEl = document.getElementById('setup-step-' + step);
+            if (currentEl) currentEl.classList.remove('hidden');
             currentStep = step;
 
-            // Update progress dots
-            for (let i = 1; i <= 4; i++) {
-                const dot = document.querySelectorAll('.w-8.h-8.rounded-full')[i - 1];
-                const line = document.querySelectorAll('.w-12.h-0.5')[i - 1];
-                if (i <= step) {
-                    dot.className = 'w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center text-sm font-bold';
-                    if (line) line.className = 'w-12 h-0.5 bg-purple-600';
-                } else {
-                    dot.className = 'w-8 h-8 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center text-sm font-bold';
-                    if (line) line.className = 'w-12 h-0.5 bg-gray-300';
+            // Update progress dots - Safe approach
+            try {
+                const progressContainer = document.querySelector('.flex.items-center.justify-center.gap-2.py-2');
+                if (!progressContainer) {
+                    // Try alternative selector
+                    const altContainer = document.querySelector('.flex.items-center.justify-center.gap-2');
+                    if (!altContainer) return;
+
+                    // Find dots and lines within the container
+                    const dots = altContainer.querySelectorAll('.w-8.h-8.rounded-full');
+                    const lines = altContainer.querySelectorAll('.w-12.h-0\\.5');
+
+                    dots.forEach((dot, index) => {
+                        const stepNum = index + 1;
+                        if (stepNum <= step) {
+                            dot.className = 'w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center text-sm font-bold';
+                        } else {
+                            dot.className = 'w-8 h-8 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center text-sm font-bold';
+                        }
+                    });
+
+                    lines.forEach((line, index) => {
+                        const stepNum = index + 1;
+                        if (stepNum < step) {
+                            line.className = 'w-12 h-0.5 bg-purple-600';
+                        } else {
+                            line.className = 'w-12 h-0.5 bg-gray-300';
+                        }
+                    });
+                    return;
                 }
+
+                // Find dots and lines within the container
+                const dots = progressContainer.querySelectorAll('.w-8.h-8.rounded-full');
+                const lines = progressContainer.querySelectorAll('.w-12.h-0\\.5');
+
+                dots.forEach((dot, index) => {
+                    const stepNum = index + 1;
+                    if (stepNum <= step) {
+                        dot.className = 'w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center text-sm font-bold';
+                    } else {
+                        dot.className = 'w-8 h-8 rounded-full bg-gray-300 text-gray-600 flex items-center justify-center text-sm font-bold';
+                    }
+                });
+
+                lines.forEach((line, index) => {
+                    const stepNum = index + 1;
+                    if (stepNum < step) {
+                        line.className = 'w-12 h-0.5 bg-purple-600';
+                    } else {
+                        line.className = 'w-12 h-0.5 bg-gray-300';
+                    }
+                });
+            } catch (e) {
+                console.warn('⚠️ Could not update progress dots:', e);
+                // Non-critical error, continue
             }
+        }
+
+        function displayCompanyLogo(logoPath) {
+            if (!logoPath || logoPath.includes('[object') || logoPath === 'null' || logoPath === 'undefined') {
+                return '🏢';
+            }
+            return `<img src="${logoPath}" alt="Company Logo" class="w-full h-full object-contain rounded-lg" onerror="this.style.display='none';this.parentElement.innerHTML='🏢'">`;
         }
 
         function setupNextStep(step) {
@@ -3534,10 +4329,11 @@
         }
 
         // ============================================
-        // IMPORT PRODUCTS - PREVIEW THEN IMPORT
+        // IMPORT FUNCTIONS WITH PROGRESS BAR
         // ============================================
 
         let previewData = [];
+        let importCancelled = false;
 
         function openImportModal() {
             document.getElementById('import-modal').classList.remove('hidden');
@@ -3547,15 +4343,18 @@
             document.getElementById('import-result').classList.add('hidden');
             document.getElementById('import-progress').classList.add('hidden');
             document.getElementById('import-file').value = '';
+            importCancelled = false;
         }
 
         function closeImportModal() {
             document.getElementById('import-modal').classList.add('hidden');
+            importCancelled = true;
         }
 
         function goBackToUpload() {
             document.getElementById('import-step-1').classList.remove('hidden');
             document.getElementById('import-step-2').classList.add('hidden');
+            document.getElementById('import-progress').classList.add('hidden');
         }
 
         async function loadImportShops() {
@@ -3681,51 +4480,65 @@
             confirmBtn.disabled = data.valid_rows === 0;
             if (data.valid_rows === 0) {
                 confirmBtn.title = 'No valid products to import';
+            } else {
+                confirmBtn.title = `Import ${data.valid_rows} products`;
             }
+
+            // Update total count for progress
+            document.getElementById('total-count').textContent = data.valid_rows || 0;
         }
 
         async function confirmImport() {
-            alert('Import started!');  // ✅ Add this test alert
-            console.log('🔄 confirmImport called!');
             const shopSelect = document.getElementById('import-shop-select');
             const confirmBtn = document.getElementById('confirm-import-btn');
             const resultDiv = document.getElementById('import-result');
             const progressDiv = document.getElementById('import-progress');
             const progressBar = document.getElementById('import-progress-bar');
             const statusText = document.getElementById('import-status');
+            const percentageText = document.getElementById('import-percentage');
+            const importedCount = document.getElementById('imported-count');
+            const totalCount = document.getElementById('total-count');
 
             // Get valid products only
             const validProducts = previewData.preview_items.filter(item => item.is_valid);
+            const totalProducts = validProducts.length;
 
-            console.log('📊 Valid products:', validProducts.length);
-
-            if (validProducts.length === 0) {
+            if (totalProducts === 0) {
                 showImportResult('No valid products to import', 'error');
                 return;
             }
 
             const shopId = shopSelect.value || '0';
-            console.log('🛒 Shop ID:', shopId);  // ✅ Add this
+
+            // Show progress bar
+            progressDiv.classList.remove('hidden');
+            resultDiv.classList.add('hidden');
+            progressBar.style.width = '0%';
+            percentageText.textContent = '0%';
+            statusText.textContent = `Starting import of ${totalProducts} products...`;
+            importedCount.textContent = '0';
+            totalCount.textContent = totalProducts;
 
             confirmBtn.disabled = true;
             confirmBtn.textContent = 'Importing...';
-            progressDiv.classList.remove('hidden');
-            resultDiv.classList.add('hidden');
-            progressBar.style.width = '10%';
-            statusText.textContent = 'Starting import...';
+
+            // ✅ Simulate progress updates for better UX
+            let progressInterval = setInterval(() => {
+                const currentWidth = parseInt(progressBar.style.width) || 0;
+                if (currentWidth < 80) {
+                    const newWidth = Math.min(currentWidth + 2, 80);
+                    progressBar.style.width = newWidth + '%';
+                    percentageText.textContent = newWidth + '%';
+                    statusText.textContent = `Processing ${Math.round(newWidth)}% complete...`;
+                }
+            }, 500);
 
             try {
                 const token = getCookie('spide_token');
-
                 const payload = {
-                    shop_id: parseInt(shopId),
+                    shop_id: parseInt(shopId) || 0,
                     products: validProducts
                 };
-
-                console.log('📤 Payload being sent:', payload);
-
-                progressBar.style.width = '40%';
-                statusText.textContent = `Importing ${validProducts.length} products...`;
 
                 const response = await fetch('/api/import/confirm', {
                     method: 'POST',
@@ -3736,43 +4549,52 @@
                     body: JSON.stringify(payload)
                 });
 
-                console.log('📥 Response status:', response.status);  // ✅ Add this
+                clearInterval(progressInterval);
 
-                progressBar.style.width = '80%';
-                statusText.textContent = 'Finalizing...';
+                // Show completion
+                progressBar.style.width = '100%';
+                percentageText.textContent = '100%';
+                statusText.textContent = 'Import complete!';
 
                 const result = await response.json();
-                console.log('📊 Result:', result);  // ✅ Add this
-
-                progressBar.style.width = '100%';
-                statusText.textContent = 'Import complete!';
+                importedCount.textContent = result.imported_rows || 0;
 
                 if (response.ok) {
                     let message = `✅ Import successful!\n`;
                     message += `📦 ${result.imported_rows} products imported\n`;
+                    message += `📊 ${result.total_processed || totalProducts} products processed\n`;
+
                     if (result.skipped_rows > 0) {
                         message += `⚠️ ${result.skipped_rows} rows skipped\n`;
                     }
+
                     if (result.errors && result.errors.length > 0) {
-                        message += `\n❌ Errors:\n${result.errors.slice(0, 5).join('\n')}`;
-                        if (result.errors.length > 5) {
-                            message += `\n... and ${result.errors.length - 5} more errors`;
+                        message += `\n❌ Errors (${result.errors.length}):\n`;
+                        message += result.errors.slice(0, 10).join('\n');
+                        if (result.errors.length > 10) {
+                            message += `\n... and ${result.errors.length - 10} more errors`;
                         }
                     }
+
                     showImportResult(message, result.errors && result.errors.length > 0 ? 'warning' : 'success');
 
-                    // Enable closing after successful import
-                    setTimeout(() => {
-                        if (confirm('Import completed! Close the import window?')) {
-                            closeImportModal();
+                    // Update preview with import status
+                    if (result.imported_rows > 0) {
+                        // Reload products if catalog is open
+                        if (!document.getElementById('product-catalog-modal').classList.contains('hidden')) {
+                            loadProducts();
                         }
-                    }, 3000);
+                    }
                 } else {
                     showImportResult('❌ Import failed: ' + (result.error || 'Unknown error'), 'error');
                 }
             } catch (error) {
+                clearInterval(progressInterval);
                 console.error('Import error:', error);
                 showImportResult('❌ Network error: ' + error.message, 'error');
+                progressBar.style.width = '0%';
+                percentageText.textContent = '0%';
+                statusText.textContent = 'Import failed';
             } finally {
                 confirmBtn.disabled = false;
                 confirmBtn.textContent = '📤 Import All';
@@ -3783,10 +4605,79 @@
             const resultDiv = document.getElementById('import-result');
             resultDiv.classList.remove('hidden');
             resultDiv.textContent = message;
-            resultDiv.className = 'p-3 rounded-lg text-sm font-medium whitespace-pre-wrap ' +
+            resultDiv.className = 'p-3 rounded-lg text-sm font-medium whitespace-pre-wrap max-h-48 overflow-y-auto ' +
                 (type === 'success' ? 'bg-green-100 text-green-700 border border-green-200' :
                     type === 'warning' ? 'bg-yellow-100 text-yellow-700 border border-yellow-200' :
                         'bg-red-100 text-red-700 border border-red-200');
+        }
+
+        async function openBarcodeUpdateModal() {
+            if (!confirm('This will update barcodes for existing products based on your Excel file.\n\nMake sure your Excel has:\n- Item Name (must match product names)\n- ALU or Barcode column\n\nContinue?')) {
+                return;
+            }
+
+            const fileInput = document.getElementById('import-file');
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('Please select an Excel file first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            const resultDiv = document.getElementById('import-result');
+            const progressDiv = document.getElementById('import-progress');
+            const progressBar = document.getElementById('import-progress-bar');
+            const statusText = document.getElementById('import-status');
+            const percentageText = document.getElementById('import-percentage');
+
+            progressDiv.classList.remove('hidden');
+            resultDiv.classList.add('hidden');
+            progressBar.style.width = '0%';
+            percentageText.textContent = '0%';
+            statusText.textContent = 'Updating barcodes...';
+
+            try {
+                const token = getCookie('spide_token');
+                const response = await fetch('/api/import/update-barcodes', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer ' + token
+                    },
+                    body: formData
+                });
+
+                progressBar.style.width = '100%';
+                percentageText.textContent = '100%';
+                statusText.textContent = 'Update complete!';
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    let message = `✅ Barcode update complete!\n`;
+                    message += `📦 ${result.updated_rows} products updated\n`;
+                    if (result.skipped_rows > 0) {
+                        message += `⚠️ ${result.skipped_rows} products skipped\n`;
+                    }
+                    if (result.errors && result.errors.length > 0) {
+                        message += `\n❌ Errors:\n${result.errors.slice(0, 5).join('\n')}`;
+                        if (result.errors.length > 5) {
+                            message += `\n... and ${result.errors.length - 5} more errors`;
+                        }
+                    }
+                    showImportResult(message, result.errors && result.errors.length > 0 ? 'warning' : 'success');
+
+                    // Reload products if catalog is open
+                    if (!document.getElementById('product-catalog-modal').classList.contains('hidden')) {
+                        loadProducts();
+                    }
+                } else {
+                    showImportResult('❌ Update failed: ' + (result.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Update error:', error);
+                showImportResult('❌ Network error: ' + error.message, 'error');
+            }
         }
 
     </script>
@@ -3804,12 +4695,12 @@
             <div class="flex justify-between items-center border-b pb-3">
                 <div>
                     <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">💎 Inventory Valuation</h2>
-                    <p class="text-xs text-gray-500">Total value of inventory across all branches</p>
+                    <p class="text-xs text-gray-500">Total value of inventory across all shops</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <select id="valuation-branch-select" onchange="loadInventoryValuation()"
                         class="text-xs border rounded-lg px-2 py-1 bg-white">
-                        <option value="0">All Branches</option>
+                        <option value="0">All Shops</option>
                     </select>
                     <button onclick="loadInventoryValuation()"
                         class="bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold px-3 py-1.5 rounded-lg transition">🔄
@@ -3964,7 +4855,7 @@
                             class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-28">
                     </div>
                     <select id="productsales-branch-filter" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
-                        <option value="0">All Branches</option>
+                        <option value="0">All Shops</option>
                     </select>
                     <button onclick="loadProductSalesReport()"
                         class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1">
@@ -5485,7 +6376,7 @@
             <!-- Step Labels -->
             <div class="flex justify-between text-xs text-gray-500 px-2 -mt-2">
                 <span>Company Details</span>
-                <span>Shops/Branches</span>
+                <span>Shops/Shops</span>
                 <span>Admin User</span>
                 <span>Review & Complete</span>
             </div>
@@ -5557,12 +6448,12 @@
                     </div>
                 </div>
 
-                <!-- Step 2: Shops/Branches -->
+                <!-- Step 2: Shops/Shops -->
                 <div id="setup-step-2" class="space-y-3 hidden">
-                    <h3 class="text-lg font-semibold text-gray-800">Step 2: Add Branches/Shops</h3>
+                    <h3 class="text-lg font-semibold text-gray-800">Step 2: Add Shops/Shops</h3>
                     <p class="text-sm text-gray-500">Add your store locations</p>
                     <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
-                        💡 You can add multiple branches. At least one branch is required.
+                        💡 You can add multiple shops. At least one branch is required.
                     </div>
                     <div id="setup-shops-list" class="space-y-2 max-h-48 overflow-y-auto">
                         <p class="text-sm text-gray-400 text-center py-4">No shops added yet</p>
@@ -5645,10 +6536,11 @@
         </div>
     </div>
 
-
     <!-- IMPORT MODAL -->
     <div id="import-modal" class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+
+            <!-- Header -->
             <div class="flex justify-between items-center border-b border-gray-100 pb-3">
                 <div>
                     <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
@@ -5660,14 +6552,34 @@
                 <button onclick="closeImportModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
             </div>
 
+            <!-- ✅ PROGRESS BAR - MOVED TO TOP -->
+            <div id="import-progress" class="hidden">
+                <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div class="flex justify-between items-center mb-1">
+                        <span id="import-status" class="text-sm font-medium text-blue-700">Preparing import...</span>
+                        <span id="import-percentage" class="text-sm font-bold text-blue-700">0%</span>
+                    </div>
+                    <div class="w-full bg-blue-200 rounded-full h-3 overflow-hidden">
+                        <div id="import-progress-bar"
+                            class="bg-gradient-to-r from-blue-500 to-emerald-500 h-3 rounded-full transition-all duration-300"
+                            style="width: 0%"></div>
+                    </div>
+                    <div id="import-details" class="text-xs text-gray-500 mt-1">
+                        <span id="imported-count">0</span> / <span id="total-count">0</span> products processed
+                    </div>
+                </div>
+            </div>
+
             <!-- Step 1: Upload -->
-            <div id="import-step-1" class="space-y-4">
+            <div id="import-step-1" class="space-y-4 flex-1 overflow-y-auto">
                 <div class="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
                     <p class="font-semibold">📋 QuickBooks Format Requirements:</p>
                     <ul class="list-disc list-inside text-xs mt-1 space-y-0.5">
                         <li>Required: <strong>Item Name</strong>, <strong>Average Unit Cost</strong>, <strong>Regular
                                 Price</strong></li>
-                        <li>Optional: UPC, Alternate Lookup, Department Name, Vendor Name, Qty 1</li>
+                        <li>Barcode: <strong>ALU</strong> (primary), <strong>UPC</strong> (secondary), or <strong>Item
+                                Number</strong> (fallback)</li>
+                        <li>Optional: Qty 1, Department Name, Vendor Name</li>
                     </ul>
                 </div>
 
@@ -5686,6 +6598,10 @@
                     <p class="text-xs text-gray-400 mt-1">Supported: .xlsx, .xls (Max 10MB)</p>
                 </div>
 
+                <button onclick="openBarcodeUpdateModal()"
+                    class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                    🔄 Update Barcodes
+                </button>
                 <button onclick="previewImport()" id="preview-btn"
                     class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 rounded-lg transition text-sm">
                     🔍 Preview Products
@@ -5693,7 +6609,7 @@
             </div>
 
             <!-- Step 2: Preview -->
-            <div id="import-step-2" class="hidden space-y-4 flex-1 flex flex-col">
+            <div id="import-step-2" class="hidden space-y-4 flex-1 flex flex-col overflow-y-auto">
                 <div class="flex justify-between items-center">
                     <div>
                         <p class="text-sm font-semibold text-gray-700">Preview Results</p>
@@ -5735,16 +6651,14 @@
                 </div>
             </div>
 
-            <!-- Progress/Result -->
-            <div id="import-progress" class="hidden">
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                    <div id="import-progress-bar" class="bg-emerald-600 h-2.5 rounded-full transition-all duration-300"
-                        style="width: 0%"></div>
-                </div>
-                <p id="import-status" class="text-xs text-gray-500 mt-1">Ready to import...</p>
-            </div>
+            <!-- Result -->
+            <div id="import-result" class="hidden p-3 rounded-lg text-sm max-h-48 overflow-y-auto"></div>
 
-            <div id="import-result" class="hidden p-3 rounded-lg text-sm"></div>
+            <!-- Footer -->
+            <div class="flex justify-end border-t border-gray-100 pt-3">
+                <button onclick="closeImportModal()"
+                    class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">Close</button>
+            </div>
         </div>
     </div>
 

@@ -280,7 +280,7 @@ func GetDirectorDashboard(db *sql.DB) (*DirectorDashboard, error) {
 	log.Println("🔍 Starting GetDirectorDashboard...")
 
 	// 1. Get total stores
-	err := db.QueryRow("SELECT COUNT(*) FROM branches WHERE is_active = 1").Scan(&dashboard.TotalStores)
+	err := db.QueryRow("SELECT COUNT(*) FROM shops WHERE is_active = 1").Scan(&dashboard.TotalStores)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, fmt.Errorf("failed to get total stores: %w", err)
 	}
@@ -289,7 +289,7 @@ func GetDirectorDashboard(db *sql.DB) (*DirectorDashboard, error) {
 	// 2. Get active stores (with sales today)
 	err = db.QueryRow(`
         SELECT COUNT(DISTINCT b.id) 
-        FROM branches b
+        FROM shops b
         INNER JOIN sales s ON s.shop_id = b.id
         WHERE DATE(s.created_at) = ? AND b.is_active = 1
     `, today).Scan(&dashboard.ActiveStores)
@@ -429,7 +429,7 @@ func getOutletStats(db *sql.DB, today, monthStart string) ([]OutletStats, error)
                 ) THEN 'active'
                 ELSE 'inactive'
             END as status
-        FROM branches b
+        FROM shops b
         LEFT JOIN users u ON b.manager_id = u.id
         WHERE b.is_active = 1
         ORDER BY today_revenue DESC
@@ -549,7 +549,7 @@ func getRecentTransactions(db *sql.DB, limit int) ([]RecentTxItem, error) {
             COALESCE(s.payment_type, 'cash') as payment_type,
             DATE_FORMAT(s.created_at, '%Y-%m-%d %H:%i') as created_at
         FROM sales s
-        LEFT JOIN branches b ON s.shop_id = b.id
+        LEFT JOIN shops b ON s.shop_id = b.id
         ORDER BY s.id DESC
         LIMIT ?
     `
@@ -593,7 +593,7 @@ func getAlerts(db *sql.DB) ([]AlertItem, error) {
             END as severity
         FROM products p
         JOIN shop_stock ss ON p.id = ss.product_id
-        LEFT JOIN branches b ON ss.shop_id = b.id
+        LEFT JOIN shops b ON ss.shop_id = b.id
         LEFT JOIN branch_inventory bi ON b.id = bi.branch_id AND p.id = bi.product_id
         WHERE p.is_active = 1 
         AND COALESCE(ss.quantity, 0) <= COALESCE(bi.reorder_level, 5)

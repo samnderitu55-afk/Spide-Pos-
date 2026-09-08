@@ -28,19 +28,35 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
 
 	log.Printf("📝 Creating sale for shop: %d, company: %d, total: %.2f", shopID, companyID, req.TotalAmount)
 
+	// ✅ Calculate total from items
 	var calculatedTotal float64
 	for _, item := range req.Items {
 		calculatedTotal += item.Subtotal
 	}
 
+	// ✅ Use calculated total if mismatch
+	if req.TotalAmount != calculatedTotal {
+		log.Printf("⚠️ Total mismatch - Request: %.2f, Calculated: %.2f", req.TotalAmount, calculatedTotal)
+		req.TotalAmount = calculatedTotal
+	}
+
+	// ✅ Insert sale
 	saleQuery := `
         INSERT INTO sales (total_amount, cash_amount, mpesa_amount, credit_amount, mpesa_code, 
                            payment_type, change_given, shop_id, customer_id, company_id, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `
 	result, err := tx.Exec(saleQuery,
-		calculatedTotal, req.CashAmount, req.MpesaAmount, req.CreditAmount,
-		req.MpesaCode, req.PaymentType, req.ChangeGiven, shopID, req.CustomerID, companyID,
+		req.TotalAmount,
+		req.CashAmount,
+		req.MpesaAmount,
+		req.CreditAmount,
+		req.MpesaCode,
+		req.PaymentType,
+		req.ChangeGiven,
+		shopID,
+		req.CustomerID,
+		companyID,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("failed to insert sale: %w", err)
@@ -51,13 +67,16 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
 		return 0, fmt.Errorf("failed to get sale ID: %w", err)
 	}
 
-	// Insert sale items
+	log.Printf("✅ Sale inserted with ID: %d", saleID)
+
+	// ✅ Insert sale items and deduct stock
 	for _, item := range req.Items {
+		// Insert sale item
 		itemQuery := `
-            INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal, company_id)
+            VALUES (?, ?, ?, ?, ?, ?)
         `
-		_, err := tx.Exec(itemQuery, saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal)
+		_, err := tx.Exec(itemQuery, saleID, item.ProductID, item.Quantity, item.UnitPrice, item.Subtotal, companyID)
 		if err != nil {
 			return 0, fmt.Errorf("failed to insert sale item: %w", err)
 		}
@@ -66,15 +85,20 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
 		stockQuery := `
             UPDATE shop_stock 
             SET quantity = quantity - ?, updated_at = NOW()
-            WHERE shop_id = ? AND product_id = ? AND quantity >= ?
+            WHERE shop_id = ? AND product_id = ? AND company_id = ? AND quantity >= ?
         `
-		_, err = tx.Exec(stockQuery, item.Quantity, shopID, item.ProductID, item.Quantity)
+		result, err := tx.Exec(stockQuery, item.Quantity, shopID, item.ProductID, companyID, item.Quantity)
 		if err != nil {
 			return 0, fmt.Errorf("failed to update shop stock: %w", err)
 		}
+
+		rows, _ := result.RowsAffected()
+		if rows == 0 {
+			log.Printf("⚠️ Warning: No stock deducted for product %d - insufficient stock", item.ProductID)
+		}
 	}
 
-	// Update customer balance if credit was used
+	// ✅ Update customer balance if credit was used
 	if req.CreditAmount > 0 && req.CustomerID > 0 {
 		_, err = tx.Exec(`
             UPDATE customers 
@@ -87,15 +111,15 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
 
 		// Record credit sale
 		_, err = tx.Exec(`
-            INSERT INTO credit_sales (customer_id, shop_id, sale_id, total_amount, balance, status, created_at)
-            VALUES (?, ?, ?, ?, ?, 'pending', NOW())
-        `, req.CustomerID, req.ShopID, saleID, req.CreditAmount, req.CreditAmount)
+            INSERT INTO credit_sales (customer_id, shop_id, sale_id, total_amount, balance, status, created_at, company_id)
+            VALUES (?, ?, ?, ?, ?, 'pending', NOW(), ?)
+        `, req.CustomerID, shopID, saleID, req.CreditAmount, req.CreditAmount, companyID)
 		if err != nil {
-			log.Printf("Warning: Failed to record credit sale: %v", err)
+			log.Printf("⚠️ Warning: Failed to record credit sale: %v", err)
 		}
 	}
 
-	// Update deposit balance
+	// ✅ Update deposit balance
 	if req.DepositAmount > 0 && req.CustomerID > 0 {
 		_, err = tx.Exec(`
             UPDATE customers 
@@ -111,8 +135,7 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
 		return 0, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	log.Printf("✅ Sale %d created for shop %d, company %d", saleID, shopID, companyID)
-
+	log.Printf("✅ Sale %d completed successfully", saleID)
 	return saleID, nil
 }
 

@@ -1277,7 +1277,7 @@
         }
             function openInventoryValuationModal() {
     document.getElementById('inventory-valuation-modal').classList.remove('hidden');
-    loadBranchesForValuation();
+    loadShopsForValuation();
     loadInventoryValuation();
 }
 
@@ -1285,22 +1285,22 @@ function closeInventoryValuationModal() {
     document.getElementById('inventory-valuation-modal').classList.add('hidden');
 }
 
-async function loadBranchesForValuation() {
+async function loadShopsForValuation() {
     try {
-        const response = await fetch('/api/branches');
+        const response = await fetch('/api/shops');
         if (!response.ok) return;
-        const branches = await response.json();
+        const shops = await response.json();
         const select = document.getElementById('valuation-branch-select');
         if (!select) return;
-        select.innerHTML = '<option value="0">All Branches</option>';
-        branches.forEach(b => {
+        select.innerHTML = '<option value="0">All Shops</option>';
+        shops.forEach(b => {
             const opt = document.createElement('option');
             opt.value = b.id;
             opt.textContent = b.name;
             select.appendChild(opt);
         });
     } catch(e) {
-        console.error('Error loading branches:', e);
+        console.error('Error loading shops:', e);
     }
 }
 
@@ -1574,7 +1574,7 @@ function openProductSalesModal() {
     document.getElementById('productsales-start-date').value = formatDate(startDate);
     document.getElementById('productsales-end-date').value = formatDate(endDate);
     
-    loadProductSalesBranches();
+    loadProductSalesShops();
     loadProductSalesReport();
 }
 
@@ -1582,30 +1582,30 @@ function closeProductSalesModal() {
     document.getElementById('product-sales-modal').classList.add('hidden');
 }
 
-async function loadProductSalesBranches() {
+async function loadProductSalesShops() {
     try {
-        console.log('Loading branches for filter...');
+        console.log('Loading shops for filter...');
         const token = getCookie('spide_token');
         console.log('Token:', token ? 'Found' : 'Not found');
         
         if (!token) {
-            console.error('No token found for branches');
+            console.error('No token found for shops');
             return;
         }
         
-        const response = await fetch('/api/branches', {
+        const response = await fetch('/api/shops', {
             headers: { 'Authorization': 'Bearer ' + token }
         });
         
-        console.log('Branches response status:', response.status);
+        console.log('Shops response status:', response.status);
         
         if (!response.ok) {
-            console.error('Failed to load branches:', response.status);
+            console.error('Failed to load shops:', response.status);
             return;
         }
         
-        const branches = await response.json();
-        console.log('Branches data:', branches);
+        const shops = await response.json();
+        console.log('Shops data:', shops);
         
         const select = document.getElementById('productsales-branch-filter');
         if (!select) {
@@ -1613,17 +1613,17 @@ async function loadProductSalesBranches() {
             return;
         }
         
-        select.innerHTML = '<option value="0">All Branches</option>';
-        branches.forEach(b => {
+        select.innerHTML = '<option value="0">All Shops</option>';
+        shops.forEach(b => {
             const opt = document.createElement('option');
             opt.value = b.id;
             opt.textContent = b.name;
             select.appendChild(opt);
         });
         
-        console.log('✅ Branches loaded:', branches.length);
+        console.log('✅ Shops loaded:', shops.length);
     } catch(e) {
-        console.error('Error loading branches:', e);
+        console.error('Error loading shops:', e);
     }   
 }
 
@@ -1984,15 +1984,15 @@ function closeTransferModal() {
 async function loadTransferShops() {
     try {
         const token = getCookie('spide_token');
-        const response = await fetch('/api/branches', {
+        const response = await fetch('/api/shops', {
             headers: { 'Authorization': 'Bearer ' + token }
         });
         if (!response.ok) return;
-        const branches = await response.json();
+        const shops = await response.json();
         const select = document.getElementById('transfer-to-shop');
         const currentShopId = parseInt(localStorage.getItem('currentShopId')) || 1;
         select.innerHTML = '<option value="">Select Shop</option>';
-        branches.forEach(b => {
+        shops.forEach(b => {
             if (b.id !== currentShopId) {
                 const opt = document.createElement('option');
                 opt.value = b.id;
@@ -3590,11 +3590,11 @@ updateMenuClock();
             <div class="flex justify-between items-center border-b pb-3">
                 <div>
                     <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">💎 Inventory Valuation</h2>
-                    <p class="text-xs text-gray-500">Total value of inventory across all branches</p>
+                    <p class="text-xs text-gray-500">Total value of inventory across all shops</p>
                 </div>
                 <div class="flex items-center gap-2">
                     <select id="valuation-branch-select" onchange="loadInventoryValuation()" class="text-xs border rounded-lg px-2 py-1 bg-white">
-                        <option value="0">All Branches</option>
+                        <option value="0">All Shops</option>
                     </select>
                     <button onclick="loadInventoryValuation()" class="bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold px-3 py-1.5 rounded-lg transition">🔄 Refresh</button>
                     <button onclick="closeInventoryValuationModal()" class="text-gray-400 hover:text-gray-600 font-bold text-xl">✕</button>
@@ -3704,7 +3704,7 @@ updateMenuClock();
                         <input type="date" id="productsales-end-date" value="" class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-28">
                     </div>
                     <select id="productsales-branch-filter" class="text-xs border rounded-lg px-2 py-1.5 bg-white">
-                        <option value="0">All Branches</option>
+                        <option value="0">All Shops</option>
                     </select>
                     <button onclick="loadProductSalesReport()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition flex items-center gap-1">
                         <span>⟳</span> Generate

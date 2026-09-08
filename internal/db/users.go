@@ -227,7 +227,7 @@ func GetUserByID(db *sql.DB, id int) (*User, error) {
 	// Get shop name if shop_id > 0
 	if user.ShopID > 0 {
 		var shopName string
-		err := db.QueryRow("SELECT name FROM branches WHERE id = ?", user.ShopID).Scan(&shopName)
+		err := db.QueryRow("SELECT name FROM shops WHERE id = ?", user.ShopID).Scan(&shopName)
 		if err == nil {
 			user.ShopName = shopName
 		}

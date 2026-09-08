@@ -8,7 +8,7 @@ import (
 type Product struct {
 	ID              int64     `json:"id"`
 	CompanyID       int       `json:"company_id"`
-	Barcode         string    `json:"barcode"`
+	Barcode         *string   `json:"barcode"`
 	Name            string    `json:"name"`
 	Category        string    `json:"category"`
 	CategoryID      int       `json:"category_id"`
@@ -24,26 +24,61 @@ type Product struct {
 }
 
 func (p *Product) RenderRowHTML() string {
-	return fmt.Sprintf(`<tr data-product-id="%d" data-retail-price="%.2f" data-wholesale-price="%.2f" data-wholesale-threshold="%d">
-            <td class="p-3 font-medium text-gray-800">%s</td>
-            <td class="p-3 text-center font-mono">%d</td>
-            <td class="p-3 text-right"><span class="price-badge">Retail</span></td>
-            <td class="p-3 text-center">
-                <input type="number" class="cart-qty-input w-16 px-2 py-1 border rounded text-center focus:ring-2 focus:ring-purple-500 focus:outline-none" 
-                       value="1" min="1" oninput="updateRowTotals(this, false)">
-            </td>
-            <td class="p-3 text-right">
-                <input type="number" step="0.01" class="cart-price-input w-24 px-2 py-1 border rounded text-right focus:ring-2 focus:ring-purple-500 focus:outline-none" 
-                       value="%.2f" oninput="updateRowTotals(this, true)">
-            </td>
-            <td class="subtotal-td p-3 text-right font-bold text-purple-900">KES %.2f</td>
-            <td class="p-3 text-center">
-                <button onclick="this.closest(\'tr\').remove(); updateCartTotals();" 
-                        class="text-red-500 hover:text-red-700 font-bold">✕</button>
-            </td>
-        </tr>`,
-		p.ID, p.RetailPrice, p.WholesalePrice, p.WholesaleMinQty,
-		p.Name, p.StockQuantity, p.RetailPrice, p.RetailPrice,
+	// ✅ Handle NULL barcode
+	barcodeDisplay := "N/A"
+	if p.Barcode != nil && *p.Barcode != "" {
+		barcodeDisplay = *p.Barcode
+	}
+
+	// ✅ Stock status color
+	stockClass := "text-green-600"
+	if p.StockQuantity <= 0 {
+		stockClass = "text-red-500 font-bold"
+	} else if p.StockQuantity <= p.ReorderLevel {
+		stockClass = "text-amber-500 font-bold"
+	}
+
+	return fmt.Sprintf(`<tr data-product-id="%d" data-retail-price="%.2f" data-wholesale-price="%.2f" data-wholesale-threshold="%d" data-barcode="%s" data-stock="%d">
+        <td class="p-3 font-medium text-gray-800">%s</td>
+        <td class="p-3 text-center font-mono %s">%d</td>
+        <td class="p-3 text-right"><span class="price-badge bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded">Retail</span></td>
+        <td class="p-3 text-center">
+            <input type="number" class="cart-qty-input w-16 px-2 py-1 border rounded text-center focus:ring-2 focus:ring-purple-500 focus:outline-none" 
+                   value="1" min="1" max="%d" oninput="updateRowTotals(this, false)">
+        </td>
+        <td class="p-3 text-right">
+            <input type="number" step="0.01" class="cart-price-input w-24 px-2 py-1 border rounded text-right focus:ring-2 focus:ring-purple-500 focus:outline-none" 
+                   value="%.2f" oninput="updateRowTotals(this, true)">
+        </td>
+        <td class="subtotal-td p-3 text-right font-bold text-purple-900">KES %.2f</td>
+        <td class="p-3 text-center">
+            <button onclick="this.closest(\'tr\').remove(); updateCartTotals();" 
+                    class="text-red-500 hover:text-red-700 font-bold text-lg">✕</button>
+        </td>
+    </tr>`,
+		// Data attributes
+		p.ID,
+		p.RetailPrice,
+		p.WholesalePrice,
+		p.WholesaleMinQty,
+		barcodeDisplay,
+		p.StockQuantity,
+
+		// Column 1: Product Name
+		p.Name,
+
+		// Column 2: Stock Quantity
+		stockClass,
+		p.StockQuantity,
+
+		// Column 3: Qty max (prevent adding more than stock)
+		p.StockQuantity,
+
+		// Column 4: Retail Price
+		p.RetailPrice,
+
+		// Column 5: Subtotal (initial)
+		p.RetailPrice,
 	)
 }
 

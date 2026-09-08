@@ -87,7 +87,7 @@ func GetExpenseReport(db *sql.DB, startDate, endDate string, shopID int) ([]Expe
 		// Get shop name
 		if e.ShopID > 0 {
 			var shopName string
-			db.QueryRow("SELECT name FROM branches WHERE id = ?", e.ShopID).Scan(&shopName)
+			db.QueryRow("SELECT name FROM shops WHERE id = ?", e.ShopID).Scan(&shopName)
 			e.ShopName = shopName
 		}
 

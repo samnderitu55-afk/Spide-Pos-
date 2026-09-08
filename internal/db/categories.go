@@ -31,8 +31,8 @@ func GetOrCreateCategory(db *sql.DB, name string, companyID int) (int, error) {
 
 	// ✅ Create new category WITHOUT is_active
 	result, err := db.Exec(`
-        INSERT INTO categories (name, company_id, created_at,updated_at)
-        VALUES (?, ?, NOW()NOW())
+        INSERT INTO categories (name, company_id, created_at, updated_at)
+        VALUES (?, ?, NOW(), NOW())
     `, name, companyID)
 	if err != nil {
 		return 0, err

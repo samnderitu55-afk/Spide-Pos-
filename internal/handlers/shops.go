@@ -243,7 +243,7 @@ func DeleteShopHandler(w http.ResponseWriter, r *http.Request) {
 // BRANCHES HANDLER (Alias for GetShops)
 // ============================================
 
-func BranchesHandler(w http.ResponseWriter, r *http.Request) {
+func ShopsHandler(w http.ResponseWriter, r *http.Request) {
 	GetShopsHandler(w, r)
 }
 

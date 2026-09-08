@@ -468,7 +468,7 @@
                     return;
                 }
 
-                const response = await fetch('/api/branches', {
+                const response = await fetch('/api/shops', {
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
 
@@ -555,7 +555,7 @@
         async function getShopName(shopId) {
             try {
                 const token = getCookie('spide_token');
-                const response = await fetch('/api/branches', {
+                const response = await fetch('/api/shops', {
                     headers: { 'Authorization': 'Bearer ' + token }
                 });
                 if (!response.ok) return 'Store #' + shopId;

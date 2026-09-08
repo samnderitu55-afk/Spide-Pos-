@@ -6,8 +6,8 @@ import (
 )
 
 type InventoryValuation struct {
-	BranchID         int                 `json:"branch_id"`
-	BranchName       string              `json:"branch_name"`
+	ShopID         int                 `json:"branch_id"`
+	ShopName       string              `json:"branch_name"`
 	TotalItems       int                 `json:"total_items"`
 	TotalQuantity    int                 `json:"total_quantity"`
 	TotalCostValue   float64             `json:"total_cost_value"`

@@ -91,6 +91,7 @@ func main() {
 	mux.HandleFunc("/api/products/update", middleware.AuthMiddleware(handlers.UpdateProductHandler))
 	mux.HandleFunc("/api/products/search", middleware.AuthMiddleware(handlers.SearchProductsHandler))
 	mux.HandleFunc("/api/products/scan-html", middleware.AuthMiddleware(handlers.ScanProductHandler))
+	mux.HandleFunc("/api/products/update-stock", middleware.AuthMiddleware(handlers.UpdateProductStockHandler))
 	mux.HandleFunc("/api/sales/checkout", middleware.AuthMiddleware(handlers.CheckoutHandler))
 	mux.HandleFunc("/api/sales/recent", middleware.AuthMiddleware(handlers.RecentSalesHandler))
 	mux.HandleFunc("/api/sales/z-report", middleware.AuthMiddleware(handlers.ZReportHandler))
@@ -112,7 +113,7 @@ func main() {
 	mux.HandleFunc("/api/suppliers/create", middleware.AuthMiddleware(handlers.CreateSupplierHandler))
 	mux.HandleFunc("/api/categories", middleware.AuthMiddleware(handlers.GetCategoriesHandler))
 	mux.HandleFunc("/api/categories/create", middleware.AuthMiddleware(handlers.CreateCategoryHandler))
-	mux.HandleFunc("/api/branches", middleware.AuthMiddleware(handlers.BranchesHandler))
+	//mux.HandleFunc("/api/shops", middleware.AuthMiddleware(handlers.ShopsHandler))
 
 	// Director Dashboard
 	mux.HandleFunc("/api/director/dashboard", middleware.AuthMiddleware(handlers.DirectorDashboardHandler))
@@ -142,7 +143,7 @@ func main() {
 	mux.HandleFunc("/api/credit-sales/payments", middleware.AuthMiddleware(handlers.GetCreditPaymentsHandler))
 	mux.HandleFunc("/api/credit-sales/add-payment", middleware.AuthMiddleware(handlers.AddCreditPaymentHandler))
 
-	// Shop/Branch Management Routes
+	// Shop/Shop Management Routes
 	mux.HandleFunc("/api/shops", middleware.AuthMiddleware(handlers.GetShopsHandler))
 	mux.HandleFunc("/api/shops/create", middleware.AuthMiddleware(handlers.CreateShopHandler))
 	mux.HandleFunc("/api/shops/update", middleware.AuthMiddleware(handlers.UpdateShopHandler))
@@ -152,6 +153,7 @@ func main() {
 	// Import routes
 	mux.HandleFunc("/api/import/preview", middleware.AuthMiddleware(handlers.PreviewImportHandler))
 	mux.HandleFunc("/api/import/confirm", middleware.AuthMiddleware(handlers.ConfirmImportHandler))
+	mux.HandleFunc("/api/import/update-barcodes", middleware.AuthMiddleware(handlers.UpdateBarcodesHandler))
 
 	// Customer statement route
 	mux.HandleFunc("/api/customers/statement", middleware.AuthMiddleware(handlers.GetCustomerStatementHandler))

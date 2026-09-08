@@ -84,8 +84,8 @@ func CreateCustomer(db *sql.DB, customer *Customer) error {
 
 	query := `
         INSERT INTO customers (name, phone, email, id_number, address, 
-                               credit_limit, balance, deposit_balance, notes, created_by, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?, NOW())
+                               credit_limit, balance, deposit_balance, notes, company_id, created_by, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?, ?, NOW())
     `
 
 	result, err := db.Exec(query,
@@ -96,6 +96,7 @@ func CreateCustomer(db *sql.DB, customer *Customer) error {
 		customer.Address,
 		customer.CreditLimit,
 		customer.Notes,
+		customer.CompanyID,
 		userID, // Use user ID instead of username
 	)
 	if err != nil {
