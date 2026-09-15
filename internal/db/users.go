@@ -38,7 +38,7 @@ func GetUsersByCompany(db *sql.DB, companyID int) ([]User, error) {
 	}
 	defer rows.Close()
 
-	var users []User
+	users := []User{}
 	for rows.Next() {
 		var u User
 		err := rows.Scan(
@@ -71,7 +71,7 @@ func GetAllUsers(db *sql.DB) ([]User, error) {
 	}
 	defer rows.Close()
 
-	var users []User
+	users := []User{}
 	for rows.Next() {
 		var u User
 		// ✅ Use sql.NullString for email (already defined in User struct)

@@ -6,8 +6,8 @@ import (
 )
 
 type InventoryValuation struct {
-	ShopID         int                 `json:"branch_id"`
-	ShopName       string              `json:"branch_name"`
+	ShopID           int                 `json:"branch_id"`
+	ShopName         string              `json:"branch_name"`
 	TotalItems       int                 `json:"total_items"`
 	TotalQuantity    int                 `json:"total_quantity"`
 	TotalCostValue   float64             `json:"total_cost_value"`
@@ -158,7 +158,7 @@ func GetProductValuation(db *sql.DB, branchID int) ([]ProductValuation, error) {
 	}
 	defer rows.Close()
 
-	var products []ProductValuation
+	products := []ProductValuation{}
 	for rows.Next() {
 		var p ProductValuation
 		err := rows.Scan(

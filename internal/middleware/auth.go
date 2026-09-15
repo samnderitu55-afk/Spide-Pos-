@@ -3,6 +3,7 @@
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"spide-pos/internal/auth"
 	"strings"
@@ -14,14 +15,14 @@ const UserContextKey contextKey = "user"
 
 func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		publicRoutes := []string{"/login", "/api/login", "/api/health", "/favicon.ico"}
+		log.Printf("🔐 MW: %s %s", r.Method, r.URL.Path)
+		publicRoutes := []string{"/login", "/api/login", "/api/health", "/favicon.ico", "/static/"}
 		for _, route := range publicRoutes {
-			if r.URL.Path == route {
+			if r.URL.Path == route || strings.HasPrefix(r.URL.Path, route) {
 				next(w, r)
 				return
 			}
 		}
-
 		authHeader := r.Header.Get("Authorization")
 		tokenString := ""
 

@@ -43,7 +43,7 @@ func GetShopsHandler(w http.ResponseWriter, r *http.Request) {
 	if claims.Role == "cashier" || claims.Role == "manager" {
 		if claims.ShopID > 0 {
 			// Filter to only their shop
-			var filteredShops []db.Shop
+			filteredShops := []db.Shop{}
 			for _, shop := range shops {
 				if shop.ID == claims.ShopID {
 					filteredShops = append(filteredShops, shop)

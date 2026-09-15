@@ -98,7 +98,7 @@ func GetStockTransfersByCompany(db *sql.DB, companyID int) ([]StockTransfer, err
 	}
 	defer rows.Close()
 
-	var transfers []StockTransfer
+	transfers := []StockTransfer{}
 	for rows.Next() {
 		var t StockTransfer
 		err := rows.Scan(
@@ -153,7 +153,7 @@ func GetStockTransferByID(db *sql.DB, transferID int) (*StockTransfer, []Transfe
 	}
 	defer rows.Close()
 
-	var items []TransferItem
+	items := []TransferItem{}
 	for rows.Next() {
 		var item TransferItem
 		err := rows.Scan(

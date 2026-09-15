@@ -140,7 +140,7 @@ func GetAllProducts(db *sql.DB) ([]Product, error) {
 	}
 	defer rows.Close()
 
-	var products []Product
+	products := []Product{}
 	for rows.Next() {
 		var p Product
 		var barcodePtr *string
@@ -189,7 +189,7 @@ func SearchProducts(db *sql.DB, query string) ([]Product, error) {
 	}
 	defer rows.Close()
 
-	var products []Product
+	products := []Product{}
 	for rows.Next() {
 		var p Product
 		err := rows.Scan(
@@ -328,7 +328,7 @@ func SearchProductsByShop(db *sql.DB, query string, shopID int) ([]Product, erro
 	}
 	defer rows.Close()
 
-	var products []Product
+	products := []Product{}
 	for rows.Next() {
 		var p Product
 		err := rows.Scan(
@@ -374,7 +374,7 @@ func GetProductsByShop(db *sql.DB, shopID int) ([]Product, error) {
 	}
 	defer rows.Close()
 
-	var products []Product
+	products := []Product{}
 	for rows.Next() {
 		var p Product
 		err := rows.Scan(
@@ -459,7 +459,7 @@ func SearchProductsByCompany(db *sql.DB, query string, companyID int, shopID int
 	}
 	defer rows.Close()
 
-	var products []Product
+	products := []Product{}
 	for rows.Next() {
 		var p Product
 		var barcodePtr *string
@@ -533,7 +533,7 @@ func GetProductsByCompany(db *sql.DB, companyID int, shopID int) ([]Product, err
 	}
 	defer rows.Close()
 
-	var products []Product
+	products := []Product{}
 	for rows.Next() {
 		var p Product
 		err := rows.Scan(
@@ -622,7 +622,7 @@ func GetProductsByNameFuzzy(db *sql.DB, name string, companyID int) ([]Product, 
 	}
 	defer rows.Close()
 
-	var products []Product
+	products := []Product{}
 	for rows.Next() {
 		var p Product
 		var barcodePtr *string
@@ -703,7 +703,7 @@ func GetProductsByCompanyWithStock(db *sql.DB, companyID int, shopID int) ([]Pro
 	}
 	defer rows.Close()
 
-	var products []Product
+	products := []Product{}
 	for rows.Next() {
 		var p Product
 		var barcodePtr *string

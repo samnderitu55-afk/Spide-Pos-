@@ -230,72 +230,116 @@
     </header>
 
     <!-- MEGA MENU - Clean Version -->
-    <div id="mega-menu" class="hidden fixed top-[60px] left-4 right-4 bg-white/95 backdrop-blur-xl shadow-2xl rounded-2xl border border-gray-100 z-50 max-h-[85vh] overflow-y-auto">
+    <div id="mega-menu"
+        class="hidden fixed top-[60px] left-4 right-4 bg-white/95 backdrop-blur-xl shadow-2xl rounded-2xl border border-gray-100 z-50 max-h-[85vh] overflow-y-auto">
         <div class="p-4">
             <button onclick="toggleMegaMenu()" class="float-right text-gray-400 hover:text-gray-600 transition p-1">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
-            
+
             <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-2">
-                
+
                 <!-- Sales -->
                 <div class="space-y-0.5">
-                    <div class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
+                    <div
+                        class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
                         <span class="text-sm">🛒</span> Sales
                     </div>
-                    <a href="#" onclick="openRecentSalesModal()" class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📋 Recent Sales</a>
-                    <a href="#" onclick="window.location.href='/pos?shop_id=' + (currentShop?.id || 1) + '&open_zreport=true'" class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊 Z-Report</a>
-                    <a href="#" onclick="openProductSalesModal()" class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📈 Product Sales</a>
+                    <a href="#" onclick="openRecentSalesModal()"
+                        class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📋
+                        Recent Sales</a>
+                    <a href="#" onclick="openZReportModal()"
+                        class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊
+                        Z-Report</a>
+                    <a href="#" onclick="openProductSalesModal()"
+                        class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📈
+                        Product Sales</a>
                 </div>
 
                 <!-- Inventory -->
                 <div class="space-y-0.5">
-                    <div class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
+                    <div
+                        class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
                         <span class="text-sm">📦</span> Inventory
                     </div>
-                    <a href="#" onclick="openAddProductModal()" class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">➕ Add Product</a>
-                    <a href="#" onclick="openProductCatalogModal()" class="cashier-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📋 Catalog</a>
-                    <a href="#" onclick="openLowStockModal()" class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">⚠️ Low Stock</a>
-                    <a href="#" onclick="openInventoryValuationModal()" class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">💎 Valuation</a>
+                    <a href="#" onclick="openAddProductModal()"
+                        class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">➕
+                        Add Product</a>
+                    <a href="#" onclick="openProductCatalogModal()"
+                        class="cashier-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📋
+                        Catalog</a>
+                    <a href="#" onclick="openLowStockModal()"
+                        class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">⚠️
+                        Low Stock</a>
+                    <a href="#" onclick="openInventoryValuationModal()"
+                        class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">💎
+                        Valuation</a>
                 </div>
 
                 <!-- Supply Chain -->
                 <div class="space-y-0.5">
-                    <div class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
+                    <div
+                        class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
                         <span class="text-sm">🔗</span> Supply Chain
                     </div>
-                    <a href="#" onclick="openPurchaseModal()" class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📥 New Purchase</a>
-                    <a href="#" onclick="openPurchaseReportModal()" class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊 Purchase Report</a>
-                    <a href="#" onclick="openSupplierModal()" class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">👥 Suppliers</a>
-                    <a href="#" onclick="openTransferModal()" class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">🔄 New Transfer</a>
-                    <a href="#" onclick="openTransferHistoryModal()" class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📋 Transfer History</a>
+                    <a href="#" onclick="openPurchaseModal()"
+                        class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📥
+                        New Purchase</a>
+                    <a href="#" onclick="openPurchaseReportModal()"
+                        class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊
+                        Purchase Report</a>
+                    <a href="#" onclick="openSupplierModal()"
+                        class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">👥
+                        Suppliers</a>
+                    <a href="#" onclick="openTransferModal()"
+                        class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">🔄
+                        New Transfer</a>
+                    <a href="#" onclick="openTransferHistoryModal()"
+                        class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📋
+                        Transfer History</a>
                 </div>
 
                 <!-- Finance -->
                 <div class="space-y-0.5">
-                    <div class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
+                    <div
+                        class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
                         <span class="text-sm">💰</span> Finance
                     </div>
-                    <a href="#" onclick="openExpenseModal()" class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">➕ Add Expense</a>
-                    <a href="#" onclick="openExpenseReportModal()" class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊 Expense Report</a>
-                    <a href="#" onclick="openCustomerListModal()" class="cashier-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">👥 Customers</a>
-                    <a href="#" onclick="openDepositModal()" class="cashier-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">💰 Deposits</a>
-                    <a href="#" onclick="window.location.href='/pos?shop_id=' + (currentShop?.id || 1) + '&open_statement=true'" class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊 Customer Statement</a>
+                    <a href="#" onclick="openExpenseModal()"
+                        class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">➕
+                        Add Expense</a>
+                    <a href="#" onclick="openExpenseReportModal()"
+                        class="manager-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊
+                        Expense Report</a>
+                    <a href="#" onclick="openCustomerListModal()"
+                        class="cashier-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">👥
+                        Customers</a>
+                    <a href="#" onclick="openDepositModal()"
+                        class="cashier-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">💰
+                        Deposits</a>
+                    <a href="#" onclick="openCustomerStatement()"
+                        class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊
+                        Customer Statement</a>
                 </div>
 
                 <!-- Administration -->
                 <div class="space-y-0.5">
-                    <div class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
+                    <div
+                        class="flex items-center gap-1.5 text-purple-900 font-bold text-[10px] uppercase tracking-wider border-b border-purple-100 pb-1.5 mb-1.5">
                         <span class="text-sm">⚙️</span> Administration
                     </div>
-                    <a href="#" onclick="openUserManagement()" class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">👥 User Management</a>
-                    <a href="#" onclick="openCompanySettings()" class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">🏢 Company Settings</a>
+                    <a href="#" onclick="openUserManagement()"
+                        class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">👥
+                        User Management</a>
+                    <a href="#" onclick="openCompanySettings()"
+                        class="director-only flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">🏢
+                        Company Settings</a>
                 </div>
 
             </div>
-            
+
             <div class="mt-4 pt-3 border-t border-gray-100 flex justify-between items-center text-[10px] text-gray-400">
                 <span>🕷️ Spide POS v2.0</span>
                 <span id="menu-clock" class="font-mono"></span>
@@ -346,8 +390,7 @@
                     <div class="bg-red-100 p-3 rounded-full"><span class="text-2xl">⚠️</span></div>
                 </div>
                 <p id="stat-low-stock-label" class="text-xs text-gray-500 mt-2">No items need reordering</p>
-                <div id="low-stock-dot" class="hidden absolute top-3 right-3"><span
-                        class="relative flex h-3 w-3"><span
+                <div id="low-stock-dot" class="hidden absolute top-3 right-3"><span class="relative flex h-3 w-3"><span
                             class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span
                             class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span></span></div>
             </div>
@@ -410,7 +453,7 @@
                         <a href="/pos" class="text-xs text-purple-600 hover:text-purple-800 font-semibold">View All
                             →</a>
                     </div>
-                    <div id="recent-sales-list" class="flex-1 overflow-y-auto space-y-2 pr-1">
+                    <div id="dashboard-recent-sales-list" class="flex-1 overflow-y-auto space-y-2 pr-1">
                         <p class="text-sm text-gray-500 text-center py-4">No recent sales</p>
                     </div>
                 </div>
@@ -591,81 +634,62 @@
         // DOM READY
         // ============================================
         document.addEventListener('DOMContentLoaded', async function () {
-            shopId = getShopIdFromURL();
-            // User display
+            // ---------- Load user from localStorage or cookie ----------
+            let user = null;
+            const ls = localStorage.getItem('spide_user');
+            if (ls) {
+                try { user = JSON.parse(ls); } catch (e) { user = null; }
+            }
+            if (!user) {
+                const c = getCookie('spide_user');
+                if (c) {
+                    try { user = JSON.parse(decodeURIComponent(c)); } catch (e) { user = null; }
+                }
+            }
+            if (!user) {
+                window.location.href = '/login';
+                return;
+            }
+
+            // ---------- Header: username ----------
+            const displayName = user.full_name || user.username || 'User';
             const userEl = document.getElementById('logged-in-user');
-            if (userEl && user.username) userEl.textContent = user.username;
+            if (userEl) userEl.textContent = displayName;
             const initialEl = document.getElementById('user-initial');
-            if (initialEl) {
-                const name = user.username || 'C';
-                initialEl.textContent = name.charAt(0).toUpperCase();
-            }
+            if (initialEl) initialEl.textContent = displayName.charAt(0).toUpperCase();
 
-            // ✅ Set user info first
-            const userData = localStorage.getItem('spide_user');
-            if (userData) {
-                try {
-                    const user = JSON.parse(userData);
-                    document.getElementById('logged-in-user').textContent = user.full_name || user.username;
-                    document.getElementById('user-initial').textContent = (user.full_name || user.username).charAt(0).toUpperCase();
-                } catch (e) { }
-            }
-
-            // Director elements
-            const directorElements = document.querySelectorAll('.director-only');
-            directorElements.forEach(el => {
-                if (isDirector) {
-                    el.style.display = '';
-                    el.classList.remove('hidden-role');
-                } else {
-                    el.style.display = 'none';
-                    el.classList.add('hidden-role');
-                }
-            });
-
-            // ✅ Check if coming from director dashboard with shop_id
+            // ---------- Header: shop name ----------
             const urlParams = new URLSearchParams(window.location.search);
-            const shopIdParam = urlParams.get('shop_id');
-            console.log('📍 DOM Ready - shop_id from URL:', shopIdParam);
+            const urlShopId = urlParams.get('shop_id');
 
-            if (shopIdParam && isDirector) {
-                const shopId = parseInt(shopIdParam);
-                const shopName = await getShopName(shopId);
-                console.log('📍 Shop name from API:', shopName);
-
-                const display = document.getElementById('shop-name-display');
-                if (display) {
-                    display.textContent = shopName;
-                }
-
-                currentShop.id = shopId;
-                currentShop.name = shopName;
-                localStorage.setItem('currentShopId', shopId);
-                localStorage.setItem('currentShopName', shopName);
-            }
-            // Update menu based on role
-            updateMenuBasedOnRole();
-
-            // Shop selector
-            const shopSelectorBtn = document.getElementById('shop-selector-btn');
-            if (isDirector) {
-                shopSelectorBtn.style.display = '';
-                loadShopList();
+            // Priority: explicit URL shop (director switched) > user's assigned shop
+            if (urlShopId) {
+                const id = parseInt(urlShopId);
+                currentShop.id = id;
+                // If it's the same as the user's own shop, reuse the cached name
+                currentShop.name = (id === user.shop_id && user.shop_name)
+                    ? user.shop_name
+                    : await getShopName(id);
             } else {
-                shopSelectorBtn.style.display = 'none';
+                currentShop.id = user.shop_id || 1;
+                currentShop.name = user.shop_name || await getShopName(currentShop.id);
             }
 
-            const shopName = getCookie('currentShopName') || user.shop_name || 'Store #1 - Main';
-            const display = document.getElementById('shop-name-display');
-            if (display) display.textContent = shopName;
-            currentShop.name = shopName;
+            const shopEl = document.getElementById('shop-name-display');
+            if (shopEl) shopEl.textContent = currentShop.name;
 
-            const shopId = parseInt(getCookie('currentShopId')) || user.shop_id || 1;
-            currentShop.id = shopId;
+            localStorage.setItem('currentShopId', currentShop.id);
+            localStorage.setItem('currentShopName', currentShop.name);
 
-            updateShopDisplay();
-            refreshDashboard();
+            // ---------- Role-based visibility ----------
+            const isDirector = user.role === 'director' || user.role === 'admin';
             updateMenuBasedOnRole();
+
+            const shopSelectorBtn = document.getElementById('shop-selector-btn');
+            if (shopSelectorBtn) shopSelectorBtn.style.display = isDirector ? '' : 'none';
+
+            // ---------- Load data ----------
+            refreshDashboard();
             startClock();
         });
 
@@ -784,7 +808,7 @@
             document.getElementById('stat-items').textContent = (data.today_sales?.total_items || 0) + ' items sold today';
             document.getElementById('stat-stock-value').textContent = 'KES ' + (data.quick_stats?.total_stock_value || 0).toFixed(2);
             document.getElementById('stat-products').textContent = (data.quick_stats?.total_products || 0) + ' products in catalog';
-            
+
             const lowStockCount = data.low_stock_items ? data.low_stock_items.length : 0;
             document.getElementById('stat-low-stock').textContent = lowStockCount;
             if (lowStockCount > 0) {
@@ -855,9 +879,9 @@
             });
             container.innerHTML = html;
         }
-
+ 
         function renderRecentSales(sales) {
-            const container = document.getElementById('recent-sales-list');
+            const container = document.getElementById('dashboard-recent-sales-list');
             if (!sales || sales.length === 0) {
                 container.innerHTML = '<p class="text-sm text-gray-500 text-center py-4">No recent sales</p>';
                 return;
@@ -874,13 +898,13 @@
                             <div class="text-xs font-semibold text-gray-800 truncate">Sale #${sale.id} <span class="text-[10px] font-normal text-gray-500">${sale.created_at || ''}</span></div>
                             <div class="text-[10px] text-gray-500 truncate">${itemCount} item${itemCount !== 1 ? 's' : ''}${sale.mpesa_code ? ' • ' + sale.mpesa_code : ''}</div>
                         </div>
-                    </div>
-                    <div class="font-bold text-purple-900 text-sm whitespace-nowrap ml-2">KES ${sale.total_amount.toFixed(2)}</div>
-                </div>`;
-            });
+                   </div>
+                   <div class="font-bold text-purple-900 text-sm whitespace-nowrap ml-2">KES ${sale.total_amount.toFixed(2)}</div>
+            </div>`;
+           });
             container.innerHTML = html;
         }
-
+        
         // ============================================
         // SHOP DASHBOARD (for cashiers/managers)
         // ============================================
@@ -1054,80 +1078,10 @@
             }
         }
 
-        // ============================================
-        // OPEN MODAL PLACEHOLDERS
-        // ============================================
-        function openRecentSalesModal() {
-            // Implement or redirect
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_recent=true';
-        }
-
-        function openProductSalesModal() {
-            // Implement
-            alert('Product Sales - Coming soon');
-        }
-
-        function openAddProductModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_add_product=true';
-        }
-
-        function openProductCatalogModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_catalog=true';
-        }
-
-        function openLowStockModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_low_stock=true';
-        }
-
-        function openInventoryValuationModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_valuation=true';
-        }
-
-        function openPurchaseModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_purchase=true';
-        }
-
-        function openPurchaseReportModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_purchase_report=true';
-        }
-
-        function openSupplierModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_supplier=true';
-        }
-
-        function openTransferModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_transfer=true';
-        }
-
-        function openTransferHistoryModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_transfer_history=true';
-        }
-
-        function openExpenseModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_expense=true';
-        }
-
-        function openExpenseReportModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_expense_report=true';
-        }
-
-        function openCustomerListModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_customers=true';
-        }
-
-        function openDepositModal() {
-            window.location.href = '/pos?shop_id=' + (currentShop?.id || 1) + '&open_deposit=true';
-        }
-
-        function openUserManagement() {
-            window.location.href = '/director?open_user_management=true';
-        }
-
-        function openCompanySettings() {
-            window.location.href = '/director?open_company_settings=true';
-        }
-
     </script>
+
+    <script src="/static/js/spide-modals.js"></script>
+    <script src="/static/js/spide-loaders.js"></script>
 
 </body>
 

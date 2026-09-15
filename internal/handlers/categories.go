@@ -19,7 +19,7 @@ func GetCategoriesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	var categories []db.Category
+	categories := []db.Category{}
 	for rows.Next() {
 		var c db.Category
 		if err := rows.Scan(&c.ID, &c.Name); err != nil {

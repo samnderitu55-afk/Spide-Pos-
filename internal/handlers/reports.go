@@ -99,13 +99,14 @@ func ProductSalesReportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get query parameters
+	// Query parameters
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
+	category := r.URL.Query().Get("category")
+	productID := r.URL.Query().Get("product_id")
 
-	// Debug: log to terminal
-	log.Println("ProductSalesReportHandler called")
-	log.Printf("startDate: '%s', endDate: '%s'", startDate, endDate)
+	log.Printf("ProductSalesReportHandler: start=%q end=%q category=%q product_id=%q",
+		startDate, endDate, category, productID)
 
 	if startDate == "" {
 		http.Error(w, `{"error":"start_date parameter is required"}`, http.StatusBadRequest)
@@ -116,7 +117,7 @@ func ProductSalesReportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get shop_id - default to user's shop
+	// Resolve shop_id (director/admin can override)
 	shopID := claims.ShopID
 	if claims.Role == "director" || claims.Role == "admin" {
 		if shopIDParam := r.URL.Query().Get("shop_id"); shopIDParam != "" {
@@ -126,8 +127,18 @@ func ProductSalesReportHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	products, err := db.GetProductSalesReport(db.GetDB(), startDate, endDate, shopID)
+	// Parse product_id if provided
+	productIDInt := 0
+	if productID != "" {
+		if id, err := strconv.Atoi(productID); err == nil {
+			productIDInt = id
+		}
+	}
+
+	// Call the DB layer with all filters
+	products, err := db.GetProductSalesReport(db.GetDB(), startDate, endDate, shopID, category, productIDInt)
 	if err != nil {
+		log.Printf("❌ GetProductSalesReport error: %v", err)
 		http.Error(w, `{"error":"Failed to generate product sales report: `+err.Error()+`"}`, http.StatusInternalServerError)
 		return
 	}

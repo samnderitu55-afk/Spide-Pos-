@@ -48,6 +48,9 @@ func main() {
 
 	// Setup routes
 	mux := http.NewServeMux()
+	// Static files (must be before the "/" catch-all)
+	fs := http.FileServer(http.Dir("./static"))
+	mux.Handle("/static/", http.StripPrefix("/static/", fs))
 
 	// Favicon
 	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {

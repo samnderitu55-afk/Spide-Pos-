@@ -108,7 +108,7 @@ func GetTransfers(db *sql.DB, shopID int) ([]StockTransfer, error) {
 	}
 	defer rows.Close()
 
-	var transfers []StockTransfer
+	transfers := []StockTransfer{}
 	for rows.Next() {
 		var t StockTransfer
 		err := rows.Scan(
@@ -180,14 +180,14 @@ func GetTransferDetail(db *sql.DB, transferID int) (*StockTransfer, error) {
 	}
 	defer rows.Close()
 
-	var items []struct {
+	items := []struct {
 		ID          int     `json:"id"`
 		ProductID   int     `json:"product_id"`
 		ProductName string  `json:"product_name"`
 		Quantity    int     `json:"quantity"`
 		CostPrice   float64 `json:"cost_price"`
 		Subtotal    float64 `json:"subtotal"`
-	}
+	}{}
 
 	for rows.Next() {
 		var item struct {
@@ -231,7 +231,7 @@ func GetTransferItems(db *sql.DB, transferID int) ([]map[string]interface{}, err
 	}
 	defer rows.Close()
 
-	var items []map[string]interface{}
+	items := []map[string]interface{}{}
 	for rows.Next() {
 		var id, productID int
 		var productName, barcode string

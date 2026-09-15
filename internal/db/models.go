@@ -1,6 +1,7 @@
 ﻿package db
 
 import (
+	"database/sql"
 	"fmt"
 	"time"
 )
@@ -111,18 +112,20 @@ type SaleItem struct {
 }
 
 type Sale struct {
-	ID          int64      `json:"id"`
-	CompanyID   int        `json:"company_id"`
-	CustomerID  int        `json:"customer_id"`
-	TotalAmount float64    `json:"total_amount"`
-	CashAmount  float64    `json:"cash_amount"`
-	MpesaAmount float64    `json:"mpesa_amount"`
-	MpesaCode   string     `json:"mpesa_code"`
-	PaymentType string     `json:"payment_type"`
-	ChangeGiven float64    `json:"change_given,omitempty"`
-	CreatedAt   string     `json:"created_at"`
-	ShopID      int        `json:"shop_id"`
-	Items       []SaleItem `json:"items,omitempty"`
+	ID            int64          `json:"id"`
+	CompanyID     int            `json:"company_id"`
+	CustomerID    int            `json:"customer_id"`
+	TotalAmount   float64        `json:"total_amount"`
+	CashAmount    float64        `json:"cash_amount"`
+	MpesaAmount   float64        `json:"mpesa_amount"`
+	MpesaCode     sql.NullString `json:"mpesa_code"`
+	DepositAmount float64        `json:"deposit_amount"`
+	CreditAmount  float64        `json:"dcredit_amount"`
+	PaymentType   string         `json:"payment_type"`
+	ChangeGiven   float64        `json:"change_given,omitempty"`
+	CreatedAt     string         `json:"created_at"`
+	ShopID        int            `json:"shop_id"`
+	Items         []SaleItem     `json:"items,omitempty"`
 }
 
 type SaleRequest struct {

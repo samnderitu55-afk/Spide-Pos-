@@ -21,7 +21,7 @@ func GetProductStockByCompany(db *sql.DB, productID, companyID int) ([]ShopStock
 	}
 	defer rows.Close()
 
-	var stocks []ShopStock
+	stocks := []ShopStock{}
 	for rows.Next() {
 		var s ShopStock
 		err := rows.Scan(
@@ -64,7 +64,7 @@ func GetShopStock(db *sql.DB, shopID int) ([]ShopStock, error) {
 	}
 	defer rows.Close()
 
-	var stocks []ShopStock
+	stocks := []ShopStock{}
 	for rows.Next() {
 		var s ShopStock
 		err := rows.Scan(

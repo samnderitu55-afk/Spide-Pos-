@@ -152,7 +152,7 @@ func GetAllCompanies(db *sql.DB) ([]Company, error) {
 	}
 	defer rows.Close()
 
-	var companies []Company
+	companies := []Company{}
 	for rows.Next() {
 		var c Company
 		err := rows.Scan(

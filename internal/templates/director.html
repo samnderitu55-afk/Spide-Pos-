@@ -194,8 +194,7 @@
                     <a href="#" onclick="openRecentSalesModal()"
                         class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📋
                         Recent Sales</a>
-                    <a href="#"
-                        onclick="window.location.href='/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_zreport=true'"
+                    <a href="#" onclick="openZReportModal()"
                         class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊
                         Z-Report</a>
                     <a href="#" onclick="openProductSalesModal()"
@@ -261,8 +260,7 @@
                     <a href="#" onclick="openDepositModal()"
                         class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">💰
                         Deposits</a>
-                    <a href="#"
-                        onclick="window.location.href='/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_statement=true'"
+                    <a href="#" onclick="openCustomerStatement()"
                         class="flex items-center gap-2 text-xs text-gray-600 hover:text-purple-700 hover:bg-purple-50 px-2 py-1.5 rounded-lg transition">📊
                         Customer Statement</a>
                 </div>
@@ -471,61 +469,6 @@
         }
 
         // ============================================
-        // MODAL FUNCTION PLACEHOLDERS (Redirect to POS)
-        // ============================================
-        function openRecentSalesModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_recent=true';
-        }
-        function openProductSalesModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_product_sales=true';
-        }
-        function openAddProductModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_add_product=true';
-        }
-        function openProductCatalogModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_catalog=true';
-        }
-        function openLowStockModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_low_stock=true';
-        }
-        function openInventoryValuationModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_valuation=true';
-        }
-        function openPurchaseModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_purchase=true';
-        }
-        function openPurchaseReportModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_purchase_report=true';
-        }
-        function openSupplierModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_supplier=true';
-        }
-        function openTransferModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_transfer=true';
-        }
-        function openTransferHistoryModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_transfer_history=true';
-        }
-        function openExpenseModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_expense=true';
-        }
-        function openExpenseReportModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_expense_report=true';
-        }
-        function openCustomerListModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_customers=true';
-        }
-        function openDepositModal() {
-            window.location.href = '/pos?shop_id=' + (getShopIdFromURL() || 1) + '&open_deposit=true';
-        }
-        function openUserManagement() {
-            window.location.href = '/director?open_user_management=true';
-        }
-        function openCompanySettings() {
-            window.location.href = '/director?open_company_settings=true';
-        }
-
-        // ============================================
         // DASHBOARD DATA
         // ============================================
         async function refreshDashboard() {
@@ -665,86 +608,10 @@
             setInterval(refreshDashboard, 30000);
         });
     </script>
-<!-- COMPANY MANAGEMENT MODAL -->
-<div id="company-management-modal" class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
-    <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
-        <div class="flex justify-between items-center border-b border-gray-100 pb-3">
-            <div>
-                <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-                    <span class="bg-indigo-100 p-1.5 rounded-lg">🏢</span>
-                    Company Management
-                </h2>
-                <p class="text-xs text-gray-500">Manage multiple companies (Demo/Live)</p>
-            </div>
-            <div class="flex items-center gap-2">
-                <button onclick="openAddCompanyModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-1.5 rounded-lg transition">➕ Add Company</button>
-                <button onclick="closeCompanyManagement()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-            </div>
-        </div>
-        
-        <div class="flex-1 overflow-y-auto border rounded-xl relative">
-            <table class="w-full text-left border-collapse text-xs">
-                <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
-                    <tr>
-                        <th class="p-2">Company</th>
-                        <th class="p-2">Registration</th>
-                        <th class="p-2">Currency</th>
-                        <th class="p-2 text-center">Type</th>
-                        <th class="p-2 text-center">Status</th>
-                        <th class="p-2 text-center">Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="company-list-body">
-                    <tr><td colspan="6" class="p-4 text-center text-gray-500">Loading companies...</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <div class="flex justify-end border-t border-gray-100 pt-3">
-            <button onclick="closeCompanyManagement()" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium px-5 py-2 rounded-xl transition text-sm">Close</button>
-        </div>
-    </div>
-</div>
 
-<!-- ADD/EDIT COMPANY MODAL -->
-<div id="company-modal" class="fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4">
-    <div class="bg-white w-full max-w-2xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
-        <div class="flex justify-between items-center border-b border-gray-100 pb-3">
-            <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <span class="bg-indigo-100 p-1.5 rounded-lg">🏢</span>
-                <span id="company-modal-title">Add Company</span>
-            </h2>
-            <button onclick="closeCompanyModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
-        </div>
-        
-        <form id="company-form" onsubmit="saveCompany(event)" class="flex-1 overflow-y-auto">
-            <input type="hidden" id="company-id" value="0">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div class="space-y-3">
-                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Company Name *</label><input type="text" id="company-name" required placeholder="e.g. ABC Retail Ltd" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
-                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Registration Number</label><input type="text" id="company-reg-number" placeholder="e.g. PVT-2024-001" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
-                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Tax ID (PIN)</label><input type="text" id="company-tax-id" placeholder="e.g. A12345678X" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
-                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Phone</label><input type="text" id="company-phone" placeholder="e.g. 0712345678" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
-                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Email</label><input type="email" id="company-email" placeholder="e.g. info@abc.co.ke" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
-                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Website</label><input type="text" id="company-website" placeholder="e.g. www.abc.co.ke" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></div>
-                </div>
-                <div class="space-y-3">
-                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Address</label><textarea id="company-address" rows="3" placeholder="Physical address..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea></div>
-                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Currency</label><select id="company-currency" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="KES">KES - Kenyan Shilling</option><option value="USD">USD - US Dollar</option><option value="EUR">EUR - Euro</option><option value="GBP">GBP - British Pound</option><option value="TZS">TZS - Tanzanian Shilling</option><option value="UGX">UGX - Ugandan Shilling</option></select></div>
-                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Company Type</label><select id="company-type" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="0">Live Production</option><option value="1">Demo Company</option></select></div>
-                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Status</label><select id="company-status" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"><option value="1">Active</option><option value="0">Inactive</option></select></div>
-                    <div><label class="block text-xs font-semibold text-gray-700 mb-1">Receipt Footer</label><textarea id="company-receipt-footer" rows="2" placeholder="Thank you for your business!..." class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"></textarea></div>
-                </div>
-            </div>
-            
-            <div id="company-alert" class="hidden mt-4 p-2 rounded-lg text-sm font-medium"></div>
-            
-            <div class="flex gap-3 pt-4 border-t border-gray-100 mt-4">
-                <button type="button" onclick="closeCompanyModal()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
-                <button type="submit" id="company-submit-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 rounded-lg transition text-sm">💾 Save Company</button>
-            </div>
-        </form>
-    </div>
-</div>
+    <script src="/static/js/spide-modals.js"></script>
+    <script src="/static/js/spide-loaders.js"></script>
+
 </body>
 
 </html>

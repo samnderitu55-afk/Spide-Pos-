@@ -102,54 +102,72 @@ func GetDailyZReportWithExpenses(db *sql.DB, dateParam string, shopID int) (*ZRe
 	return report, nil
 }
 
-func GetProductSalesReport(db *sql.DB, startDate, endDate string, shopID int) ([]ProductSalesReportItem, error) {
+func GetProductSalesReport(
+	db *sql.DB,
+	startDate, endDate string,
+	shopID int,
+	category string,
+	productID int,
+) ([]ProductSalesReportItem, error) {
 	if startDate == "" || endDate == "" {
 		return nil, fmt.Errorf("start and end dates are required")
 	}
 
 	query := `
-        SELECT 
-            p.name as product_name,
-            p.category,
-            SUM(si.quantity) as units_sold,
-            SUM(si.quantity * p.cost_price) as total_cost,
-            SUM(si.subtotal) as total_revenue,
-            SUM(si.subtotal) - SUM(si.quantity * p.cost_price) as net_profit
+        SELECT p.name, p.category, SUM(si.quantity), 
+               SUM(si.quantity * p.cost_price), 
+               SUM(si.subtotal), 
+               SUM(si.subtotal - si.quantity * p.cost_price)
         FROM sale_items si
         JOIN products p ON si.product_id = p.id
         JOIN sales s ON si.sale_id = s.id
-        WHERE DATE(s.created_at) BETWEEN ? AND ? AND s.shop_id = ?
-        GROUP BY p.id, p.name, p.category
-        ORDER BY units_sold DESC
+        WHERE DATE(s.created_at) BETWEEN ? AND ?
     `
-	rows, err := db.Query(query, startDate, endDate, shopID)
+	args := []interface{}{startDate, endDate}
+
+	if shopID > 0 {
+		query += " AND s.shop_id = ?"
+		args = append(args, shopID)
+	}
+	if category != "" {
+		query += " AND p.category = ?"
+		args = append(args, category)
+	}
+	if productID > 0 {
+		query += " AND si.product_id = ?"
+		args = append(args, productID)
+	}
+
+	query += " GROUP BY p.id, p.name, p.category ORDER BY SUM(si.subtotal) DESC"
+
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var items []ProductSalesReportItem
+	results := []ProductSalesReportItem{}
 	for rows.Next() {
-		var item ProductSalesReportItem
-		err := rows.Scan(
-			&item.ProductName, &item.Category,
-			&item.UnitsSold, &item.TotalCost,
-			&item.TotalRevenue, &item.NetProfit,
-		)
-		if err != nil {
+		var row ProductSalesReportItem
+		if err := rows.Scan(
+			&row.ProductName,
+			&row.Category,
+			&row.UnitsSold,
+			&row.TotalCost,
+			&row.TotalRevenue,
+			&row.NetProfit,
+		); err != nil {
 			return nil, err
 		}
-		if item.TotalRevenue > 0 {
-			item.MarginPct = (item.NetProfit / item.TotalRevenue) * 100
+		if row.TotalRevenue > 0 {
+			row.MarginPct = (row.NetProfit / row.TotalRevenue) * 100
 		}
-		items = append(items, item)
+		results = append(results, row)
 	}
-
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("error iterating product sales: %w", err)
 	}
-
-	return items, nil
+	return results, nil
 }
 
 // GetInventoryValuationReport - returns inventory valuation by category
@@ -173,7 +191,7 @@ func GetInventoryValuationReport(db *sql.DB) ([]InventoryValuationItem, error) {
 	}
 	defer rows.Close()
 
-	var items []InventoryValuationItem
+	items := []InventoryValuationItem{}
 	for rows.Next() {
 		var item InventoryValuationItem
 		err := rows.Scan(
@@ -214,13 +232,13 @@ func GetCategoryValuationDetails(db *sql.DB, category string) ([]struct {
 	}
 	defer rows.Close()
 
-	var details []struct {
+	details := []struct {
 		ProductName string  `json:"product_name"`
 		InStock     int     `json:"in_stock"`
 		CostPrice   float64 `json:"cost_price"`
 		RetailPrice float64 `json:"retail_price"`
 		TotalCost   float64 `json:"total_cost"`
-	}
+	}{}
 	for rows.Next() {
 		var d struct {
 			ProductName string  `json:"product_name"`
@@ -269,7 +287,7 @@ func GetLowStockItems(db *sql.DB, companyID int, shopID int) ([]LowStockItem, er
 	}
 	defer rows.Close()
 
-	var items []LowStockItem
+	items := []LowStockItem{}
 	for rows.Next() {
 		var item LowStockItem
 		err := rows.Scan(

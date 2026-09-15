@@ -441,7 +441,7 @@ func getOutletStats(db *sql.DB, today, monthStart string) ([]OutletStats, error)
 	}
 	defer rows.Close()
 
-	var stats []OutletStats
+	stats := []OutletStats{}
 	for rows.Next() {
 		var stat OutletStats
 		err := rows.Scan(
@@ -480,7 +480,7 @@ func getDirectorSalesTrend(db *sql.DB, startDate, endDate string) ([]SalesTrendI
 	}
 	defer rows.Close()
 
-	var trend []SalesTrendItem
+	trend := []SalesTrendItem{}
 	for rows.Next() {
 		var item SalesTrendItem
 		err := rows.Scan(&item.Date, &item.Total)
@@ -521,7 +521,7 @@ func getTopProductsAllOutlets(db *sql.DB, startDate, endDate string) ([]TopProdu
 	}
 	defer rows.Close()
 
-	var products []TopProductItem
+	products := []TopProductItem{}
 	for rows.Next() {
 		var item TopProductItem
 		err := rows.Scan(&item.ProductName, &item.Category, &item.UnitsSold, &item.Revenue)
@@ -560,7 +560,7 @@ func getRecentTransactions(db *sql.DB, limit int) ([]RecentTxItem, error) {
 	}
 	defer rows.Close()
 
-	var transactions []RecentTxItem
+	transactions := []RecentTxItem{}
 	for rows.Next() {
 		var t RecentTxItem
 		err := rows.Scan(&t.SaleID, &t.ShopName, &t.Amount, &t.PaymentType, &t.CreatedAt)
@@ -607,7 +607,7 @@ func getAlerts(db *sql.DB) ([]AlertItem, error) {
 	}
 	defer rows.Close()
 
-	var alerts []AlertItem
+	alerts := []AlertItem{}
 	for rows.Next() {
 		var a AlertItem
 		err := rows.Scan(&a.ShopName, &a.ProductName, &a.StockLevel, &a.ReorderLevel, &a.Severity)

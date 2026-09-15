@@ -137,7 +137,7 @@ func GetCustomers(db *sql.DB) ([]Customer, error) {
 	}
 	defer rows.Close()
 
-	var customers []Customer
+	customers := []Customer{}
 	for rows.Next() {
 		var c Customer
 		err := rows.Scan(
@@ -277,7 +277,7 @@ func SearchCustomers(db *sql.DB, query string) ([]Customer, error) {
 	}
 	defer rows.Close()
 
-	var customers []Customer
+	customers := []Customer{}
 	for rows.Next() {
 		var c Customer
 		err := rows.Scan(&c.ID, &c.Name, &c.Phone, &c.Email,
@@ -384,7 +384,7 @@ func GetCreditSales(db *sql.DB, customerID int) ([]CreditSale, error) {
 	}
 	defer rows.Close()
 
-	var sales []CreditSale
+	sales := []CreditSale{}
 	for rows.Next() {
 		var s CreditSale
 		err := rows.Scan(
@@ -429,7 +429,7 @@ func GetCreditPayments(db *sql.DB, creditSaleID int) ([]CreditPayment, error) {
 	}
 	defer rows.Close()
 
-	var payments []CreditPayment
+	payments := []CreditPayment{}
 	for rows.Next() {
 		var p CreditPayment
 		err := rows.Scan(
@@ -534,7 +534,7 @@ func AddCreditPayment(db *sql.DB, payment *CreditPayment) error {
 }
 
 func GetCustomerTransactions(db *sql.DB, customerID int) ([]CustomerTransaction, error) {
-	var transactions []CustomerTransaction
+	transactions := []CustomerTransaction{}
 	var runningBalance float64
 
 	// Get sales transactions
@@ -670,7 +670,7 @@ func GetCustomersByCompany(db *sql.DB, companyID int) ([]Customer, error) {
 	}
 	defer rows.Close()
 
-	var customers []Customer
+	customers := []Customer{}
 	for rows.Next() {
 		var c Customer
 		err := rows.Scan(

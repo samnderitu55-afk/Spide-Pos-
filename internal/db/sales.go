@@ -42,15 +42,16 @@ func CreateSale(db *sql.DB, req SaleRequest) (int64, error) {
 
 	// ✅ Insert sale
 	saleQuery := `
-        INSERT INTO sales (total_amount, cash_amount, mpesa_amount, credit_amount, mpesa_code, 
-                           payment_type, change_given, shop_id, customer_id, company_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        INSERT INTO sales (total_amount, cash_amount, mpesa_amount, credit_amount, deposit_amount, 
+                           mpesa_code, payment_type, change_given, shop_id, customer_id, company_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `
 	result, err := tx.Exec(saleQuery,
 		req.TotalAmount,
 		req.CashAmount,
 		req.MpesaAmount,
 		req.CreditAmount,
+		req.DepositAmount, // ← NEW
 		req.MpesaCode,
 		req.PaymentType,
 		req.ChangeGiven,
@@ -153,7 +154,7 @@ func GetRecentSales(db *sql.DB, limit int) ([]Sale, error) {
 	}
 	defer rows.Close()
 
-	var sales []Sale
+	sales := []Sale{}
 	for rows.Next() {
 		var s Sale
 		err := rows.Scan(
@@ -197,7 +198,7 @@ func GetRecentSalesForShop(db *sql.DB, shopID int, limit int) ([]Sale, error) {
 	}
 	defer rows.Close()
 
-	var sales []Sale
+	sales := []Sale{}
 	for rows.Next() {
 		var s Sale
 		err := rows.Scan(
@@ -238,7 +239,7 @@ func getSaleItems(db *sql.DB, saleID int64) ([]SaleItem, error) {
 	}
 	defer rows.Close()
 
-	var items []SaleItem
+	items := []SaleItem{}
 	for rows.Next() {
 		var item SaleItem
 		err := rows.Scan(
@@ -260,8 +261,8 @@ func getSaleItems(db *sql.DB, saleID int64) ([]SaleItem, error) {
 
 func GetRecentSalesForShopAndCompany(db *sql.DB, shopID, companyID int, limit int) ([]Sale, error) {
 	query := `
-        SELECT id, total_amount, cash_amount, mpesa_amount, mpesa_code, 
-               payment_type, shop_id, customer_id, created_at
+        SELECT id, total_amount, cash_amount, mpesa_amount, credit_amount, deposit_amount,
+               mpesa_code, payment_type, shop_id, customer_id, created_at
         FROM sales
         WHERE shop_id = ? AND company_id = ?
         ORDER BY created_at DESC
@@ -273,12 +274,21 @@ func GetRecentSalesForShopAndCompany(db *sql.DB, shopID, companyID int, limit in
 	}
 	defer rows.Close()
 
-	var sales []Sale
+	sales := []Sale{}
 	for rows.Next() {
 		var s Sale
 		err := rows.Scan(
-			&s.ID, &s.TotalAmount, &s.CashAmount, &s.MpesaAmount,
-			&s.MpesaCode, &s.PaymentType, &s.ShopID, &s.CustomerID, &s.CreatedAt,
+			&s.ID,
+			&s.TotalAmount,
+			&s.CashAmount,
+			&s.MpesaAmount,
+			&s.CreditAmount,  // ← new
+			&s.DepositAmount, // ← new
+			&s.MpesaCode,
+			&s.PaymentType,
+			&s.ShopID,
+			&s.CustomerID,
+			&s.CreatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -306,7 +316,7 @@ func GetSalesByCompany(db *sql.DB, companyID int, limit int) ([]Sale, error) {
 	}
 	defer rows.Close()
 
-	var sales []Sale
+	sales := []Sale{}
 	for rows.Next() {
 		var s Sale
 		err := rows.Scan(

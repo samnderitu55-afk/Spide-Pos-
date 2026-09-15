@@ -114,11 +114,11 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 	}
 	defer rows.Close()
 
-	var trend []struct {
+	trend := []struct {
 		Hour   int     `json:"hour"`
 		Amount float64 `json:"amount"`
 		Count  int     `json:"count"`
-	}
+	}{}
 	for rows.Next() {
 		var t struct {
 			Hour   int     `json:"hour"`
@@ -162,11 +162,11 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 	}
 	defer rows.Close()
 
-	var topProducts []struct {
+	topProducts := []struct {
 		ProductName string  `json:"product_name"`
 		UnitsSold   int     `json:"units_sold"`
 		Revenue     float64 `json:"revenue"`
-	}
+	}{}
 	for rows.Next() {
 		var tp struct {
 			ProductName string  `json:"product_name"`
@@ -214,7 +214,7 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 	}
 	defer rows.Close()
 
-	var recentSales []Sale
+	recentSales := []Sale{}
 	for rows.Next() {
 		var sale Sale
 		err := rows.Scan(
@@ -238,7 +238,7 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 	stats.RecentSales = recentSales
 
 	// Get low stock items
-	var lowStock []LowStockReportItem
+	lowStock := []LowStockReportItem{}
 	var lowStockRows *sql.Rows
 
 	if shopID > 0 {

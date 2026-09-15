@@ -29,7 +29,7 @@ func GetShopsByCompany(db *sql.DB, companyID int) ([]Shop, error) {
 	}
 	defer rows.Close()
 
-	var shops []Shop
+	shops := []Shop{}
 	for rows.Next() {
 		var s Shop
 		err := rows.Scan(
@@ -96,7 +96,7 @@ func GetAllShops(db *sql.DB) ([]Shop, error) {
 	}
 	defer rows.Close()
 
-	var shops []Shop
+	shops := []Shop{}
 	for rows.Next() {
 		var s Shop
 		err := rows.Scan(
