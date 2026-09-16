@@ -21,6 +21,14 @@ func CreateProduct(db *sql.DB, p *Product) (int64, error) {
 		barcode = *p.Barcode
 	}
 
+	// ✅ CategoryID: NULL if 0 (so the FK doesn't reject it)
+	var categoryID interface{}
+	if p.CategoryID > 0 {
+		categoryID = p.CategoryID
+	} else {
+		categoryID = nil
+	}
+
 	// ✅ Insert with barcode as NULL if empty
 	query := `
         INSERT INTO products 
@@ -33,7 +41,7 @@ func CreateProduct(db *sql.DB, p *Product) (int64, error) {
 		barcode, // ✅ Can be NULL
 		p.Name,
 		p.Category,
-		p.CategoryID,
+		categoryID,
 		p.CostPrice,
 		p.RetailPrice,
 		p.WholesalePrice,
@@ -55,7 +63,7 @@ func CreateProduct(db *sql.DB, p *Product) (int64, error) {
             INSERT INTO shop_stock (shop_id, product_id, quantity, company_id, created_at, updated_at)
             SELECT id, ?, ?, ?, NOW(), NOW() 
             FROM shops 
-            WHERE company_id = ? AND is_active = 1
+            WHERE company_id = ?
         `
 		_, err = tx.Exec(shopQuery, id, p.StockQuantity, p.CompanyID, p.CompanyID)
 		if err != nil {
@@ -87,19 +95,26 @@ func UpdateProduct(db *sql.DB, p *Product) error {
 		barcode = *p.Barcode
 	}
 
+	var categoryID interface{}
+	if p.CategoryID > 0 {
+		categoryID = p.CategoryID
+	} else {
+		categoryID = nil
+	}
+
 	// Update products table
 	query := `
         UPDATE products 
-        SET barcode = ?, name = ?, category = ?, cost_price = ?, retail_price = ?,
+        SET barcode = ?, name = ?, category = ?, category_id = ?, cost_price = ?, retail_price = ?,
             wholesale_price = ?, wholesale_min_qty = ?, reorder_level = ?, 
             updated_at = NOW()
-        WHERE id = ?
+        WHERE id = ? AND company_id = ?
     `
 	_, err = tx.Exec(query,
-		barcode, p.Name, p.Category,
+		barcode, p.Name, p.Category, categoryID,
 		p.CostPrice, p.RetailPrice, p.WholesalePrice,
 		p.WholesaleMinQty, p.ReorderLevel,
-		p.ID,
+		p.ID, p.CompanyID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update product: %w", err)

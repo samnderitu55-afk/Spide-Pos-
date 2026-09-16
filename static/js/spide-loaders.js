@@ -423,17 +423,17 @@
                 const stillExists = [...select.options].some(o => o.value === currentValue);
                 if (stillExists) select.value = currentValue;
             }
-           
+
         } catch (e) {
             console.error('Error loading products:', e);
         }
     };
 
     window.onProductSalesCategoryChange = async function () {
-    await window.loadProductSalesProducts();
-    if (typeof window.loadProductSalesReport === 'function') {
-        window.loadProductSalesReport();
-    }
+        await window.loadProductSalesProducts();
+        if (typeof window.loadProductSalesReport === 'function') {
+            window.loadProductSalesReport();
+        }
     };
 
     window.reprintReceipt = function (saleId) {
@@ -572,12 +572,121 @@
                 <td class="p-3 text-right font-mono font-bold text-purple-900">KES ${(p.retail_price || 0).toFixed(2)}</td>
                 <td class="p-3 text-right font-mono text-gray-700">KES ${(p.wholesale_price || 0).toFixed(2)}</td>
                 <td class="p-3 text-center ${stockClass}">${stockBadge}</td>
-                <td class="p-3 text-center">
-                    <button onclick='editProduct(${JSON.stringify(p).replace(/'/g, "&#39;")})' class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-lg transition">✏️ Edit</button>
+                <td class="p-3 text-center whitespace-nowrap">
+                    <button onclick='editProduct(${JSON.stringify(p).replace(/'/g, "&#39;")})' 
+                            class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-lg transition">✏️ Edit</button>
+                    <button onclick='quickUpdateStock(${p.id}, "${(p.name || '').replace(/"/g, '\\"')}", ${stock})' 
+                            class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg transition ml-1">📦 Stock</button>
                 </td>
             </tr>`;
         });
         tbody.innerHTML = html;
+    };
+
+    // =========================================================
+    // QUICK STOCK UPDATE
+    // =========================================================
+    window.quickUpdateStock = function (productId, productName, currentStock) {
+        const existing = document.getElementById('stock-update-modal');
+        if (existing) existing.remove();
+        const modal = document.createElement('div');
+        modal.id = 'stock-update-modal';
+        modal.className = 'fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+                <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                    <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2"><span class="bg-emerald-100 p-1.5 rounded-lg">📦</span>Update Stock</h2>
+                    <button onclick="closeStockUpdate()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+                </div>
+                <div>
+                    <p class="text-sm font-medium text-gray-700">Product: <span class="text-purple-700">${productName}</span></p>
+                    <p class="text-xs text-gray-500 mt-1">Current Stock: <span class="font-bold">${currentStock}</span></p>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">New Stock Quantity</label>
+                    <input type="number" id="stock-quantity-input" value="${currentStock}" min="0" class="w-full px-3 py-2 border rounded-lg text-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Adjustment Type</label>
+                    <select id="stock-adjustment-type" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                        <option value="set">Set Exact Quantity</option>
+                        <option value="add">Add to Current</option>
+                        <option value="subtract">Subtract from Current</option>
+                    </select>
+                </div>
+                <div id="stock-update-alert" class="hidden p-2 rounded-lg text-sm font-medium"></div>
+                <div class="flex gap-3 pt-4 border-t border-gray-100">
+                    <button onclick="closeStockUpdate()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
+                    <button onclick="saveStockUpdate(${productId})" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 rounded-lg transition text-sm">💾 Update Stock</button>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+        modal.classList.remove('hidden');
+        setTimeout(() => { document.getElementById('stock-quantity-input')?.focus(); document.getElementById('stock-quantity-input')?.select(); }, 100);
+    };
+
+    window.closeStockUpdate = function () {
+        const modal = document.getElementById('stock-update-modal');
+        if (modal) { modal.classList.add('hidden'); setTimeout(() => modal.remove(), 300); }
+    };
+
+    window.saveStockUpdate = async function (productId) {
+        const quantityInput = document.getElementById('stock-quantity-input');
+        const adjustmentType = document.getElementById('stock-adjustment-type').value;
+        const alertBox = document.getElementById('stock-update-alert');
+        const submitBtn = document.querySelector('#stock-update-modal .bg-emerald-600');
+        if (!quantityInput) return;
+        const newQuantity = parseInt(quantityInput.value) || 0;
+        if (newQuantity < 0) { window.showStockAlert('Quantity cannot be negative', 'error'); return; }
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving...'; }
+        alertBox?.classList.add('hidden');
+        try {
+            const token = window.getCookie('spide_token');
+            if (!token) { window.showStockAlert('❌ Not authenticated.', 'error'); return; }
+            const shopId = window.getCurrentShopId();
+            const payload = {
+                product_id: productId,
+                quantity: newQuantity,
+                adjustment_type: adjustmentType,
+                shop_id: parseInt(shopId) || 1
+            };
+            const response = await fetch('/api/products/update-stock', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                const text = await response.text();
+                window.showStockAlert('❌ Error: ' + (text || 'Unknown error'), 'error');
+                return;
+            }
+            const responseText = await response.text();
+            if (!responseText || responseText.trim() === '') { window.showStockAlert('❌ Empty response', 'error'); return; }
+            let result;
+            try { result = JSON.parse(responseText); } catch (e) { window.showStockAlert('❌ Invalid response', 'error'); return; }
+            if (result.success) {
+                window.showStockAlert('✅ Stock updated! New quantity: ' + result.new_quantity, 'success');
+                setTimeout(() => {
+                    window.closeStockUpdate();
+                    if (typeof window.loadProducts === 'function') window.loadProducts();
+                }, 1500);
+            } else {
+                window.showStockAlert('❌ Error: ' + (result.error || result.message || 'Unknown'), 'error');
+            }
+        } catch (error) {
+            console.error('Stock update error:', error);
+            window.showStockAlert('❌ Network error: ' + error.message, 'error');
+        } finally {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '💾 Update Stock'; }
+        }
+    };
+
+    window.showStockAlert = function (message, type) {
+        const alertBox = document.getElementById('stock-update-alert');
+        if (!alertBox) return;
+        alertBox.textContent = message;
+        alertBox.className = 'p-2 rounded-lg text-sm font-medium ' + (type === 'success' ? 'bg-green-100 text-green-700 border border-green-200' : type === 'error' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-amber-100 text-amber-700 border border-amber-200');
+        alertBox.classList.remove('hidden');
     };
 
     window.filterCatalog = function () {
@@ -626,12 +735,25 @@
             setVal('prodWholesaleQty', product.wholesale_min_qty || 0);
             setVal('prodStockQty', product.stock_quantity || 0);
             setVal('prodReorderLevel', product.reorder_level || 5);
+
             const form = document.getElementById('addProductForm');
             if (form) form.dataset.editId = product.id;
+
             const h3 = document.querySelector('#addProductModal h3');
             if (h3) h3.innerHTML = '✏️ Edit Product';
             const btn = document.getElementById('saveProductBtn');
             if (btn) btn.innerText = '💾 Update Product';
+
+            const sku = document.getElementById('prodSku');
+            if (sku && !barcode) sku.placeholder = 'No barcode (leave blank to keep)';
+
+            // ✅ Hide the Initial Stock field — stock is managed via the 📦 Stock button
+            const stockEl = document.getElementById('prodStockQty');
+            if (stockEl) {
+                const wrapper = stockEl.closest('div');
+                if (wrapper) wrapper.style.display = 'none';
+            }
+
             if (typeof window.openAddProductModal === 'function') window.openAddProductModal();
         }, 300);
     };
@@ -823,6 +945,146 @@
             html += '<tr class="border-b hover:bg-purple-50/50 transition"><td class="p-2 font-medium text-gray-800">' + p.product_name + '</td><td class="p-2 font-mono text-gray-500">' + (p.barcode || 'N/A') + '</td><td class="p-2 text-gray-500">' + p.category + '</td><td class="p-2 text-center font-bold">' + p.quantity + '</td><td class="p-2 text-right font-mono">KES ' + (p.cost_price || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono">KES ' + (p.retail_price || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono text-amber-700">KES ' + (p.cost_value || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono text-emerald-700">KES ' + (p.retail_value || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono ' + profitClass + '">KES ' + (p.profit || 0).toFixed(2) + '</td></tr>';
         });
         productsContainer.innerHTML = html;
+    };
+
+    // =========================================================
+    // PRODUCTS CRUD (Add / Edit)
+    // =========================================================
+    window.loadCategories = async function () {
+        const select = document.getElementById('prodCategory');
+        if (!select) return;
+        select.innerHTML = '<option value="">Loading categories...</option>';
+        try {
+            const token = window.getCookie('spide_token');
+            const response = await fetch('/api/categories', {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            });
+            const categories = await response.json();
+            select.innerHTML = '<option value="">-- Select Category --</option>';
+            (Array.isArray(categories) ? categories : []).forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.name || cat;
+                opt.textContent = cat.name || cat;
+                select.appendChild(opt);
+            });
+            const addOpt = document.createElement('option');
+            addOpt.value = 'NEW';
+            addOpt.textContent = '➕ Add New Category...';
+            addOpt.className = 'font-semibold text-purple-800 bg-purple-50';
+            select.appendChild(addOpt);
+        } catch (err) {
+            select.innerHTML = '<option value="">Failed to load categories</option>';
+        }
+    };
+
+    window.handleCategoryChange = async function (selectElement) {
+        if (selectElement.value === 'NEW') {
+            const catName = prompt('Enter new category name:');
+            if (catName && catName.trim() !== '') {
+                try {
+                    const token = window.getCookie('spide_token');
+                    const res = await fetch('/api/categories/create', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+                        },
+                        body: JSON.stringify({ name: catName.trim() })
+                    });
+                    if (res.ok) {
+                        const newCat = await res.json();
+                        await window.loadCategories();
+                        selectElement.value = newCat.name;
+                    } else {
+                        alert('Could not create category. It may already exist.');
+                        selectElement.value = '';
+                    }
+                } catch (e) {
+                    alert('Network error while adding category.');
+                    selectElement.value = '';
+                }
+            } else {
+                selectElement.value = '';
+            }
+        }
+    };
+
+    window.saveProduct = async function (event) {
+        event.preventDefault();
+        const saveBtn = document.getElementById('saveProductBtn');
+        const alertBox = document.getElementById('modalAlert');
+        const form = document.getElementById('addProductForm');
+        const editId = form.dataset.editId;
+        const isEdit = editId && editId !== '';
+        const barcodeValue = document.getElementById('prodSku').value.trim();
+
+        const payload = {
+            id: isEdit ? parseInt(editId) : 0,
+            barcode: barcodeValue,
+            name: document.getElementById('prodName').value.trim(),
+            category: document.getElementById('prodCategory').value.trim(),
+            cost_price: parseFloat(document.getElementById('prodBuyingPrice').value) || 0,
+            retail_price: parseFloat(document.getElementById('prodSellingPrice').value) || 0,
+            wholesale_price: parseFloat(document.getElementById('prodWholesalePrice').value) || 0,
+            wholesale_min_qty: parseInt(document.getElementById('prodWholesaleQty').value) || 0,
+            stock_quantity: parseInt(document.getElementById('prodStockQty').value) || 0,
+            reorder_level: parseInt(document.getElementById('prodReorderLevel').value) || 5
+        };
+
+        const setAlert = (msg, type) => {
+            alertBox.className = 'p-3 rounded-lg text-sm font-medium ' +
+                (type === 'success' ? 'bg-green-100 text-green-800 border border-green-200'
+                    : type === 'warning' ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : 'bg-red-100 text-red-800 border border-red-200');
+            alertBox.innerText = msg;
+            alertBox.classList.remove('hidden');
+        };
+
+        if (!payload.name) { setAlert('Product name is required', 'error'); return; }
+        if (payload.cost_price <= 0) { setAlert('Cost price must be > 0', 'error'); return; }
+        if (payload.retail_price <= 0) { setAlert('Retail price must be > 0', 'error'); return; }
+        if (payload.wholesale_price > 0 && payload.wholesale_min_qty <= 0) {
+            setAlert('Wholesale min qty required when wholesale price set.', 'warning');
+            return;
+        }
+
+        const url = isEdit ? '/api/products/update' : '/api/products/create';
+        const method = isEdit ? 'PUT' : 'POST';
+        saveBtn.disabled = true;
+        saveBtn.innerText = 'Saving...';
+        alertBox.classList.add('hidden');
+
+        try {
+            const token = window.getCookie('spide_token');
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+                },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            if (response.ok) {
+                setAlert('Product "' + result.name + '" ' + (isEdit ? 'updated' : 'created') + '!', 'success');
+                form.reset();
+                const cat = document.getElementById('product-catalog-modal');
+                if (cat && !cat.classList.contains('hidden') && typeof window.loadProducts === 'function') {
+                    window.loadProducts();
+                }
+                setTimeout(() => {
+                    if (typeof window.closeAddProductModal === 'function') window.closeAddProductModal();
+                }, 1500);
+            } else {
+                setAlert('Error: ' + (result.error || 'Failed'), 'error');
+            }
+        } catch (error) {
+            setAlert('Network error.', 'error');
+        } finally {
+            saveBtn.disabled = false;
+            saveBtn.innerText = isEdit ? '💾 Update Product' : '💾 Save Product';
+            delete form.dataset.editId;
+        }
     };
 
     console.log('[SpideLoaders] ready');

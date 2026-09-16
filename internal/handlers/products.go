@@ -72,10 +72,35 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	claims := middleware.GetUserFromContext(r)
+	if claims == nil {
+		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
 	var product db.Product
 	if err := json.NewDecoder(r.Body).Decode(&product); err != nil {
 		http.Error(w, `{"error":"Invalid JSON"}`, http.StatusBadRequest)
 		return
+	}
+
+	// ✅ Always override with the authenticated user's company
+	product.CompanyID = claims.CompanyID
+	if product.CompanyID == 0 {
+		http.Error(w, `{"error":"User has no company assigned"}`, http.StatusBadRequest)
+		return
+	}
+
+	// ✅ Resolve category name → category_id
+	if product.Category != "" {
+		catID, err := db.GetCategoryIDByName(db.GetDB(), product.Category, product.CompanyID)
+		if err != nil {
+			log.Printf("⚠️  Could not resolve category %q: %v", product.Category, err)
+			// Don't fail the whole request — just leave category_id NULL
+			product.CategoryID = 0
+		} else {
+			product.CategoryID = catID
+		}
 	}
 
 	id, err := db.CreateProduct(db.GetDB(), &product)
@@ -92,12 +117,12 @@ func CreateProductHandler(w http.ResponseWriter, r *http.Request) {
 
 func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
+
 	if r.Method != http.MethodPut {
 		http.Error(w, `{"error":"Method not allowed"}`, http.StatusMethodNotAllowed)
 		return
 	}
 
-	// ✅ Get claims for company context
 	claims := middleware.GetUserFromContext(r)
 	if claims == nil {
 		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
@@ -110,29 +135,33 @@ func UpdateProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ Set company ID from claims
+	// Always use the authenticated user's company
 	product.CompanyID = claims.CompanyID
 	if product.CompanyID == 0 {
-		product.CompanyID = 1
+		http.Error(w, `{"error":"User has no company assigned"}`, http.StatusBadRequest)
+		return
 	}
 
-	// ✅ Handle empty barcode - allow NULL
-	// The product.Barcode is a *string, so we need to handle it properly
-	if product.Barcode != nil && *product.Barcode == "" {
-		// Empty string means no barcode - keep as empty string
-		// The database will handle this (we'll convert to NULL in CreateProduct)
+	// Resolve category name → category_id
+	if product.Category != "" {
+		catID, err := db.GetCategoryIDByName(db.GetDB(), product.Category, product.CompanyID)
+		if err != nil {
+			log.Printf("⚠️  Could not resolve category %q: %v", product.Category, err)
+			product.CategoryID = 0
+		} else {
+			product.CategoryID = catID
+		}
 	}
-
-	log.Printf("📝 Updating product: ID=%d, Name=%s, Barcode=%v",
-		product.ID, product.Name, product.Barcode)
 
 	if err := db.UpdateProduct(db.GetDB(), &product); err != nil {
-		log.Printf("❌ Error updating product: %v", err)
+		log.Printf("❌ UpdateProduct error: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
 		return
 	}
 
+	// ✅ Respond with the updated product
+	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(product)
 }
 

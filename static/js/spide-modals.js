@@ -2202,6 +2202,16 @@
     window.openAddProductModal = function () {
         open('addProductModal');
         callIfExists('loadCategories');
+
+        const form = document.getElementById('addProductForm');
+        const isEdit = form && form.dataset.editId && form.dataset.editId !== '';
+
+        const stockEl = document.getElementById('prodStockQty');
+        if (stockEl) {
+            const wrapper = stockEl.closest('div');
+            if (wrapper) wrapper.style.display = isEdit ? 'none' : '';
+        }
+
         setTimeout(() => {
             const el = document.getElementById('prodSku');
             if (el) el.focus();

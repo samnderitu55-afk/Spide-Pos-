@@ -4,6 +4,7 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 )
 
@@ -44,4 +45,16 @@ func GetOrCreateCategory(db *sql.DB, name string, companyID int) (int, error) {
 	}
 
 	return int(id64), nil
+}
+
+func GetCategoryIDByName(db *sql.DB, name string, companyID int) (int, error) {
+	var id int
+	err := db.QueryRow(
+		`SELECT id FROM categories WHERE name = ? AND company_id = ? LIMIT 1`,
+		name, companyID,
+	).Scan(&id)
+	if err == sql.ErrNoRows {
+		return 0, fmt.Errorf("category %q not found", name)
+	}
+	return id, err
 }

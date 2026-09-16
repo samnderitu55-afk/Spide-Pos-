@@ -61,7 +61,7 @@ func CreateCategoryHandler(w http.ResponseWriter, r *http.Request) {
 		c.CompanyID = 1
 	}
 
-	result, err := dbConn.Exec("INSERT INTO categories (name, company_id, is_active) VALUES (?, ?, 1)", c.Name, c.CompanyID)
+	result, err := dbConn.Exec("INSERT INTO categories (name, company_id) VALUES (?, ?)", c.Name, c.CompanyID)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"error": "Category already exists or database error: " + err.Error()})
