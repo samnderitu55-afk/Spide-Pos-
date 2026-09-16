@@ -46,7 +46,7 @@ func GetInventoryValuation(db *sql.DB, companyID int, shopID int) (*InventoryVal
 	}
 
 	shopFilter := ""
-	args := []interface{}{companyID}
+	args := []interface{}{companyID, companyID} // one for JOIN, one for WHERE
 
 	if shopID > 0 {
 		shopFilter = " AND ss.shop_id = ?"
@@ -69,7 +69,7 @@ func GetInventoryValuation(db *sql.DB, companyID int, shopID int) (*InventoryVal
 	query += shopFilter
 	query += " ORDER BY p.category, p.name"
 
-	rows, err := db.Query(query, companyID, companyID)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}

@@ -909,44 +909,47 @@
         }
     };
 
-    window.renderValuation = function (data) {
-        const valuation = data.valuation || {};
-        const products = data.products || [];
-        const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
-        setText('val-total-items', valuation.total_items || 0);
-        setText('val-total-qty', valuation.total_quantity || 0);
-        setText('val-cost-value', 'KES ' + (valuation.total_cost_value || 0).toFixed(2));
-        setText('val-retail-value', 'KES ' + (valuation.total_retail_value || 0).toFixed(2));
-        setText('val-profit', 'KES ' + (valuation.potential_profit || 0).toFixed(2));
-        const categoriesContainer = document.getElementById('valuation-categories');
-        const categories = valuation.categories || [];
-        if (categoriesContainer) {
-            if (categories.length === 0) {
-                categoriesContainer.innerHTML = '<p class="text-xs text-gray-400 text-center py-2">No categories</p>';
-            } else {
-                let html = '';
-                const totalCost = valuation.total_cost_value || 1;
-                categories.forEach(cat => {
-                    const width = Math.min((cat.total_cost_value / totalCost) * 100, 100);
-                    html += '<div><div class="flex justify-between text-xs"><span class="font-medium text-gray-700">' + cat.category + '</span><span class="text-gray-500">' + cat.item_count + ' items • KES ' + cat.total_cost_value.toFixed(2) + '</span></div><div class="w-full bg-gray-200 rounded-full h-1.5 mt-0.5"><div class="bg-purple-500 h-1.5 rounded-full" style="width: ' + width + '%"></div></div></div>';
-                });
-                categoriesContainer.innerHTML = html;
-            }
-        }
-        const productsContainer = document.getElementById('valuation-products');
-        if (!productsContainer) return;
-        if (products.length === 0) {
-            productsContainer.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-gray-500">No products in stock</td></tr>';
-            return;
-        }
-        let html = '';
-        products.forEach(p => {
-            const profitClass = p.profit >= 0 ? 'text-emerald-600' : 'text-red-600';
-            html += '<tr class="border-b hover:bg-purple-50/50 transition"><td class="p-2 font-medium text-gray-800">' + p.product_name + '</td><td class="p-2 font-mono text-gray-500">' + (p.barcode || 'N/A') + '</td><td class="p-2 text-gray-500">' + p.category + '</td><td class="p-2 text-center font-bold">' + p.quantity + '</td><td class="p-2 text-right font-mono">KES ' + (p.cost_price || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono">KES ' + (p.retail_price || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono text-amber-700">KES ' + (p.cost_value || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono text-emerald-700">KES ' + (p.retail_value || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono ' + profitClass + '">KES ' + (p.profit || 0).toFixed(2) + '</td></tr>';
-        });
-        productsContainer.innerHTML = html;
-    };
+  window.renderValuation = function (data) {
+    if (!data) data = {};
+    const products = data.products || [];
+    const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+    setText('val-total-items', data.total_items || 0);
+    setText('val-total-qty', data.total_quantity || 0);
+    setText('val-cost-value', 'KES ' + (data.total_cost_value || 0).toFixed(2));
+    setText('val-retail-value', 'KES ' + (data.total_retail_value || 0).toFixed(2));
+    setText('val-profit', 'KES ' + (data.potential_profit || 0).toFixed(2));
 
+    // Category breakdown
+    const categoriesContainer = document.getElementById('valuation-categories');
+    const categories = data.categories || [];
+    if (categoriesContainer) {
+        if (categories.length === 0) {
+            categoriesContainer.innerHTML = '<p class="text-xs text-gray-400 text-center py-2">No categories</p>';
+        } else {
+            let html = '';
+            const totalCost = data.total_cost_value || 1;
+            categories.forEach(cat => {
+                const width = Math.min((cat.total_cost_value / totalCost) * 100, 100);
+                html += '<div><div class="flex justify-between text-xs"><span class="font-medium text-gray-700">' + cat.category + '</span><span class="text-gray-500">' + cat.item_count + ' items • KES ' + cat.total_cost_value.toFixed(2) + '</span></div><div class="w-full bg-gray-200 rounded-full h-1.5 mt-0.5"><div class="bg-purple-500 h-1.5 rounded-full" style="width: ' + width + '%"></div></div></div>';
+            });
+            categoriesContainer.innerHTML = html;
+        }
+    }
+
+    // Product table
+    const productsContainer = document.getElementById('valuation-products');
+    if (!productsContainer) return;
+    if (products.length === 0) {
+        productsContainer.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-gray-500">No products in stock</td></tr>';
+        return;
+    }
+    let html = '';
+    products.forEach(p => {
+        const profitClass = p.profit >= 0 ? 'text-emerald-600' : 'text-red-600';
+        html += '<tr class="border-b hover:bg-purple-50/50 transition"><td class="p-2 font-medium text-gray-800">' + p.product_name + '</td><td class="p-2 font-mono text-gray-500">' + (p.barcode || 'N/A') + '</td><td class="p-2 text-gray-500">' + p.category + '</td><td class="p-2 text-center font-bold">' + p.quantity + '</td><td class="p-2 text-right font-mono">KES ' + (p.cost_price || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono">KES ' + (p.retail_price || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono text-amber-700">KES ' + (p.cost_value || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono text-emerald-700">KES ' + (p.retail_value || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono ' + profitClass + '">KES ' + (p.profit || 0).toFixed(2) + '</td></tr>';
+    });
+    productsContainer.innerHTML = html;
+};
     // =========================================================
     // PRODUCTS CRUD (Add / Edit)
     // =========================================================
@@ -1084,6 +1087,218 @@
             saveBtn.disabled = false;
             saveBtn.innerText = isEdit ? '💾 Update Product' : '💾 Save Product';
             delete form.dataset.editId;
+        }
+    };
+
+    // =========================================================
+    // USER MANAGEMENT
+    // =========================================================
+    window.loadUsers = async function () {
+        const tbody = document.getElementById('user-list-body');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">Loading...</td></tr>';
+        try {
+            const token = window.getCookie('spide_token');
+            if (!token) {
+                tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-500">Not authenticated</td></tr>';
+                return;
+            }
+            const response = await fetch('/api/users', {
+                headers: { 'Authorization': 'Bearer ' + token }
+            });
+            if (response.status === 401) {
+                tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-500">Session expired.</td></tr>';
+                return;
+            }
+            if (!response.ok) throw new Error('Failed to load users: ' + response.status);
+            const data = await response.json();
+            const users = Array.isArray(data) ? data : [];
+            window.renderUsers(users);
+        } catch (error) {
+            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-500">Error: ' + error.message + '</td></tr>';
+        }
+    };
+
+    window.renderUsers = function (users) {
+        const tbody = document.getElementById('user-list-body');
+        if (!tbody) return;
+        if (!users || users.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No users found</td></tr>';
+            return;
+        }
+        let html = '';
+        users.forEach(u => {
+            const statusColor = u.is_active ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+            const statusText = u.is_active ? 'Active' : 'Inactive';
+            const roleColors = {
+                'admin': 'bg-purple-100 text-purple-800',
+                'manager': 'bg-blue-100 text-blue-800',
+                'cashier': 'bg-gray-100 text-gray-800',
+                'director': 'bg-amber-100 text-amber-800'
+            };
+            const roleColor = roleColors[u.role] || 'bg-gray-100 text-gray-800';
+            const userJSON = JSON.stringify(u).replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+            html += `<tr class="border-b hover:bg-gray-50/50 transition">
+                <td class="p-2 font-medium text-gray-800">${u.username}</td>
+                <td class="p-2">${u.full_name || '-'}</td>
+                <td class="p-2 text-gray-500">${u.email || '-'}</td>
+                <td class="p-2"><span class="px-2 py-0.5 rounded-full text-xs ${roleColor}">${u.role}</span></td>
+                <td class="p-2 text-gray-500">${u.shop_name || 'All'}</td>
+                <td class="p-2 text-center"><span class="px-2 py-0.5 rounded-full text-xs ${statusColor}">${statusText}</span></td>
+                <td class="p-2 text-center space-x-1">
+                    <button onclick='openEditUserModal(${userJSON})' class="text-blue-400 hover:text-blue-600 text-xs font-bold">✏️</button>
+                    <button onclick="deleteUser(${u.id})" class="text-red-400 hover:text-red-600 text-xs font-bold">🗑️</button>
+                </td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+    };
+
+    window.loadUserShops = async function () {
+        try {
+            const token = window.getCookie('spide_token');
+            const response = await fetch('/api/shops', {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            const shopList = Array.isArray(data) ? data : [];
+            const select = document.getElementById('user-shop');
+            if (!select) return;
+            select.innerHTML = '<option value="0">All Shops</option>';
+            shopList.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name;
+                select.appendChild(opt);
+            });
+        } catch (e) {
+            console.error('Error loading shops:', e);
+        }
+    };
+
+    window.saveUser = async function (event) {
+        event.preventDefault();
+        const alertBox = document.getElementById('user-alert');
+        const submitBtn = document.getElementById('user-submit-btn');
+        const token = window.getCookie('spide_token');
+        const userId = document.getElementById('user-id').value;
+        const isEdit = userId && userId !== '0';
+
+        const data = {
+            id: parseInt(userId) || 0,
+            username: document.getElementById('user-username').value.trim(),
+            full_name: document.getElementById('user-fullname').value.trim(),
+            email: document.getElementById('user-email').value.trim(),
+            role: document.getElementById('user-role').value,
+            shop_id: parseInt(document.getElementById('user-shop').value) || 0
+        };
+
+        const password = document.getElementById('user-password').value;
+        if (password) {
+            data.password = password;
+        } else if (!isEdit) {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+            alertBox.textContent = 'Password required for new users';
+            alertBox.classList.remove('hidden');
+            return;
+        }
+
+        if (!data.username || !data.full_name) {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+            alertBox.textContent = 'Username and Full Name required';
+            alertBox.classList.remove('hidden');
+            return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Saving...';
+        alertBox.classList.add('hidden');
+
+        try {
+            const url = isEdit ? '/api/users/update' : '/api/users/create';
+            const method = isEdit ? 'PUT' : 'POST';
+            const response = await fetch(url, {
+                method: method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+                },
+                body: JSON.stringify(data)
+            });
+            const result = await response.json();
+            if (response.ok) {
+                alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-green-100 text-green-700 border border-green-200';
+                alertBox.textContent = '✅ User ' + (isEdit ? 'updated' : 'created') + '!';
+                alertBox.classList.remove('hidden');
+                setTimeout(() => {
+                    window.closeUserModal();
+                    window.loadUsers();
+                }, 1500);
+            } else {
+                alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+                alertBox.textContent = 'Error: ' + (result.error || 'Failed');
+                alertBox.classList.remove('hidden');
+            }
+        } catch (error) {
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium bg-red-100 text-red-700 border border-red-200';
+            alertBox.textContent = 'Network error: ' + error.message;
+            alertBox.classList.remove('hidden');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = '💾 Save User';
+        }
+    };
+
+    window.openEditUserModal = function (user) {
+        if (!user) return;
+        const t = document.getElementById('user-modal-title');
+        if (t) t.textContent = 'Edit User';
+        const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+        setVal('user-id', user.id || 0);
+        setVal('user-username', user.username || '');
+        setVal('user-fullname', user.full_name || '');
+        setVal('user-email', user.email || '');
+        setVal('user-role', user.role || 'cashier');
+        setVal('user-shop', user.shop_id || 0);
+        const pw = document.getElementById('user-password');
+        if (pw) { pw.value = ''; pw.required = false; }
+        const hint = document.getElementById('password-hint');
+        if (hint) hint.textContent = 'Leave blank to keep current password';
+
+        // Make sure the shop dropdown is populated (in case it wasn't loaded yet)
+        if (typeof window.loadUserShops === 'function') {
+            window.loadUserShops().then(() => {
+                const shopSelect = document.getElementById('user-shop');
+                if (shopSelect) shopSelect.value = String(user.shop_id || 0);
+            });
+        }
+
+        if (typeof window.SpideModals !== 'undefined' && window.SpideModals.open) {
+            window.SpideModals.open('user-modal');
+        } else {
+            const modal = document.getElementById('user-modal');
+            if (modal) modal.classList.remove('hidden');
+        }
+    };
+
+    window.deleteUser = async function (id) {
+        if (!confirm('Are you sure you want to delete this user?')) return;
+        try {
+            const token = window.getCookie('spide_token');
+            const response = await fetch('/api/users/delete?id=' + id, {
+                method: 'DELETE',
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            });
+            if (response.ok) {
+                window.loadUsers();
+            } else {
+                const result = await response.json();
+                alert('Error: ' + (result.error || 'Failed'));
+            }
+        } catch (error) {
+            console.error('Delete error:', error);
+            alert('Network error');
         }
     };
 
