@@ -67,6 +67,15 @@
         };
     }
 
+    window.__receiptWindow = null;
+
+    function getReceiptWindow() {
+        if (!window.__receiptWindow || window.__receiptWindow.closed) {
+            window.__receiptWindow = window.open('', '_blank', 'width=350,height=600');
+        }
+        return window.__receiptWindow;
+    }
+
     // =========================================================
     // RECENT SALES
     // =========================================================
@@ -466,7 +475,7 @@
     };
 
     window.printThermalReceipt = function (saleData, saleId, isReprint) {
-        const printWindow = window.open('', '_blank', 'width=350,height=600');
+        const printWindow = getReceiptWindow();
         if (!printWindow) return;
         let itemsRowsHTML = '';
         (saleData.items || []).forEach(function (item) {
@@ -511,8 +520,594 @@
         receiptHTML += '<div class="center" style="margin-top:8px;font-size:10px"><p style="margin:2px 0">' + companyFooter + '</p><p style="margin:2px 0">Goods once sold are not returnable.</p></div>';
         receiptHTML += '<script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)};<\/script>';
         receiptHTML += '</body></html>';
+        printWindow.document.open();
         printWindow.document.write(receiptHTML);
         printWindow.document.close();
+        printWindow.focus();
+    };
+
+    // =========================================================
+    // TRANSFERS
+    // =========================================================
+    let transferItems = [];   // temp state for the create form
+    let currentTransferId = null;
+    let currentTransferData = null;
+
+    window.loadTransferShops = async function () {
+        try {
+            const token = window.getCookie('spide_token');
+            const response = await fetch('/api/shops', {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            const shops = Array.isArray(data) ? data : [];
+            const select = document.getElementById('transfer-to-shop');
+            if (!select) return;
+            const currentValue = select.value;
+
+            // Exclude the source shop
+            const fromShopWrapper = document.getElementById('transfer-from-shop-wrapper');
+            const fromShopSelect = document.getElementById('transfer-from-shop');
+            let excludeId = window.getCurrentShopId();
+            if (fromShopWrapper && !fromShopWrapper.classList.contains('hidden') && fromShopSelect && fromShopSelect.value) {
+                excludeId = parseInt(fromShopSelect.value) || 0;
+            }
+
+            select.innerHTML = '<option value="">Select Shop</option>';
+            shops.forEach(s => {
+                if (s.id === excludeId) return;
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name;
+                select.appendChild(opt);
+            });
+            if (currentValue && currentValue !== String(excludeId)) select.value = currentValue;
+        } catch (e) {
+            console.error('loadTransferShops error:', e);
+        }
+    };
+
+    window.handleTransferSearch = function (query) {
+        const dropdown = document.getElementById('transfer-search-results');
+        if (!dropdown) return;
+        const trimmed = (query || '').trim();
+        if (trimmed.length < 2) { dropdown.classList.add('hidden'); return; }
+
+        const token = window.getCookie('spide_token');
+        const shopId = window.getCurrentShopId();
+        const url = '/api/products/search?q=' + encodeURIComponent(trimmed) + '&shop_id=' + shopId;
+
+        fetch(url, { headers: token ? { 'Authorization': 'Bearer ' + token } : {} })
+            .then(r => r.ok ? r.json() : [])
+            .then(products => {
+                const list = Array.isArray(products) ? products : [];
+                if (list.length === 0) {
+                    dropdown.innerHTML = '<div class="p-3 text-center text-sm text-gray-500">No products found</div>';
+                    dropdown.classList.remove('hidden');
+                    return;
+                }
+                let html = '';
+                list.slice(0, 15).forEach((p, i) => {
+                    html += `<div onclick="selectTransferProduct(${i})" data-idx="${i}" class="transfer-search-item p-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0">
+                        <div class="font-semibold text-sm text-gray-900">${p.name}</div>
+                        <div class="text-xs text-gray-500">${p.barcode || 'no barcode'} • Stock: ${p.stock_quantity || 0} • Cost: KES ${(p.cost_price || 0).toFixed(2)}</div>
+                    </div>`;
+                });
+                dropdown.innerHTML = html;
+                dropdown.classList.remove('hidden');
+                window.__transferSearchResults = list;
+            })
+            .catch(e => { console.error('handleTransferSearch error:', e); });
+    };
+
+    window.handleTransferSearchKeydown = function (e) {
+        if (e.key === 'Escape') {
+            const dropdown = document.getElementById('transfer-search-results');
+            if (dropdown) dropdown.classList.add('hidden');
+        }
+    };
+
+    window.selectTransferProduct = function (index) {
+        const list = window.__transferSearchResults || [];
+        const p = list[index];
+        if (!p) return;
+
+        const searchInput = document.getElementById('transfer-product-search');
+        if (searchInput) searchInput.value = '';
+        const dropdown = document.getElementById('transfer-search-results');
+        if (dropdown) dropdown.classList.add('hidden');
+
+        const qtyInput = document.getElementById('transfer-qty');
+        const qty = parseInt(qtyInput?.value) || 1;
+
+        window.addTransferItemByProduct(p, qty);
+    };
+
+    window.addTransferItemByProduct = function (product, qty) {
+        qty = parseInt(qty) || 1;
+        if (qty <= 0) { alert('Quantity must be positive'); return; }
+
+        const available = parseInt(product.stock_quantity) || 0;
+        if (available <= 0) {
+            alert('This product has no stock in the source shop.');
+            return;
+        }
+
+        const existingIdx = transferItems.findIndex(it => it.product_id === product.id);
+        if (existingIdx >= 0) {
+            transferItems[existingIdx].quantity += qty;
+        } else {
+            transferItems.push({
+                product_id: product.id,
+                product_name: product.name,
+                barcode: product.barcode || '',
+                quantity: qty,
+                cost_price: parseFloat(product.cost_price) || 0,
+                stock_available: parseInt(product.stock_quantity) || 0
+            });
+        }
+        window.renderTransferItems();
+        const qtyInput = document.getElementById('transfer-qty');
+        if (qtyInput) qtyInput.value = 1;
+    };
+
+    window.addTransferItem = function () {
+        const qtyInput = document.getElementById('transfer-qty');
+        const qty = parseInt(qtyInput?.value) || 1;
+        const searchInput = document.getElementById('transfer-product-search');
+        const term = (searchInput?.value || '').trim();
+        if (!term) { alert('Search for a product first'); return; }
+
+        // If the search dropdown is showing, use the currently typed term to trigger a lookup
+        const token = window.getCookie('spide_token');
+        const shopId = window.getCurrentShopId();
+        fetch('/api/products/search?q=' + encodeURIComponent(term) + '&shop_id=' + shopId, {
+            headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+        })
+            .then(r => r.ok ? r.json() : [])
+            .then(list => {
+                if (!Array.isArray(list) || list.length === 0) {
+                    alert('No products match "' + term + '"');
+                    return;
+                }
+                // Use the first match
+                window.addTransferItemByProduct(list[0], qty);
+                if (searchInput) searchInput.value = '';
+                const dropdown = document.getElementById('transfer-search-results');
+                if (dropdown) dropdown.classList.add('hidden');
+            })
+            .catch(e => { console.error('addTransferItem error:', e); });
+    };
+
+    window.removeTransferItem = function (index) {
+        transferItems.splice(index, 1);
+        window.renderTransferItems();
+    };
+
+    window.renderTransferItems = function () {
+        const container = document.getElementById('transfer-items-list');
+        if (!container) return;
+        if (transferItems.length === 0) {
+            container.innerHTML = '<p class="text-xs text-gray-400 text-center py-2">No items added</p>';
+            return;
+        }
+        let html = '';
+        transferItems.forEach((item, i) => {
+            const subtotal = item.quantity * item.cost_price;
+            html += `<div class="flex justify-between items-center bg-white p-2 rounded-lg border border-gray-200 gap-2">
+            <div class="flex-1 min-w-0">
+                <div class="text-sm font-semibold text-gray-800 truncate">${item.product_name}</div>
+                <div class="text-xs text-gray-500">
+                    Available: ${item.stock_available || 0} • KES ${item.cost_price.toFixed(2)} each
+                </div>
+            </div>
+            <div class="flex items-center gap-1 flex-shrink-0">
+                <button type="button" onclick="adjustTransferItemQty(${i}, -1)"
+                    class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm">−</button>
+                <input type="number" min="1" value="${item.quantity}"
+                    oninput="setTransferItemQty(${i}, this.value)"
+                    class="w-16 px-2 py-1 border rounded-lg text-sm text-center focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                <button type="button" onclick="adjustTransferItemQty(${i}, 1)"
+                    class="w-7 h-7 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-sm">+</button>
+            </div>
+            <div class="w-20 text-right text-sm font-semibold text-gray-800 flex-shrink-0">
+                KES ${subtotal.toFixed(2)}
+            </div>
+            <button type="button" onclick="removeTransferItem(${i})"
+                class="text-red-500 hover:text-red-700 text-sm flex-shrink-0">✕</button>
+        </div>`;
+        });
+        container.innerHTML = html;
+    };
+
+    window.adjustTransferItemQty = function (index, delta) {
+        if (!transferItems[index]) return;
+        const newQty = transferItems[index].quantity + delta;
+        setTransferItemQty(index, newQty);
+    };
+
+    window.setTransferItemQty = function (index, value) {
+        if (!transferItems[index]) return;
+        const qty = parseInt(value) || 0;
+        const available = transferItems[index].stock_available || 0;
+
+        if (qty <= 0) {
+            // Remove item if quantity goes to 0 or below
+            transferItems.splice(index, 1);
+            window.renderTransferItems();
+            return;
+        }
+        if (available > 0 && qty > available) {
+            transferItems[index].quantity = available;
+            window.renderTransferItems();
+            if (typeof window.showNotification === 'function') {
+                window.showNotification('Only ' + available + ' available in stock', 'warning');
+            }
+            return;
+        }
+        transferItems[index].quantity = qty;
+        // Re-render only the subtotal — but full re-render is simpler and fast enough
+        window.renderTransferItems();
+    };
+
+    window.submitTransfer = async function (event) {
+        event.preventDefault();
+
+        // 1. Grab all the DOM inputs
+        const alertBox = document.getElementById('transfer-alert');
+        const submitBtn = document.getElementById('transfer-submit-btn');
+        const toShopEl = document.getElementById('transfer-to-shop');
+        const dateEl = document.getElementById('transfer-date');
+        const notesEl = document.getElementById('transfer-notes');
+
+        // 2. setAlert helper
+        const setAlert = (msg, type) => {
+            if (!alertBox) return;
+            alertBox.className = 'p-2 rounded-lg text-sm font-medium ' +
+                (type === 'success' ? 'bg-green-100 text-green-800 border border-green-200'
+                    : 'bg-red-100 text-red-800 border border-red-200');
+            alertBox.textContent = msg;
+            alertBox.classList.remove('hidden');
+        };
+
+        // 3. Resolve source shop FIRST (before any validation that uses it)
+        const fromShopWrapper = document.getElementById('transfer-from-shop-wrapper');
+        const fromShopSelect = document.getElementById('transfer-from-shop');
+        const role = typeof window.getCurrentUserRole === 'function' ? window.getCurrentUserRole() : 'cashier';
+        const isDirector = (role === 'director' || role === 'admin');
+
+        let fromShopId;
+        if (isDirector && fromShopWrapper && !fromShopWrapper.classList.contains('hidden')) {
+            fromShopId = parseInt(fromShopSelect?.value) || 0;
+            if (!fromShopId) { setAlert('Select a source shop', 'error'); return; }
+        } else {
+            fromShopId = window.getCurrentShopId();
+        }
+
+        // 4. Now resolve destination + other inputs
+        const toShopId = parseInt(toShopEl?.value) || 0;
+
+        // 5. Validate
+        if (!toShopId) { setAlert('Select a destination shop', 'error'); return; }
+        if (toShopId === fromShopId) { setAlert('Source and destination must differ', 'error'); return; }
+        if (transferItems.length === 0) { setAlert('Add at least one item', 'error'); return; }
+
+        // 6. Build payload
+        const payload = {
+            from_shop_id: fromShopId,
+            to_shop_id: toShopId,
+            transfer_date: dateEl?.value || new Date().toISOString().split('T')[0],
+            notes: notesEl?.value || '',
+            status: 'completed',
+            items: transferItems.map(it => ({
+                product_id: it.product_id,
+                quantity: it.quantity,
+                cost_price: it.cost_price
+            }))
+        };
+
+        // 7. Submit
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Creating...'; }
+        alertBox?.classList.add('hidden');
+
+        try {
+            const token = window.getCookie('spide_token');
+            const response = await fetch('/api/transfers/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+                },
+                body: JSON.stringify(payload)
+            });
+            const rawText = await response.text();
+            let result = {};
+            try { result = rawText ? JSON.parse(rawText) : {}; } catch (e) { }
+
+            if (response.ok) {
+                setAlert('✅ Transfer created!', 'success');
+
+                // ✅ Print receipt before closing the modal
+                try {
+                    const createdId = result.id || result.transfer?.id;
+                    if (createdId && typeof window.printTransferReceiptById === 'function') {
+                        await window.printTransferReceiptById(createdId);
+                    } else if (createdId && typeof window.printTransferReceipt === 'function') {
+                        // Fallback: build the data from the current form if the by-id version isn't available
+                        await window.printTransferReceipt(createdId);
+                    }
+                } catch (e) {
+                    console.error('Auto-print failed:', e);
+                }
+
+                if (typeof window.resetTransferItems === 'function') window.resetTransferItems();
+                else { transferItems = []; window.renderTransferItems(); }
+                if (toShopEl) toShopEl.value = '';
+                if (notesEl) notesEl.value = '';
+                window.__transferSearchResults = [];
+                setTimeout(() => {
+                    if (typeof window.closeTransferModal === 'function') window.closeTransferModal();
+                }, 500);
+
+            } else {
+                setAlert('Error: ' + (result.error || rawText || 'Unknown error'), 'error');
+            }
+        } catch (e) {
+            console.error('submitTransfer error:', e);
+            setAlert('Network error: ' + e.message, 'error');
+        } finally {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = '📦 Create Transfer'; }
+        }
+    };
+
+    window.loadTransferHistory = async function () {
+        const tbody = document.getElementById('transfer-history-body');
+        if (!tbody) return;
+        tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">Loading...</td></tr>';
+        try {
+            const token = window.getCookie('spide_token');
+            const response = await fetch('/api/transfers', {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            });
+            if (!response.ok) throw new Error('Failed to load transfers: ' + response.status);
+            const data = await response.json();
+            const list = Array.isArray(data) ? data : [];
+            if (list.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-gray-500">No transfers yet</td></tr>';
+                return;
+            }
+            let html = '';
+            list.forEach(t => {
+                const statusColor = t.status === 'completed' ? 'bg-green-100 text-green-800'
+                    : t.status === 'pending' ? 'bg-amber-100 text-amber-800'
+                        : 'bg-red-100 text-red-800';
+                html += `<tr class="border-b hover:bg-blue-50/50 transition">
+                    <td class="p-2 font-mono text-xs">${t.transfer_number}</td>
+                    <td class="p-2">${t.from_shop_name || '#' + t.from_shop_id}</td>
+                    <td class="p-2">${t.to_shop_name || '#' + t.to_shop_id}</td>
+                    <td class="p-2 text-center">${t.total_items || 0}</td>
+                    <td class="p-2 text-right font-mono">KES ${(t.total_cost || 0).toFixed(2)}</td>
+                    <td class="p-2 text-xs text-gray-500">${t.transfer_date || ''}</td>
+                    <td class="p-2 text-center"><span class="px-2 py-0.5 rounded-full text-xs ${statusColor}">${t.status}</span></td>
+                    <td class="p-2 text-center">
+                        <button onclick="openTransferDetailModal(${t.id})" class="text-blue-500 hover:text-blue-700 text-xs font-bold">👁️ View</button>
+                    </td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        } catch (e) {
+            console.error('loadTransferHistory error:', e);
+            tbody.innerHTML = '<tr><td colspan="8" class="p-4 text-center text-red-500">Error: ' + e.message + '</td></tr>';
+        }
+    };
+
+    window.openTransferDetailModal = async function (id) {
+        const modal = document.getElementById('transfer-detail-modal');
+        if (!modal) return;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+
+        // Reset UI
+        const setText = (elId, text) => { const el = document.getElementById(elId); if (el) el.textContent = text; };
+        setText('transfer-detail-number', '#TRF-' + id);
+        setText('td-from-shop', '...');
+        setText('td-to-shop', '...');
+        setText('td-date', '...');
+        setText('td-status', '...');
+        setText('td-total-items', '0');
+        setText('td-total-cost', 'KES 0.00');
+        const tbody = document.getElementById('transfer-detail-items');
+        if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">Loading...</td></tr>';
+
+        currentTransferId = id;
+        currentTransferData = t;
+
+        try {
+            const token = window.getCookie('spide_token');
+            const response = await fetch('/api/transfers/detail?id=' + id, {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            });
+            if (!response.ok) throw new Error('Failed to load transfer');
+            const t = await response.json();
+            setText('transfer-detail-number', t.transfer_number || ('#TRF-' + id));
+            setText('td-from-shop', t.from_shop_name || '#' + t.from_shop_id);
+            setText('td-to-shop', t.to_shop_name || '#' + t.to_shop_id);
+            setText('td-date', t.transfer_date || '');
+            setText('td-status', t.status || '');
+            setText('td-total-items', String(t.total_items || 0));
+            setText('td-total-cost', 'KES ' + (t.total_cost || 0).toFixed(2));
+
+            const items = t.items || [];
+            if (tbody) {
+                if (items.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">No items</td></tr>';
+                } else {
+                    let html = '';
+                    items.forEach(it => {
+                        html += `<tr class="border-b">
+                            <td class="p-2 font-medium text-gray-800">${it.product_name}</td>
+                            <td class="p-2 font-mono text-xs text-gray-500">${it.barcode || 'N/A'}</td>
+                            <td class="p-2 text-center font-bold">${it.quantity}</td>
+                            <td class="p-2 text-right font-mono">KES ${(it.cost_price || 0).toFixed(2)}</td>
+                            <td class="p-2 text-right font-mono">KES ${(it.subtotal || 0).toFixed(2)}</td>
+                        </tr>`;
+                    });
+                    tbody.innerHTML = html;
+                }
+            }
+        } catch (e) {
+            console.error('openTransferDetailModal error:', e);
+            if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500">' + e.message + '</td></tr>';
+        }
+    };
+
+    window.closeTransferHistoryModal = function () {
+        const modal = document.getElementById('transfer-history-modal');
+        if (modal) modal.classList.add('hidden');
+    };
+
+    window.showFromShopIfDirector = function () {
+        const wrapper = document.getElementById('transfer-from-shop-wrapper');
+        if (!wrapper) return;
+
+        const role = typeof window.getCurrentUserRole === 'function' ? window.getCurrentUserRole() : 'cashier';
+        if (role === 'director' || role === 'admin') {
+            wrapper.classList.remove('hidden');
+            window.populateTransferFromShop();
+        } else {
+            wrapper.classList.add('hidden');
+        }
+    };
+
+    window.populateTransferFromShop = async function () {
+        const select = document.getElementById('transfer-from-shop');
+        if (!select) return;
+        try {
+            const token = window.getCookie('spide_token');
+            const response = await fetch('/api/shops', {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            const shops = Array.isArray(data) ? data : [];
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">Select Source Shop</option>';
+            shops.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name;
+                select.appendChild(opt);
+            });
+            // Default to current shop
+            if (!currentValue) {
+                const currentShopId = window.getCurrentShopId();
+                if (currentShopId) select.value = String(currentShopId);
+            } else {
+                select.value = currentValue;
+            }
+        } catch (e) {
+            console.error('populateTransferFromShop error:', e);
+        }
+    };
+
+    window.printTransferReceipt = function (id) {
+        const t = currentTransferData;
+        if (!t) {
+            alert('No transfer loaded to print.');
+            return;
+        }
+
+        const printWindow = window.open('', '_blank', 'width=350,height=600');
+        if (!printWindow) return;
+
+        const companyName = localStorage.getItem('company_name') || '🕷️ SPIDE POS';
+        const companyPhone = localStorage.getItem('company_phone') || '';
+        const companyAddress = localStorage.getItem('company_address') || '';
+        const now = new Date().toLocaleString('en-KE', { dateStyle: 'short', timeStyle: 'short' });
+
+        let itemRows = '';
+        (t.items || []).forEach(it => {
+            itemRows += `<tr>
+            <td style="padding:2px 0;vertical-align:top">${it.product_name}<br/>
+                <span style="font-size:10px;color:#555">${it.quantity} × KES ${(it.cost_price || 0).toFixed(2)}</span>
+            </td>
+            <td style="text-align:right;padding:2px 0;vertical-align:top">
+                ${(it.subtotal || 0).toFixed(2)}
+            </td>
+        </tr>`;
+        });
+
+        let html = '<!DOCTYPE html><html><head><title>Transfer ' + (t.transfer_number || id) + '</title>';
+        html += '<style>@page{margin:0}body{font-family:"Courier New",monospace;width:260px;margin:10px auto;font-size:11px;color:#000;line-height:1.2}.center{text-align:center}.right{text-align:right}.dashed{border-bottom:1px dashed #000;margin:6px 0}table{width:100%;border-collapse:collapse}.bold{font-weight:bold}.shop-name{font-size:14px;font-weight:bold}</style>';
+        html += '</head><body>';
+        html += '<div class="center">';
+        html += '<div class="shop-name">' + companyName + '</div>';
+        if (companyPhone) html += '<div style="font-size:9px">📞 ' + companyPhone + '</div>';
+        if (companyAddress) html += '<div style="font-size:9px">📍 ' + companyAddress + '</div>';
+        html += '<div style="font-weight:bold;margin-top:6px;font-size:12px">STOCK TRANSFER</div>';
+        html += '<p style="margin:4px 0">Transfer #: <strong>' + (t.transfer_number || id) + '</strong></p>';
+        html += '<p style="margin:2px 0;font-size:10px">Date: ' + (t.transfer_date || now) + '</p>';
+        html += '<p style="margin:2px 0;font-size:10px">Printed: ' + now + '</p>';
+        html += '</div>';
+        html += '<div class="dashed"></div>';
+        html += '<div style="font-size:10px">';
+        html += '<div><strong>From:</strong> ' + (t.from_shop_name || '#' + t.from_shop_id) + '</div>';
+        html += '<div><strong>To:</strong> ' + (t.to_shop_name || '#' + t.to_shop_id) + '</div>';
+        if (t.created_by) html += '<div><strong>By:</strong> ' + t.created_by + '</div>';
+        if (t.notes) html += '<div><strong>Notes:</strong> ' + t.notes + '</div>';
+        html += '</div>';
+        html += '<div class="dashed"></div>';
+        html += '<table><thead><tr style="text-align:left;border-bottom:1px solid #000"><th>Item</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>' + itemRows + '</tbody></table>';
+        html += '<div class="dashed"></div>';
+        html += '<table>';
+        html += '<tr class="bold"><td>TOTAL ITEMS:</td><td class="right">' + (t.total_items || 0) + '</td></tr>';
+        html += '<tr class="bold"><td>TOTAL COST:</td><td class="right">KES ' + (t.total_cost || 0).toFixed(2) + '</td></tr>';
+        html += '</table>';
+        html += '<div class="dashed"></div>';
+        html += '<div class="center" style="margin-top:8px;font-size:10px">';
+        html += '<p style="margin:2px 0">Transfer Receipt</p>';
+        html += '</div>';
+        html += '<script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)};<\/script>';
+        html += '</body></html>';
+
+        printWindow.document.write(html);
+        printWindow.document.close();
+    };
+
+    window.printTransferReceiptById = async function (id) {
+        if (!id) {
+            alert('No transfer ID to print.');
+            return;
+        }
+        try {
+            const token = window.getCookie('spide_token');
+            const response = await fetch('/api/transfers/detail?id=' + id, {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            });
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(errText || 'Failed to load transfer for printing');
+            }
+            const data = await response.json();
+
+            // Store so printTransferReceipt can access it
+            currentTransferId = id;
+            currentTransferData = data;
+
+            // Now call the existing print function
+            if (typeof window.printTransferReceipt === 'function') {
+                window.printTransferReceipt(id);
+            }
+        } catch (e) {
+            console.error('printTransferReceiptById error:', e);
+            // Don't alert — auto-print failing shouldn't block the user
+        }
+    };
+
+    window.removeTransferItem = window.removeTransferItem || function (index) {
+        transferItems.splice(index, 1);
+        window.renderTransferItems();
     };
 
     // =========================================================
@@ -526,7 +1121,12 @@
         if (!tbody) return;
         tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">Loading products...</td></tr>';
         try {
-            const shopId = window.getCurrentShopId();
+            const shopFilterEl = document.getElementById('catalog-shop-filter');
+            const shopFilterWrapper = document.getElementById('catalog-shop-filter-wrapper');
+            let shopId = window.getCurrentShopId();
+            if (shopFilterEl && shopFilterWrapper && !shopFilterWrapper.classList.contains('hidden')) {
+                shopId = parseInt(shopFilterEl.value) || 0;
+            }
             const token = window.getCookie('spide_token');
             const response = await fetch('/api/products?shop_id=' + shopId, {
                 headers: token ? { 'Authorization': 'Bearer ' + token } : {}
@@ -536,6 +1136,11 @@
             window.__allProducts = products || [];
             window.__filteredProducts = [...window.__allProducts];
             window.updateCatalogCounts();
+            // ✅ Refresh category filter options
+            if (typeof window.populateCatalogCategoryFilter === 'function') {
+                window.populateCatalogCategoryFilter();
+            }
+
             if (window.__allProducts.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No products found.</td></tr>';
                 const c = document.getElementById('catalog-total-count');
@@ -561,6 +1166,9 @@
             const stock = p.stock_quantity || 0;
             const isLow = stock <= p.reorder_level && stock > 0;
             const isOut = stock <= 0;
+            const role = typeof window.getCurrentUserRole === 'function' ? window.getCurrentUserRole() : 'cashier';
+            const canEdit = (role === 'director' || role === 'admin' || role === 'manager');
+
             let stockBadge, stockClass;
             if (isOut) { stockBadge = '<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">Out</span>'; stockClass = 'text-red-600 font-bold'; }
             else if (isLow) { stockBadge = '<span class="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">' + stock + ' (Low)</span>'; stockClass = 'text-amber-600 font-bold'; }
@@ -572,15 +1180,70 @@
                 <td class="p-3 text-right font-mono font-bold text-purple-900">KES ${(p.retail_price || 0).toFixed(2)}</td>
                 <td class="p-3 text-right font-mono text-gray-700">KES ${(p.wholesale_price || 0).toFixed(2)}</td>
                 <td class="p-3 text-center ${stockClass}">${stockBadge}</td>
-                <td class="p-3 text-center whitespace-nowrap">
-                    <button onclick='editProduct(${JSON.stringify(p).replace(/'/g, "&#39;")})' 
+                <td class="p-3 text-center">
+                    ${canEdit ? `
+                        <button onclick='editProduct(${JSON.stringify(p).replace(/'/g, "&#39;")})' 
                             class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-lg transition">✏️ Edit</button>
-                    <button onclick='quickUpdateStock(${p.id}, "${(p.name || '').replace(/"/g, '\\"')}", ${stock})' 
+                        <button onclick='quickUpdateStock(${p.id}, "${(p.name || '').replace(/"/g, '\\"')}", ${stock})' 
                             class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg transition ml-1">📦 Stock</button>
+                    ` : '<span class="text-xs text-gray-400">—</span>'}
                 </td>
             </tr>`;
         });
         tbody.innerHTML = html;
+    };
+
+    window.populateCatalogShopFilter = async function () {
+        const select = document.getElementById('catalog-shop-filter');
+        if (!select) return;
+        const currentValue = select.value;
+        try {
+            const token = window.getCookie('spide_token');
+            const response = await fetch('/api/shops', {
+                headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+            });
+            if (!response.ok) return;
+            const shops = await response.json();
+            select.innerHTML = '<option value="0">All Shops</option>';
+            (Array.isArray(shops) ? shops : []).forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.name;
+                select.appendChild(opt);
+            });
+            if (currentValue) select.value = currentValue;
+        } catch (e) {
+            console.error('populateCatalogShopFilter error:', e);
+        }
+    };
+
+    window.populateCatalogCategoryFilter = function () {
+        const select = document.getElementById('catalog-category-filter');
+        if (!select) return;
+        const currentValue = select.value;
+
+        // Extract unique categories from loaded products
+        const products = window.__allProducts || [];
+        const categories = new Set();
+        products.forEach(p => {
+            const c = (p.category || '').trim();
+            if (c) categories.add(c);
+        });
+
+        select.innerHTML = '<option value="">All Categories</option>';
+        [...categories].sort().forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat;
+            opt.textContent = cat;
+            select.appendChild(opt);
+        });
+
+        // Restore previous selection if it still exists
+        if (currentValue) {
+            const stillExists = [...select.options].some(o => o.value === currentValue);
+            if (stillExists) select.value = currentValue;
+            else select.value = '';
+        }
     };
 
     // =========================================================
@@ -691,22 +1354,42 @@
 
     window.filterCatalog = function () {
         const searchInput = document.getElementById('catalog-search-input');
-        if (!searchInput) return;
-        const searchTerm = searchInput.value.toLowerCase().trim();
-        if (!searchTerm) {
-            window.__filteredProducts = [...window.__allProducts];
-            const c = document.getElementById('catalog-search-count');
-            if (c) c.textContent = '';
-        } else {
-            window.__filteredProducts = window.__allProducts.filter(p => {
-                const nameMatch = p.name?.toLowerCase().includes(searchTerm) || false;
-                const barcodeMatch = (p.barcode || '').toLowerCase().includes(searchTerm);
-                const categoryMatch = p.category?.toLowerCase().includes(searchTerm) || false;
-                return nameMatch || barcodeMatch || categoryMatch;
-            });
-            const countEl = document.getElementById('catalog-search-count');
-            if (countEl) countEl.textContent = `${window.__filteredProducts.length} result${window.__filteredProducts.length !== 1 ? 's' : ''}`;
+        const categorySelect = document.getElementById('catalog-category-filter');
+
+        const searchTerm = searchInput ? searchInput.value.toLowerCase().trim() : '';
+        const categoryTerm = categorySelect ? categorySelect.value : '';
+
+        if (window.__allProducts.length === 0) {
+            window.loadProducts().then(() => window.filterCatalog());
+            return;
         }
+
+        window.__filteredProducts = window.__allProducts.filter(product => {
+            // Category filter (exact match)
+            if (categoryTerm) {
+                const cat = (product.category || '').toLowerCase();
+                if (cat !== categoryTerm.toLowerCase()) return false;
+            }
+            // Search filter (fuzzy)
+            if (searchTerm) {
+                const nameMatch = product.name?.toLowerCase().includes(searchTerm) || false;
+                const barcodeMatch = (product.barcode || '').toLowerCase().includes(searchTerm);
+                const categoryMatch = product.category?.toLowerCase().includes(searchTerm) || false;
+                if (!nameMatch && !barcodeMatch && !categoryMatch) return false;
+            }
+            return true;
+        });
+
+        // Update count display
+        const countEl = document.getElementById('catalog-search-count');
+        if (countEl) {
+            if (searchTerm || categoryTerm) {
+                countEl.textContent = `${window.__filteredProducts.length} result${window.__filteredProducts.length !== 1 ? 's' : ''}`;
+            } else {
+                countEl.textContent = '';
+            }
+        }
+
         window.renderProductCatalog(window.__filteredProducts);
         window.updateCatalogCounts();
     };
@@ -909,47 +1592,47 @@
         }
     };
 
-  window.renderValuation = function (data) {
-    if (!data) data = {};
-    const products = data.products || [];
-    const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
-    setText('val-total-items', data.total_items || 0);
-    setText('val-total-qty', data.total_quantity || 0);
-    setText('val-cost-value', 'KES ' + (data.total_cost_value || 0).toFixed(2));
-    setText('val-retail-value', 'KES ' + (data.total_retail_value || 0).toFixed(2));
-    setText('val-profit', 'KES ' + (data.potential_profit || 0).toFixed(2));
+    window.renderValuation = function (data) {
+        if (!data) data = {};
+        const products = data.products || [];
+        const setText = (id, text) => { const el = document.getElementById(id); if (el) el.textContent = text; };
+        setText('val-total-items', data.total_items || 0);
+        setText('val-total-qty', data.total_quantity || 0);
+        setText('val-cost-value', 'KES ' + (data.total_cost_value || 0).toFixed(2));
+        setText('val-retail-value', 'KES ' + (data.total_retail_value || 0).toFixed(2));
+        setText('val-profit', 'KES ' + (data.potential_profit || 0).toFixed(2));
 
-    // Category breakdown
-    const categoriesContainer = document.getElementById('valuation-categories');
-    const categories = data.categories || [];
-    if (categoriesContainer) {
-        if (categories.length === 0) {
-            categoriesContainer.innerHTML = '<p class="text-xs text-gray-400 text-center py-2">No categories</p>';
-        } else {
-            let html = '';
-            const totalCost = data.total_cost_value || 1;
-            categories.forEach(cat => {
-                const width = Math.min((cat.total_cost_value / totalCost) * 100, 100);
-                html += '<div><div class="flex justify-between text-xs"><span class="font-medium text-gray-700">' + cat.category + '</span><span class="text-gray-500">' + cat.item_count + ' items • KES ' + cat.total_cost_value.toFixed(2) + '</span></div><div class="w-full bg-gray-200 rounded-full h-1.5 mt-0.5"><div class="bg-purple-500 h-1.5 rounded-full" style="width: ' + width + '%"></div></div></div>';
-            });
-            categoriesContainer.innerHTML = html;
+        // Category breakdown
+        const categoriesContainer = document.getElementById('valuation-categories');
+        const categories = data.categories || [];
+        if (categoriesContainer) {
+            if (categories.length === 0) {
+                categoriesContainer.innerHTML = '<p class="text-xs text-gray-400 text-center py-2">No categories</p>';
+            } else {
+                let html = '';
+                const totalCost = data.total_cost_value || 1;
+                categories.forEach(cat => {
+                    const width = Math.min((cat.total_cost_value / totalCost) * 100, 100);
+                    html += '<div><div class="flex justify-between text-xs"><span class="font-medium text-gray-700">' + cat.category + '</span><span class="text-gray-500">' + cat.item_count + ' items • KES ' + cat.total_cost_value.toFixed(2) + '</span></div><div class="w-full bg-gray-200 rounded-full h-1.5 mt-0.5"><div class="bg-purple-500 h-1.5 rounded-full" style="width: ' + width + '%"></div></div></div>';
+                });
+                categoriesContainer.innerHTML = html;
+            }
         }
-    }
 
-    // Product table
-    const productsContainer = document.getElementById('valuation-products');
-    if (!productsContainer) return;
-    if (products.length === 0) {
-        productsContainer.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-gray-500">No products in stock</td></tr>';
-        return;
-    }
-    let html = '';
-    products.forEach(p => {
-        const profitClass = p.profit >= 0 ? 'text-emerald-600' : 'text-red-600';
-        html += '<tr class="border-b hover:bg-purple-50/50 transition"><td class="p-2 font-medium text-gray-800">' + p.product_name + '</td><td class="p-2 font-mono text-gray-500">' + (p.barcode || 'N/A') + '</td><td class="p-2 text-gray-500">' + p.category + '</td><td class="p-2 text-center font-bold">' + p.quantity + '</td><td class="p-2 text-right font-mono">KES ' + (p.cost_price || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono">KES ' + (p.retail_price || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono text-amber-700">KES ' + (p.cost_value || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono text-emerald-700">KES ' + (p.retail_value || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono ' + profitClass + '">KES ' + (p.profit || 0).toFixed(2) + '</td></tr>';
-    });
-    productsContainer.innerHTML = html;
-};
+        // Product table
+        const productsContainer = document.getElementById('valuation-products');
+        if (!productsContainer) return;
+        if (products.length === 0) {
+            productsContainer.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-gray-500">No products in stock</td></tr>';
+            return;
+        }
+        let html = '';
+        products.forEach(p => {
+            const profitClass = p.profit >= 0 ? 'text-emerald-600' : 'text-red-600';
+            html += '<tr class="border-b hover:bg-purple-50/50 transition"><td class="p-2 font-medium text-gray-800">' + p.product_name + '</td><td class="p-2 font-mono text-gray-500">' + (p.barcode || 'N/A') + '</td><td class="p-2 text-gray-500">' + p.category + '</td><td class="p-2 text-center font-bold">' + p.quantity + '</td><td class="p-2 text-right font-mono">KES ' + (p.cost_price || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono">KES ' + (p.retail_price || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono text-amber-700">KES ' + (p.cost_value || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono text-emerald-700">KES ' + (p.retail_value || 0).toFixed(2) + '</td><td class="p-2 text-right font-mono ' + profitClass + '">KES ' + (p.profit || 0).toFixed(2) + '</td></tr>';
+        });
+        productsContainer.innerHTML = html;
+    };
     // =========================================================
     // PRODUCTS CRUD (Add / Edit)
     // =========================================================

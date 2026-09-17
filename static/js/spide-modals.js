@@ -104,7 +104,27 @@
                         <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2">📦 Product Catalog</h2>
                         <p class="text-xs text-gray-500">Complete list of products in inventory</p>
                     </div>
-                    <div class="flex items-center gap-2">
+                   <div class="flex items-center gap-2">
+                        <!-- Director-only shop filter -->
+                        <div id="catalog-shop-filter-wrapper"
+                            class="hidden items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
+                            <span class="text-xs text-gray-500">🏪</span>
+                            <select id="catalog-shop-filter" onchange="loadProducts()"
+                                class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1">
+                                <option value="0">All Shops</option>
+                            </select>
+                        </div>
+
+                        <!-- Category filter (visible to all users) -->
+                        <div id="catalog-category-filter-wrapper"
+                            class="flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
+                            <span class="text-xs text-gray-500">🏷️</span>
+                            <select id="catalog-category-filter" onchange="filterCatalog()"
+                                class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 min-w-[130px]">
+                                <option value="">All Categories</option>
+                            </select>
+                        </div>
+
                         <button onclick="loadProducts()"
                             class="bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold px-3 py-1.5 rounded-lg transition flex items-center gap-1">🔄
                             Refresh</button>
@@ -608,6 +628,13 @@
                 <form id="transfer-form" onsubmit="submitTransfer(event)" class="flex-1 flex flex-col">
                     <div class="space-y-3">
                         <div>
+                            <div id="transfer-from-shop-wrapper" class="hidden">
+                                <label class="block text-xs font-semibold text-gray-700 mb-1">Source Shop *</label>
+                                <select id="transfer-from-shop" required onchange="loadTransferShops()"
+                                    class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                    <option value="">Select Source Shop</option>
+                                </select>
+                            </div>
                             <label class="block text-xs font-semibold text-gray-700 mb-1">Destination Shop *</label>
                             <select id="transfer-to-shop" required
                                 class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
@@ -643,9 +670,7 @@
                                     <input type="number" id="transfer-qty" placeholder="Qty"
                                         class="w-20 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none"
                                         value="1" min="1">
-                                    <button type="button" onclick="addTransferItem()"
-                                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm whitespace-nowrap">➕
-                                        Add</button>
+                                   
                                 </div>
                             </div>
                             <div id="transfer-items-list" class="mt-2 space-y-1 max-h-32 overflow-y-auto">
@@ -719,6 +744,10 @@
                         </h2>
                         <p id="transfer-detail-number" class="text-xs text-gray-500">#TRF-XXXXXXXX</p>
                     </div>
+                    <button onclick="printTransferReceipt(currentTransferId)" 
+                        class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-5 py-2 rounded-xl transition text-sm">
+                        🖨️ Print
+                    </button>
                     <button onclick="closeTransferDetailModal()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
                 </div>
 
@@ -2228,6 +2257,39 @@
     // --- Product Catalog ---
     window.openProductCatalogModal = function () {
         open('product-catalog-modal');
+        // Reset filters on open
+        const catSelect = document.getElementById('catalog-category-filter');
+        if (catSelect) catSelect.value = '';
+        const searchInput = document.getElementById('catalog-search-input');
+        if (searchInput) searchInput.value = '';
+        const role = typeof window.getCurrentUserRole === 'function' ? window.getCurrentUserRole() : 'cashier';
+        const isDirector = (role === 'director' || role === 'admin');
+
+        // Shop filter
+        const shopWrapper = document.getElementById('catalog-shop-filter-wrapper');
+        if (shopWrapper) {
+            if (isDirector) {
+                shopWrapper.classList.remove('hidden');
+                shopWrapper.classList.add('flex');
+                if (typeof window.populateCatalogShopFilter === 'function') {
+                    window.populateCatalogShopFilter();
+                }
+            } else {
+                shopWrapper.classList.add('hidden');
+                shopWrapper.classList.remove('flex');
+            }
+        }
+
+        // ✅ Category filter — visible to all users
+        const catWrapper = document.getElementById('catalog-category-filter-wrapper');
+        if (catWrapper) {
+            catWrapper.classList.remove('hidden');
+            catWrapper.classList.add('flex');
+            if (typeof window.populateCatalogCategoryFilter === 'function') {
+                window.populateCatalogCategoryFilter();
+            }
+        }
+
         callIfExists('loadProducts');
     };
     window.closeProductCatalogModal = function () { close('product-catalog-modal'); };
@@ -2337,9 +2399,42 @@
     // --- Transfer ---
     window.openTransferModal = function () {
         open('transfer-modal');
+
+        // Reset form state
+        const alert = document.getElementById('transfer-alert');
+        if (alert) alert.classList.add('hidden');
+
+        const toShop = document.getElementById('transfer-to-shop');
+        if (toShop) toShop.value = '';
+
+        const dateEl = document.getElementById('transfer-date');
+        if (dateEl) dateEl.value = new Date().toISOString().split('T')[0];
+
+        const notes = document.getElementById('transfer-notes');
+        if (notes) notes.value = '';
+
+        const search = document.getElementById('transfer-product-search');
+        if (search) search.value = '';
+        const searchResults = document.getElementById('transfer-search-results');
+        if (searchResults) searchResults.classList.add('hidden');
+
+        const qty = document.getElementById('transfer-qty');
+        if (qty) qty.value = '1';
+
+        // Reset the in-memory items list
+        if (typeof window.resetTransferItems === 'function') window.resetTransferItems();
+
         callIfExists('loadTransferShops');
+        if (typeof window.showFromShopIfDirector === 'function') {
+            window.showFromShopIfDirector();
+        }
     };
-    window.closeTransferModal = function () { close('transfer-modal'); };
+    window.closeTransferModal = function () {
+        close('transfer-modal');
+        const alert = document.getElementById('transfer-alert');
+        if (alert) alert.classList.add('hidden');
+    };
+
 
     window.openTransferHistoryModal = function () {
         open('transfer-history-modal');

@@ -30,20 +30,32 @@ func GetProductsHandler(w http.ResponseWriter, r *http.Request) {
 		companyID = 1
 	}
 
-	// ✅ Get shop_id from query parameter (for stock info)
+	// Resolve shop_id: 0 means "all shops", missing means "user's shop"
 	shopIDParam := r.URL.Query().Get("shop_id")
-	var shopID int
+	shopID := -1 // -1 = not specified
 	if shopIDParam != "" {
-		id, err := strconv.Atoi(shopIDParam)
-		if err == nil && id > 0 {
+		if id, err := strconv.Atoi(shopIDParam); err == nil && id >= 0 {
 			shopID = id
 		}
 	}
-	if shopID == 0 {
+
+	// Fall back to claims only when the client didn't specify
+	if shopID == -1 {
 		shopID = claims.ShopID
 	}
-	if shopID == 0 {
-		shopID = 1
+
+	// Non-directors can't request "all shops" or another shop's data
+	if claims.Role != "director" && claims.Role != "admin" {
+		if shopID == 0 {
+			shopID = claims.ShopID
+		}
+		if shopID == 0 {
+			http.Error(w, `{"error":"No shop assigned"}`, http.StatusBadRequest)
+			return
+		}
+		if shopID != claims.ShopID {
+			shopID = claims.ShopID // force to their own shop
+		}
 	}
 
 	// ✅ Get products for this company with stock for the shop

@@ -26,13 +26,14 @@ func CreateTransfer(db *sql.DB, transfer *StockTransfer) error {
 
 	// Insert transfer
 	query := `
-        INSERT INTO stock_transfers (transfer_number, from_shop_id, to_shop_id, 
+        INSERT INTO stock_transfers (transfer_number, company_id, from_shop_id, to_shop_id, 
                                      total_items, total_cost, transfer_date, 
                                      status, notes, created_by, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `
 	result, err := tx.Exec(query,
 		transferNumber,
+		transfer.CompanyID,
 		transfer.FromShopID,
 		transfer.ToShopID,
 		totalItems,
@@ -66,21 +67,24 @@ func CreateTransfer(db *sql.DB, transfer *StockTransfer) error {
 		}
 
 		// Deduct from source shop
-		_, err = tx.Exec(`
-            UPDATE shop_stock 
-            SET quantity = quantity - ?, updated_at = NOW()
-            WHERE shop_id = ? AND product_id = ? AND quantity >= ?
-        `, item.Quantity, transfer.FromShopID, item.ProductID, item.Quantity)
+		deduct, err := tx.Exec(`
+    	UPDATE shop_stock
+    	SET quantity = quantity - ?, updated_at = NOW()
+   		 WHERE shop_id = ? AND product_id = ? AND quantity >= ?
+		`, item.Quantity, transfer.FromShopID, item.ProductID, item.Quantity)
 		if err != nil {
 			return fmt.Errorf("failed to deduct from source shop: %w", err)
+		}
+		if rows, _ := deduct.RowsAffected(); rows == 0 {
+			return fmt.Errorf("insufficient stock for product %d (requested %d)", item.ProductID, item.Quantity)
 		}
 
 		// Add to destination shop
 		_, err = tx.Exec(`
-            INSERT INTO shop_stock (shop_id, product_id, quantity, created_at, updated_at)
-            VALUES (?, ?, ?, NOW(), NOW())
-            ON DUPLICATE KEY UPDATE quantity = quantity + ?, updated_at = NOW()
-        `, transfer.ToShopID, item.ProductID, item.Quantity, item.Quantity)
+    INSERT INTO shop_stock (shop_id, product_id, quantity, company_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, NOW(), NOW())
+    ON DUPLICATE KEY UPDATE quantity = quantity + ?, updated_at = NOW()
+`, transfer.ToShopID, item.ProductID, item.Quantity, transfer.CompanyID, item.Quantity)
 		if err != nil {
 			return fmt.Errorf("failed to add to destination shop: %w", err)
 		}
@@ -137,28 +141,28 @@ func GetTransfers(db *sql.DB, shopID int) ([]StockTransfer, error) {
 	return transfers, nil
 }
 
-func GetTransferDetail(db *sql.DB, transferID int) (*StockTransfer, error) {
-	// Get transfer header
+func GetTransferDetail(db *sql.DB, transferID, companyID int) (*StockTransfer, error) {
 	query := `
-        SELECT id, transfer_number, from_shop_id, to_shop_id, 
-               total_items, total_cost, transfer_date, status, 
-               notes, created_by, created_at
-        FROM stock_transfers
-        WHERE id = ?
+        SELECT st.id, st.transfer_number, st.company_id, st.from_shop_id, st.to_shop_id,
+               st.total_items, st.total_cost,
+               DATE_FORMAT(st.transfer_date, '%Y-%m-%d') as transfer_date,
+               st.status, COALESCE(st.notes, '') as notes,
+               COALESCE(st.created_by, '') as created_by,
+               DATE_FORMAT(st.created_at, '%Y-%m-%d %H:%i:%s') as created_at,
+               COALESCE(fs.name, '') as from_shop_name,
+               COALESCE(ts.name, '') as to_shop_name
+        FROM stock_transfers st
+        LEFT JOIN shops fs ON st.from_shop_id = fs.id
+        LEFT JOIN shops ts ON st.to_shop_id = ts.id
+        WHERE st.id = ? AND st.company_id = ?
     `
 	var t StockTransfer
-	err := db.QueryRow(query, transferID).Scan(
-		&t.ID,
-		&t.TransferNumber,
-		&t.FromShopID,
-		&t.ToShopID,
-		&t.TotalItems,
-		&t.TotalCost,
-		&t.TransferDate,
-		&t.Status,
-		&t.Notes,
-		&t.CreatedBy,
-		&t.CreatedAt,
+	err := db.QueryRow(query, transferID, companyID).Scan(
+		&t.ID, &t.TransferNumber, &t.CompanyID,
+		&t.FromShopID, &t.ToShopID,
+		&t.TotalItems, &t.TotalCost,
+		&t.TransferDate, &t.Status, &t.Notes, &t.CreatedBy, &t.CreatedAt,
+		&t.FromShopName, &t.ToShopName,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -167,12 +171,14 @@ func GetTransferDetail(db *sql.DB, transferID int) (*StockTransfer, error) {
 		return nil, fmt.Errorf("failed to get transfer: %w", err)
 	}
 
-	// Get transfer items
 	itemQuery := `
-        SELECT ti.id, ti.product_id, p.name, ti.quantity, ti.cost_price, ti.subtotal
+        SELECT ti.id, ti.product_id, p.name as product_name,
+               COALESCE(p.barcode, '') as barcode,
+               ti.quantity, ti.cost_price, ti.subtotal
         FROM transfer_items ti
         JOIN products p ON ti.product_id = p.id
         WHERE ti.transfer_id = ?
+        ORDER BY ti.id
     `
 	rows, err := db.Query(itemQuery, transferID)
 	if err != nil {
@@ -180,84 +186,20 @@ func GetTransferDetail(db *sql.DB, transferID int) (*StockTransfer, error) {
 	}
 	defer rows.Close()
 
-	items := []struct {
-		ID          int     `json:"id"`
-		ProductID   int     `json:"product_id"`
-		ProductName string  `json:"product_name"`
-		Quantity    int     `json:"quantity"`
-		CostPrice   float64 `json:"cost_price"`
-		Subtotal    float64 `json:"subtotal"`
-	}{}
-
+	items := []TransferItemDetail{}
 	for rows.Next() {
-		var item struct {
-			ID          int     `json:"id"`
-			ProductID   int     `json:"product_id"`
-			ProductName string  `json:"product_name"`
-			Quantity    int     `json:"quantity"`
-			CostPrice   float64 `json:"cost_price"`
-			Subtotal    float64 `json:"subtotal"`
-		}
-		err := rows.Scan(&item.ID, &item.ProductID, &item.ProductName, &item.Quantity, &item.CostPrice, &item.Subtotal)
+		var item TransferItemDetail
+		err := rows.Scan(&item.ID, &item.ProductID, &item.ProductName,
+			&item.Barcode, &item.Quantity, &item.CostPrice, &item.Subtotal)
 		if err != nil {
 			return nil, err
 		}
 		items = append(items, item)
 	}
-
-	if err := rows.Err(); err != nil {
+	if err := rows.Err(); err != nil { // ← add this
 		return nil, fmt.Errorf("error iterating transfer items: %w", err)
 	}
-
-	// Add items to transfer
-	// We'll store them as a JSON field or in a separate struct
-	// For simplicity, we'll just return the header and items separately
+	t.Items = items
 
 	return &t, nil
-}
-
-func GetTransferItems(db *sql.DB, transferID int) ([]map[string]interface{}, error) {
-	query := `
-        SELECT ti.id, ti.product_id, p.name as product_name, 
-               COALESCE(p.barcode, '') as barcode,
-               ti.quantity, ti.cost_price, ti.subtotal
-        FROM transfer_items ti
-        JOIN products p ON ti.product_id = p.id
-        WHERE ti.transfer_id = ?
-    `
-	rows, err := db.Query(query, transferID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get transfer items: %w", err)
-	}
-	defer rows.Close()
-
-	items := []map[string]interface{}{}
-	for rows.Next() {
-		var id, productID int
-		var productName, barcode string
-		var quantity int
-		var costPrice, subtotal float64
-
-		err := rows.Scan(&id, &productID, &productName, &barcode, &quantity, &costPrice, &subtotal)
-		if err != nil {
-			return nil, err
-		}
-
-		item := map[string]interface{}{
-			"id":           id,
-			"product_id":   productID,
-			"product_name": productName,
-			"barcode":      barcode,
-			"quantity":     quantity,
-			"cost_price":   costPrice,
-			"subtotal":     subtotal,
-		}
-		items = append(items, item)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("error iterating transfer items: %w", err)
-	}
-
-	return items, nil
 }

@@ -689,6 +689,10 @@ func UpdateProductBarcode(db *sql.DB, productID int64, barcode string) error {
 
 // GetProductsByCompanyWithStock - Get all products for a company with stock for a specific shop
 func GetProductsByCompanyWithStock(db *sql.DB, companyID int, shopID int) ([]Product, error) {
+	if shopID == 0 {
+		return getAllProductsWithTotalStock(db, companyID)
+	}
+
 	query := `
         SELECT 
             p.id, 
@@ -754,4 +758,43 @@ func GetProductsByCompanyWithStock(db *sql.DB, companyID int, shopID int) ([]Pro
 
 	log.Printf("📦 Retrieved %d products with stock for company %d, shop %d", len(products), companyID, shopID)
 	return products, nil
+}
+
+func getAllProductsWithTotalStock(db *sql.DB, companyID int) ([]Product, error) {
+	query := `
+        SELECT 
+            p.id, p.company_id, p.barcode, p.name, p.category, p.category_id,
+            p.cost_price, p.retail_price, p.wholesale_price, p.wholesale_min_qty,
+            COALESCE(SUM(ss.quantity), 0) as stock_quantity,
+            p.reorder_level, p.is_active, p.created_at, p.updated_at
+        FROM products p
+        LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.company_id = p.company_id
+        WHERE p.company_id = ? AND p.is_active = 1
+        GROUP BY p.id, p.company_id, p.barcode, p.name, p.category, p.category_id,
+                 p.cost_price, p.retail_price, p.wholesale_price, p.wholesale_min_qty,
+                 p.reorder_level, p.is_active, p.created_at, p.updated_at
+        ORDER BY p.name ASC
+    `
+	rows, err := db.Query(query, companyID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get products with total stock: %w", err)
+	}
+	defer rows.Close()
+
+	products := []Product{}
+	for rows.Next() {
+		var p Product
+		var barcodePtr *string
+		err := rows.Scan(
+			&p.ID, &p.CompanyID, &barcodePtr, &p.Name, &p.Category, &p.CategoryID,
+			&p.CostPrice, &p.RetailPrice, &p.WholesalePrice, &p.WholesaleMinQty,
+			&p.StockQuantity, &p.ReorderLevel, &p.IsActive, &p.CreatedAt, &p.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		p.Barcode = barcodePtr
+		products = append(products, p)
+	}
+	return products, rows.Err()
 }

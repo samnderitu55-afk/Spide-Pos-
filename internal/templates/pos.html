@@ -871,10 +871,17 @@
                 });
                 if (response.ok) {
                     const result = await response.json();
-                    printThermalReceipt(payload, result.sale_id);
+
+                    // ✅ Reset UI first — customer sees the empty cart immediately
                     document.getElementById('cart-items').innerHTML = '';
                     updateCartTotals();
                     closePaymentModal();
+                    if (typeof clearSelectedCustomer === 'function') clearSelectedCustomer();
+
+                    // ✅ Then fire the print — don't await it
+                    printThermalReceipt(payload, result.sale_id);
+
+                    // ✅ Show confirmation
                     showNotification('Sale completed! Receipt #' + result.sale_id);
                 } else {
                     const error = await response.text();
@@ -1087,7 +1094,7 @@
                 })
                 .catch(err => { console.error('Error:', err); alert('Error reprinting.'); });
         }
- 
+
         function getCurrentUserRole() {
             const token = getCookie('spide_token');
             if (token) {
@@ -2086,7 +2093,7 @@
                 console.error('Error initializing POS:', err);
             });
         });
-        
+
     </script>
 
     <script src="/static/js/spide-modals.js"></script>

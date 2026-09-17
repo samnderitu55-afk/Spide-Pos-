@@ -231,23 +231,31 @@ type StockTransferRequest struct {
 }
 
 type StockTransfer struct {
-	ID             int     `json:"id"`
-	TransferNumber string  `json:"transfer_number"`
-	CompanyID      int     `json:"company_id"`
-	FromShopID     int     `json:"from_shop_id"`
-	ToShopID       int     `json:"to_shop_id"`
-	TotalItems     int     `json:"total_items"`
-	TotalCost      float64 `json:"total_cost"`
-	TransferDate   string  `json:"transfer_date"`
-	Status         string  `json:"status"`
-	Notes          string  `json:"notes"`
-	CreatedBy      string  `json:"created_by"`
-	CreatedAt      string  `json:"created_at"`
-	Items          []struct {
-		ProductID int     `json:"product_id"`
-		Quantity  int     `json:"quantity"`
-		CostPrice float64 `json:"cost_price"`
-	} `json:"items,omitempty"`
+	ID             int                  `json:"id"`
+	TransferNumber string               `json:"transfer_number"`
+	CompanyID      int                  `json:"company_id"`
+	FromShopID     int                  `json:"from_shop_id"`
+	ToShopID       int                  `json:"to_shop_id"`
+	TotalItems     int                  `json:"total_items"`
+	TotalCost      float64              `json:"total_cost"`
+	TransferDate   string               `json:"transfer_date"`
+	Status         string               `json:"status"`
+	Notes          string               `json:"notes"`
+	CreatedBy      string               `json:"created_by"`
+	CreatedAt      string               `json:"created_at"`
+	Items          []TransferItemDetail `json:"items,omitempty"`
+	FromShopName   string               `json:"from_shop_name,omitempty"`
+	ToShopName     string               `json:"to_shop_name,omitempty"`
+}
+
+type TransferItemDetail struct {
+	ID          int     `json:"id"`
+	ProductID   int     `json:"product_id"`
+	ProductName string  `json:"product_name"`
+	Barcode     string  `json:"barcode,omitempty"`
+	Quantity    int     `json:"quantity"`
+	CostPrice   float64 `json:"cost_price"`
+	Subtotal    float64 `json:"subtotal"`
 }
 
 type PurchaseRequest struct {
