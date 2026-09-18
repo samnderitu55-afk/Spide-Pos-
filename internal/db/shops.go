@@ -6,23 +6,27 @@ import (
 )
 
 type Shop struct {
-	ID        int            `json:"id"`
-	CompanyID int            `json:"company_id"`
-	Name      string         `json:"name"`
-	Location  sql.NullString `json:"location"`
-	Phone     sql.NullString `json:"phone"`
-	Email     sql.NullString `json:"email"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
+	ID        int       `json:"id"`
+	Name      string    `json:"name"`
+	Location  string    `json:"location"`
+	Phone     string    `json:"phone"`
+	Email     string    `json:"email"`
+	CompanyID int       `json:"company_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func GetShopsByCompany(db *sql.DB, companyID int) ([]Shop, error) {
 	query := `
-        SELECT id, company_id, name, location, phone, email, created_at, updated_at
-        FROM shops
-        WHERE company_id = ?
-        ORDER BY name
-    `
+    SELECT id, company_id, name,
+           COALESCE(location, '') as location,
+           COALESCE(phone, '') as phone,
+           COALESCE(email, '') as email,
+           created_at, updated_at
+    FROM shops
+    WHERE company_id = ?
+    ORDER BY name
+`
 	rows, err := db.Query(query, companyID)
 	if err != nil {
 		return nil, err
@@ -86,10 +90,14 @@ func UpdateShop(db *sql.DB, shop Shop) error {
 
 func GetAllShops(db *sql.DB) ([]Shop, error) {
 	query := `
-        SELECT id, company_id, name, location, phone, email, created_at, updated_at
-        FROM shops
-        ORDER BY name
-    `
+    SELECT id, company_id, name,
+           COALESCE(location, '') as location,
+           COALESCE(phone, '') as phone,
+           COALESCE(email, '') as email,
+           created_at, updated_at
+    FROM shops
+    ORDER BY name
+`
 	rows, err := db.Query(query)
 	if err != nil {
 		return nil, err
@@ -135,10 +143,14 @@ func DeleteShop(db *sql.DB, id int, companyID int) error {
 func GetShopByID(db *sql.DB, id int) (*Shop, error) {
 	var shop Shop
 	query := `
-        SELECT id, company_id, name, location, phone, email, created_at, updated_at
-        FROM shops
-        WHERE id = ?
-    `
+    SELECT id, company_id, name,
+           COALESCE(location, '') as location,
+           COALESCE(phone, '') as phone,
+           COALESCE(email, '') as email,
+           created_at, updated_at
+    FROM shops
+    WHERE id = ?
+`
 	err := db.QueryRow(query, id).Scan(
 		&shop.ID, &shop.CompanyID, &shop.Name,
 		&shop.Location, // ✅ sql.NullString
