@@ -1,45 +1,77 @@
 ﻿package handlers
 
 import (
-    "html/template"
-    "net/http"
-    "path/filepath"
+	"html/template"
+	"log"
+	"net/http"
+	"path/filepath"
 )
 
-var (
-    dashboardTemplate *template.Template
-    posTemplate       *template.Template
-    loginTemplate     *template.Template
-    directorTemplate  *template.Template
-)
+// loadTemplate parses a template from disk on every call.
+// This means changes to .html files show up on the next request —
+// no server restart needed. The cost is ~1ms per page load, which is
+// negligible for a POS with a handful of page views per minute.
+func loadTemplate(name string) (*template.Template, error) {
+	path := filepath.Join("internal", "templates", name)
+	return template.ParseFiles(path)
+}
 
-func init() {
-    dashboardTemplate = template.Must(template.ParseFiles(filepath.Join("internal", "templates", "dashboard.html")))
-    posTemplate = template.Must(template.ParseFiles(filepath.Join("internal", "templates", "pos.html")))
-    loginTemplate = template.Must(template.ParseFiles(filepath.Join("internal", "templates", "login.html")))
-    directorTemplate = template.Must(template.ParseFiles(filepath.Join("internal", "templates", "director.html")))
+// setNoCacheHeaders tells browsers and proxies to never cache HTML pages.
+// Prevents the "I edited the template but the browser shows the old one" class of bug.
+func setNoCacheHeaders(w http.ResponseWriter) {
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 }
 
 func ServeDashboard(w http.ResponseWriter, r *http.Request) {
-    if r.URL.Path != "/" {
-        http.NotFound(w, r)
-        return
-    }
-    w.Header().Set("Content-Type", "text/html")
-    dashboardTemplate.Execute(w, nil)
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+	tmpl, err := loadTemplate("dashboard.html")
+	if err != nil {
+		log.Printf("❌ Failed to load dashboard template: %v", err)
+		http.Error(w, "Template error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
+	setNoCacheHeaders(w)
+	tmpl.Execute(w, nil)
 }
 
 func ServePOS(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Content-Type", "text/html")
-    posTemplate.Execute(w, nil)
+	tmpl, err := loadTemplate("pos.html")
+	if err != nil {
+		log.Printf("❌ Failed to load pos template: %v", err)
+		http.Error(w, "Template error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
+	setNoCacheHeaders(w)
+	tmpl.Execute(w, nil)
 }
 
 func ServeLogin(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Content-Type", "text/html")
-    loginTemplate.Execute(w, nil)
+	tmpl, err := loadTemplate("login.html")
+	if err != nil {
+		log.Printf("❌ Failed to load login template: %v", err)
+		http.Error(w, "Template error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
+	setNoCacheHeaders(w)
+	tmpl.Execute(w, nil)
 }
 
 func ServeDirector(w http.ResponseWriter, r *http.Request) {
-    w.Header().Set("Content-Type", "text/html")
-    directorTemplate.Execute(w, nil)
+	tmpl, err := loadTemplate("director.html")
+	if err != nil {
+		log.Printf("❌ Failed to load director template: %v", err)
+		http.Error(w, "Template error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/html")
+	setNoCacheHeaders(w)
+	tmpl.Execute(w, nil)
 }
