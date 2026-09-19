@@ -104,6 +104,7 @@ func GetDailyZReportWithExpenses(db *sql.DB, dateParam string, shopID int) (*ZRe
 
 func GetProductSalesReport(
 	db *sql.DB,
+	companyID int,
 	startDate, endDate string,
 	shopID int,
 	category string,
@@ -113,22 +114,55 @@ func GetProductSalesReport(
 		return nil, fmt.Errorf("start and end dates are required")
 	}
 
-	query := `
-        SELECT p.name, p.category, SUM(si.quantity), 
-               SUM(si.quantity * p.cost_price), 
-               SUM(si.subtotal), 
-               SUM(si.subtotal - si.quantity * p.cost_price)
-        FROM sale_items si
-        JOIN products p ON si.product_id = p.id
-        JOIN sales s ON si.sale_id = s.id
-        WHERE DATE(s.created_at) BETWEEN ? AND ?
-    `
-	args := []interface{}{startDate, endDate}
+	var query string
+	var args []interface{}
 
 	if shopID > 0 {
-		query += " AND s.shop_id = ?"
-		args = append(args, shopID)
+		query = `
+			SELECT p.id, p.name, p.category,
+			       SUM(si.quantity),
+			       SUM(si.quantity * p.cost_price),
+			       SUM(si.subtotal),
+			       SUM(si.subtotal - si.quantity * p.cost_price),
+			       COALESCE(ss.quantity, 0)  AS current_stock,
+			       COALESCE(ss.stock_cap, 0) AS stock_cap
+			FROM sale_items si
+			JOIN products p ON si.product_id = p.id
+			JOIN sales s    ON si.sale_id = s.id
+			LEFT JOIN shop_stock ss
+			       ON ss.product_id = p.id AND ss.shop_id = ?
+			WHERE s.company_id = ?
+			  AND DATE(s.created_at) BETWEEN ? AND ?
+			  AND s.shop_id = ?
+		`
+		args = []interface{}{shopID, companyID, startDate, endDate, shopID}
+	} else {
+		query = `
+			SELECT p.id, p.name, p.category,
+			       SUM(si.quantity),
+			       SUM(si.quantity * p.cost_price),
+			       SUM(si.subtotal),
+			       SUM(si.subtotal - si.quantity * p.cost_price),
+			       COALESCE(agg.total_qty, 0)  AS current_stock,
+			       COALESCE(agg.total_cap, 0)  AS stock_cap
+			FROM sale_items si
+			JOIN products p ON si.product_id = p.id
+			JOIN sales s    ON si.sale_id = s.id
+			LEFT JOIN (
+			    SELECT ss.product_id,
+			           SUM(ss.quantity)  AS total_qty,
+			           SUM(ss.stock_cap) AS total_cap
+			    FROM shop_stock ss
+			    JOIN shops sh ON sh.id = ss.shop_id
+			    WHERE sh.company_id = ?
+			    GROUP BY ss.product_id
+			) agg ON agg.product_id = p.id
+			WHERE s.company_id = ?
+			  AND DATE(s.created_at) BETWEEN ? AND ?
+		`
+		args = []interface{}{companyID, companyID, startDate, endDate}
 	}
+
 	if category != "" {
 		query += " AND p.category = ?"
 		args = append(args, category)
@@ -138,7 +172,13 @@ func GetProductSalesReport(
 		args = append(args, productID)
 	}
 
-	query += " GROUP BY p.id, p.name, p.category ORDER BY SUM(si.subtotal) DESC"
+	query += " GROUP BY p.id, p.name, p.category"
+	if shopID > 0 {
+		query += ", ss.quantity, ss.stock_cap"
+	} else {
+		query += ", agg.total_qty, agg.total_cap"
+	}
+	query += " ORDER BY SUM(si.subtotal) DESC"
 
 	rows, err := db.Query(query, args...)
 	if err != nil {
@@ -150,12 +190,15 @@ func GetProductSalesReport(
 	for rows.Next() {
 		var row ProductSalesReportItem
 		if err := rows.Scan(
+			&row.ProductID,
 			&row.ProductName,
 			&row.Category,
 			&row.UnitsSold,
 			&row.TotalCost,
 			&row.TotalRevenue,
 			&row.NetProfit,
+			&row.CurrentStock,
+			&row.StockCap,
 		); err != nil {
 			return nil, err
 		}
@@ -304,4 +347,104 @@ func GetLowStockItems(db *sql.DB, companyID int, shopID int) ([]LowStockItem, er
 		return nil, err
 	}
 	return items, nil
+}
+
+// GetProductSalesCategories returns distinct categories for the given shop
+// (or all company categories if shopID is 0).
+func GetProductSalesCategories(db *sql.DB, companyID, shopID int) ([]string, error) {
+	var query string
+	var args []interface{}
+
+	if shopID > 0 {
+		query = `
+			SELECT DISTINCT p.category
+			FROM shop_stock ss
+			JOIN products p ON p.id = ss.product_id
+			WHERE ss.shop_id = ? AND p.company_id = ?
+			  AND p.category IS NOT NULL AND p.category != ''
+			ORDER BY p.category
+		`
+		args = []interface{}{shopID, companyID}
+	} else {
+		query = `
+			SELECT DISTINCT category
+			FROM products
+			WHERE company_id = ? AND is_active = 1
+			  AND category IS NOT NULL AND category != ''
+			ORDER BY category
+		`
+		args = []interface{}{companyID}
+	}
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	categories := []string{}
+	for rows.Next() {
+		var c string
+		if err := rows.Scan(&c); err != nil {
+			return nil, err
+		}
+		categories = append(categories, c)
+	}
+	return categories, rows.Err()
+}
+
+// ProductPick is a minimal product projection for dropdowns.
+type ProductPick struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// GetProductSalesProducts returns id+name pairs, filtered by shop and/or category.
+func GetProductSalesProducts(db *sql.DB, companyID, shopID int, category string) ([]ProductPick, error) {
+	var query string
+	var args []interface{}
+
+	if shopID > 0 && category != "" {
+		query = `SELECT DISTINCT p.id, p.name
+		         FROM shop_stock ss
+		         JOIN products p ON p.id = ss.product_id
+		         WHERE ss.shop_id = ? AND p.company_id = ? AND p.is_active = 1 AND p.category = ?
+		         ORDER BY p.name`
+		args = []interface{}{shopID, companyID, category}
+	} else if shopID > 0 {
+		query = `SELECT DISTINCT p.id, p.name
+		         FROM shop_stock ss
+		         JOIN products p ON p.id = ss.product_id
+		         WHERE ss.shop_id = ? AND p.company_id = ? AND p.is_active = 1
+		         ORDER BY p.name`
+		args = []interface{}{shopID, companyID}
+	} else if category != "" {
+		query = `SELECT p.id, p.name
+		         FROM products p
+		         WHERE p.company_id = ? AND p.is_active = 1 AND p.category = ?
+		         ORDER BY p.name`
+		args = []interface{}{companyID, category}
+	} else {
+		query = `SELECT p.id, p.name
+		         FROM products p
+		         WHERE p.company_id = ? AND p.is_active = 1
+		         ORDER BY p.name`
+		args = []interface{}{companyID}
+	}
+
+	rows, err := db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := []ProductPick{}
+	for rows.Next() {
+		var p ProductPick
+		if err := rows.Scan(&p.ID, &p.Name); err != nil {
+			return nil, err
+		}
+		items = append(items, p)
+	}
+	return items, rows.Err()
 }

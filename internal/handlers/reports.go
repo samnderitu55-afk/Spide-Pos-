@@ -117,13 +117,26 @@ func ProductSalesReportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Resolve shop_id (director/admin can override)
-	shopID := claims.ShopID
+	// Company ID from JWT
+	companyID := claims.CompanyID
+	if companyID == 0 {
+		companyID = 1
+	}
+
+	// Resolve shop_id
+	shopID := 0
 	if claims.Role == "director" || claims.Role == "admin" {
+		// Directors: default to all shops, allow override
 		if shopIDParam := r.URL.Query().Get("shop_id"); shopIDParam != "" {
-			if id, err := strconv.Atoi(shopIDParam); err == nil && id > 0 {
-				shopID = id
+			if id, err := strconv.Atoi(shopIDParam); err == nil && id >= 0 {
+				shopID = id // 0 = all shops
 			}
+		}
+	} else {
+		// Cashiers/managers: locked to their own shop
+		shopID = claims.ShopID
+		if shopID == 0 {
+			shopID = 1
 		}
 	}
 
@@ -135,8 +148,7 @@ func ProductSalesReportHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Call the DB layer with all filters
-	products, err := db.GetProductSalesReport(db.GetDB(), startDate, endDate, shopID, category, productIDInt)
+	products, err := db.GetProductSalesReport(db.GetDB(), companyID, startDate, endDate, shopID, category, productIDInt)
 	if err != nil {
 		log.Printf("❌ GetProductSalesReport error: %v", err)
 		http.Error(w, `{"error":"Failed to generate product sales report: `+err.Error()+`"}`, http.StatusInternalServerError)
@@ -271,4 +283,70 @@ func CategoryDrilldownHandler(w http.ResponseWriter, r *http.Request) {
 		}{}
 	}
 	json.NewEncoder(w).Encode(details)
+}
+
+func ProductSalesCategoriesHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	claims := middleware.GetUserFromContext(r)
+	if claims == nil {
+		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	companyID := claims.CompanyID
+	if companyID == 0 {
+		companyID = 1
+	}
+
+	shopID := 0
+	if claims.Role == "director" || claims.Role == "admin" {
+		if p := r.URL.Query().Get("shop_id"); p != "" {
+			if id, err := strconv.Atoi(p); err == nil {
+				shopID = id
+			}
+		}
+	} else {
+		shopID = claims.ShopID
+	}
+
+	cats, err := db.GetProductSalesCategories(db.GetDB(), companyID, shopID)
+	if err != nil {
+		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(cats)
+}
+
+func ProductSalesProductsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	claims := middleware.GetUserFromContext(r)
+	if claims == nil {
+		http.Error(w, `{"error":"Unauthorized"}`, http.StatusUnauthorized)
+		return
+	}
+
+	companyID := claims.CompanyID
+	if companyID == 0 {
+		companyID = 1
+	}
+
+	shopID := 0
+	if claims.Role == "director" || claims.Role == "admin" {
+		if p := r.URL.Query().Get("shop_id"); p != "" {
+			if id, err := strconv.Atoi(p); err == nil {
+				shopID = id
+			}
+		}
+	} else {
+		shopID = claims.ShopID
+	}
+
+	category := r.URL.Query().Get("category")
+
+	products, err := db.GetProductSalesProducts(db.GetDB(), companyID, shopID, category)
+	if err != nil {
+		http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(products)
 }

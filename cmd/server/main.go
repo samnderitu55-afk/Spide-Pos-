@@ -116,7 +116,8 @@ func main() {
 	mux.HandleFunc("/api/suppliers/create", middleware.AuthMiddleware(handlers.CreateSupplierHandler))
 	mux.HandleFunc("/api/categories", middleware.AuthMiddleware(handlers.GetCategoriesHandler))
 	mux.HandleFunc("/api/categories/create", middleware.AuthMiddleware(handlers.CreateCategoryHandler))
-	//mux.HandleFunc("/api/shops", middleware.AuthMiddleware(handlers.ShopsHandler))
+	mux.HandleFunc("/api/reports/product-sales/categories", middleware.AuthMiddleware(handlers.ProductSalesCategoriesHandler))
+	mux.HandleFunc("/api/reports/product-sales/products", middleware.AuthMiddleware(handlers.ProductSalesProductsHandler))
 
 	// Director Dashboard
 	mux.HandleFunc("/api/director/dashboard", middleware.AuthMiddleware(handlers.DirectorDashboardHandler))

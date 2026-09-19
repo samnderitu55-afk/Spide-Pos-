@@ -3,6 +3,7 @@
 import (
 	"database/sql"
 	"fmt"
+	"html"
 	"time"
 )
 
@@ -25,13 +26,14 @@ type Product struct {
 }
 
 func (p *Product) RenderRowHTML() string {
-	// ✅ Handle NULL barcode
 	barcodeDisplay := "N/A"
 	if p.Barcode != nil && *p.Barcode != "" {
 		barcodeDisplay = *p.Barcode
 	}
 
-	// ✅ Stock status color
+	nameEsc := html.EscapeString(p.Name)
+	barcodeEsc := html.EscapeString(barcodeDisplay)
+
 	stockClass := "text-green-600"
 	if p.StockQuantity <= 0 {
 		stockClass = "text-red-500 font-bold"
@@ -40,45 +42,44 @@ func (p *Product) RenderRowHTML() string {
 	}
 
 	return fmt.Sprintf(`<tr data-product-id="%d" data-retail-price="%.2f" data-wholesale-price="%.2f" data-wholesale-threshold="%d" data-barcode="%s" data-stock="%d">
-        <td class="p-3 font-medium text-gray-800">%s</td>
+        <td class="p-3 font-medium text-gray-800 text-sm min-w-0 max-w-[220px]">%s</td>
         <td class="p-3 text-center font-mono %s">%d</td>
-        <td class="p-3 text-right"><span class="price-badge bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded">Retail</span></td>
+        <td class="p-3 text-right font-mono text-gray-500 text-xs whitespace-nowrap">KES %.2f</td>
         <td class="p-3 text-center">
-            <input type="number" class="cart-qty-input w-16 px-2 py-1 border rounded text-center focus:ring-2 focus:ring-purple-500 focus:outline-none" 
-                   value="1" min="1" max="%d" oninput="updateRowTotals(this, false)">
+            <div class="inline-flex items-center gap-1">
+                <button type="button" onclick="adjustCartQty(this, -1)"
+                        class="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold leading-none">−</button>
+                <input type="number" class="cart-qty-input w-12 px-2 py-1 border rounded text-center focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                       value="1" min="1" max="%d" oninput="updateRowTotals(this, false)">
+                <button type="button" onclick="adjustCartQty(this, 1)"
+                        class="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold leading-none">+</button>
+            </div>
         </td>
         <td class="p-3 text-right">
-            <input type="number" step="0.01" class="cart-price-input w-24 px-2 py-1 border rounded text-right focus:ring-2 focus:ring-purple-500 focus:outline-none" 
-                   value="%.2f" oninput="updateRowTotals(this, true)">
+            <div class="flex items-center justify-end gap-2">
+                <span class="price-badge bg-gray-200 text-gray-700 text-xs px-2 py-0.5 rounded whitespace-nowrap">Retail</span>
+                <input type="number" step="0.01" class="cart-price-input w-24 px-2 py-1 border rounded text-right focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                       value="%.2f" onfocus="this.select()" oninput="updateRowTotals(this, true)">
+            </div>
         </td>
-        <td class="subtotal-td p-3 text-right font-bold text-purple-900">KES %.2f</td>
+        <td class="subtotal-td p-3 text-right font-bold text-purple-900 whitespace-nowrap">KES %.2f</td>
         <td class="p-3 text-center">
-            <button onclick="this.closest(\'tr\').remove(); updateCartTotals();" 
-                    class="text-red-500 hover:text-red-700 font-bold text-lg">✕</button>
+            <button type="button" onclick="removeCartRow(this)"
+                    class="text-red-500 hover:text-red-700 font-bold text-lg leading-none">✕</button>
         </td>
     </tr>`,
-		// Data attributes
 		p.ID,
 		p.RetailPrice,
 		p.WholesalePrice,
 		p.WholesaleMinQty,
-		barcodeDisplay,
+		barcodeEsc,
 		p.StockQuantity,
-
-		// Column 1: Product Name
-		p.Name,
-
-		// Column 2: Stock Quantity
+		nameEsc,
 		stockClass,
 		p.StockQuantity,
-
-		// Column 3: Qty max (prevent adding more than stock)
+		p.CostPrice,
 		p.StockQuantity,
-
-		// Column 4: Retail Price
 		p.RetailPrice,
-
-		// Column 5: Subtotal (initial)
 		p.RetailPrice,
 	)
 }
@@ -192,6 +193,7 @@ type ZReport struct {
 }
 
 type ProductSalesReportItem struct {
+	ProductID    int     `json:"product_id"`
 	ProductName  string  `json:"product_name"`
 	Category     string  `json:"category"`
 	UnitsSold    int     `json:"units_sold"`
@@ -199,6 +201,8 @@ type ProductSalesReportItem struct {
 	TotalRevenue float64 `json:"total_revenue"`
 	NetProfit    float64 `json:"net_profit"`
 	MarginPct    float64 `json:"margin_pct"`
+	CurrentStock int     `json:"current_stock"`
+	StockCap     int     `json:"stock_cap"`
 }
 
 type LowStockReportItem struct {
