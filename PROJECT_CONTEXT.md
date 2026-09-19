@@ -1,10 +1,34 @@
 # Spide POS — Project Context
 
 ## Stack
-- **Backend**: Go 1.x, MySQL (`spide_pos` database)
+- **Backend**: Go 1.23+, MySQL 8 (`spide_pos` database)
 - **Frontend**: HTML + Tailwind (CDN) + vanilla JS. No build step, no framework.
 - **Server**: `cmd/server/main.go`, runs on `:8081`, serves static files from `static/`
 - **Repo**: https://github.com/samnderitu55-afk/Spide-Pos-
+
+## Current deployment (as of 2026-09-18)
+
+- **Production server**: `64.226.124.37` (DigitalOcean Frankfurt, `Spide-V2`, Ubuntu 24.04)
+- **Domain**: `pos.spide.co.ke` (also `pos2.spide.co.ke`)
+- **App path**: `/var/www/spide/spide-pos` (Linux binary)
+- **Working directory**: `/var/www/spide`
+- **Systemd unit**: `/etc/systemd/system/spide-pos.service` (runs as root)
+- **nginx**: reverse proxy on 443 → localhost:8081, gzip enabled, HTTP/2 enabled
+- **MySQL**: localhost, user `root`, password `Tende@2016`, DB `spide_pos`
+- **Backups**: `/root/backups/` — multiple tarballs and dumps from the migration
+
+### Active companies in DB
+- **id 1**: Demo Retail Ltd (demo data, 5 products, 6 demo users)
+- **id 2**: Glow Age Beauty & Cosmetics (live, ~1690 products, 2 users: David, Precious)
+
+## Local dev environment (Windows)
+
+- **Path**: `C:\Users\sam\spide-pos`
+- **MySQL**: local 8.0, root password matches server (`Tende@2016`)
+- **DB**: `spide_pos` — imported from server dump, refreshed manually when needed
+- **Build for local run**: `go build -o spide-pos.exe cmd/server/main.go`
+- **Live reload tool**: `air` (config in `.air.toml`, watches Go files only)
+- **`.env`**: local copy in project root, points at `127.0.0.1`, port 8081
 
 ## Directory layout
 ```
@@ -16,18 +40,23 @@ spide-pos/
 ├── internal/
 │   ├── auth/                   # JWT generation/validation, bcrypt helpers
 │   ├── db/                     # all SQL queries, one file per domain
+│   │   ├── models.go           # structs + Product.RenderRowHTML()
+│   │   ├── sales.go            # sale queries, GetRecentSales*
+│   │   ├── dashboard.go        # dashboard stats, getSaleItems() helper
+│   │   ├── shops.go            # shop queries (COALESCE on nullable cols)
+│   │   └── ...
 │   ├── handlers/               # HTTP handlers, one file per domain
 │   ├── middleware/             # JWT auth middleware
-│   └── templates/              # HTML pages served by Go
+│   └── templates/              # HTML pages served by Go (read from disk)
 │       ├── login.html
-│       ├── pos.html
+│       ├── pos.html            # biggest page — has inline JS for cart, checkout, print
 │       ├── dashboard.html
 │       ├── director.html
 │       └── modals.html         # source of truth for modal HTML
 ├── static/
 │   └── js/
-│       ├── spide-modals.js     # generated from modals.html, injected at runtime
-│       └── spide-loaders.js    # all shared data loaders and save handlers
+│       ├── spide-modals.js     # all modals + open/close functions
+│       └── spide-loaders.js    # shared loaders, saveProduct, printThermalReceipt
 ├── go.mod / go.sum
 └── PROJECT_CONTEXT.md          # this file
 ```
@@ -35,88 +64,140 @@ spide-pos/
 ## Architecture rules (learned the hard way)
 
 ### Frontend
-1. **All modals live in `spide-modals.js`** — a single `MODAL_HTML` template literal + open/close functions. Nothing modal-related lives in page files. If you need a new modal, add it to `MODAL_HTML` and add `window.openXModal` / `window.closeXModal`.
-2. **All data loaders live in `spide-loaders.js`**, wrapped as `window.loadX = async function () { ... }`. Page files should NOT define `loadUsers`, `loadProducts`, `saveUser`, etc. — those are shared.
-3. **Page files keep only page-specific logic**: cart state, search dropdown, checkout flow, dashboard KPI rendering, director outlet tables. If it needs to work on more than one page, it goes in `spide-loaders.js`.
-4. **Modals auto-mount**: `SpideModals.mount()` runs on `DOMContentLoaded` and injects all modal HTML into `document.body`.
-5. **`spide-modals.js` loads BEFORE `spide-loaders.js`** in each page's footer. Both load after page-specific inline scripts.
+1. **All modals live in `spide-modals.js`** — single `MODAL_HTML` template literal + open/close functions. New modal → add to `MODAL_HTML` + add `window.openXModal` / `window.closeXModal`.
+2. **All shared data loaders live in `spide-loaders.js`**, wrapped as `window.loadX = async function () { ... }`. Page files should NOT define `loadUsers`, `loadProducts`, `saveUser`, etc.
+3. **Page files keep only page-specific logic**: cart state, search dropdown, checkout flow, dashboard KPI rendering.
+4. **Modals auto-mount**: `SpideModals.mount()` runs on `DOMContentLoaded`.
+5. **`spide-modals.js` loads BEFORE `spide-loaders.js`**. Both load after page-specific inline scripts (so loaders override page definitions).
 
 ### Backend
-1. **Every handler reads `company_id` from JWT claims** via `middleware.GetUserFromContext(r)`. Never trust client-provided `company_id` or `shop_id`.
-2. **Every DB write filters by `company_id`** in the WHERE clause. `UpdateProduct`, `DeleteUser`, etc. all have `AND company_id = ?`.
-3. **Handlers return JSON errors**, not `http.Error` plain text. Use `writeJSONError(w, status, msg)` so the frontend can parse.
-4. **DB functions return `[]T{}` not `var x []T`** so empty results serialize to `[]` not `null`. The frontend iterates these directly.
-5. **SQL uses snake_case column names** (`category_id`, not `categoryID`). Go variables use camelCase. Never mix them inside a SQL string.
-6. **`COALESCE` for nullable columns** when scanning into plain `string`/`int`. Specifically: `email`, `shop_id`, `last_login`, `mpesa_code`. Or use `sql.NullX` types in the struct.
-7. **Handlers return the full updated object** on success (not empty body). Frontend expects `result.name`, `result.id`, etc.
+1. **Every handler reads `company_id` from JWT claims** via `middleware.GetUserFromContext(r)`.
+2. **Every DB write filters by `company_id`** in the WHERE clause.
+3. **Handlers return JSON errors**, not `http.Error` plain text. Use `writeJSONError` helpers.
+4. **DB functions return `[]T{}` not `var x []T`** so empty results serialize to `[]` not `null`.
+5. **SQL uses snake_case column names**.
+6. **`COALESCE` for nullable columns** when scanning into plain `string`/`int`. Specifically: `email`, `shop_id`, `last_login`, `mpesa_code`, `location`, `phone`.
+7. **Handlers return the full updated object** on success.
+8. **HTML escaping in templates**: use `html.EscapeString()` on any user-provided string that goes into an HTML attribute (product names, barcodes, shop names).
 
 ### Database
 - `users.company_id` — NOT NULL for active users
-- `products.category` (string) AND `products.category_id` (int, nullable) — two columns, both used. Frontend sends the name; handler resolves to id via `GetCategoryIDByName`.
-- `sales.deposit_amount` — added mid-project; used by Z-Report
-- `shops` table has NO `is_active` column — don't reference it in queries
+- `products.category` (string) AND `products.category_id` (int, nullable) — both used
+- `products.barcode` — was nullable, now every product has one (real or `SKU-XXXXXXXX` synthetic)
+- `sales.deposit_amount` — added mid-project
+- `shops` table has NO `is_active` column
 - Foreign keys are strict — always set `company_id` before insert
 
 ### Frontend ↔ Backend contract
-- Login: POST `/api/login` → sets `spide_token` and `spide_user` cookies (URL-encoded JSON)
+- Login: POST `/api/login` → sets `spide_token` and `spide_user` cookies
 - Every authenticated fetch sends `Authorization: Bearer <token>` header
 - Update endpoints use `PUT`, create uses `POST`, delete uses `DELETE`
-- Error responses: `{"error": "message"}` with appropriate HTTP status
+- Error responses: `{"error": "message"}`
+- Sale checkout: POST `/api/sales/checkout` returns `{ sale_id, ... }`
+- Product HTML injection: GET `/api/products/scan-html?barcode=X&qty=N&shop_id=S` returns a `<tr>` row to inject into the cart
 
-## What's working (as of last session)
+## What's working (as of 2026-09-18)
 
-- ✅ Login / logout with JWT
-- ✅ POS cart, checkout, receipts (thermal print)
+- ✅ Login / logout with JWT (users: David/director, Precious/cashier on company 2)
+- ✅ POS cart with +/− qty buttons, working delete, select-all on price click
+- ✅ Checkout with split payments (cash/mpesa/deposit/credit)
+- ✅ Payment modal opens with all fields at 0.00
+- ✅ Receipts: bold items, Branch line, "You were served by: [username]", date+receipt# side by side
+- ✅ Thermal receipt auto-prints on every sale
+- ✅ Reprint from Recent Sales shows items correctly
 - ✅ Dashboard KPIs, sales trend, top products
 - ✅ Director dashboard (outlets, 30-day trend, alerts)
-- ✅ Shared modals + loaders across all 3 pages
 - ✅ Products: create, edit, per-shop Quick Stock Update
-- ✅ User Management: create, edit (pointer-based partial update), delete (self-delete + last-admin protected)
+- ✅ User Management
 - ✅ Low Stock report
-- ✅ Inventory Valuation report (per-shop filter works for directors)
-- ✅ Product Sales report (shop / category / product filters)
-- ✅ Z-Report with correct payment breakdown
+- ✅ Inventory Valuation report
+- ✅ Product Sales report
+- ✅ Z-Report
 - ✅ Recent Sales modal + reprint
+- ✅ gzip compression on nginx (560 KB → 57 KB on wire)
+- ✅ HTTP/2 on nginx
 
 ## What's pending
 
-- ⏳ Expenses: add + report (modal exists, loaders/handlers probably need same fixes)
+- ⏳ **"Not found → add new + drop to cart"** (POS search/scan miss — user wants an inline add flow)
+- ⏳ **Cloudflare setup** (would cut Nairobi → Frankfurt latency dramatically; ~15 min effort)
+- ⏳ Expenses: add + report
 - ⏳ Purchases: create, report, suppliers
 - ⏳ Transfers: create, history, detail
 - ⏳ Customers: list, quick add, deposit modal, search
-- ⏳ Customer Statement: `loadCustomerStatement` may not exist
-- ⏳ Credit Sale modal: `submitCreditSale` may not exist
-- ⏳ Company Settings: load/save current company
-- ⏳ Company Management: list/add/edit companies
-- ⏳ Company Setup Wizard: multi-step new-company creation
-- ⏳ Import Products: Excel preview + import
+- ⏳ Customer Statement
+- ⏳ Credit Sale modal
+- ⏳ Company Settings
+- ⏳ Company Management
+- ⏳ Company Setup Wizard
+- ⏳ Import Products: Excel preview + import (QuickBooks format)
 
-## When adding a new feature — checklist
+## Deployment workflow
 
-1. **Frontend**
-   - Modal HTML → `spide-modals.js` in `MODAL_HTML`
-   - `window.openXModal` / `window.closeXModal` → `spide-modals.js`
-   - `window.loadX` (data fetch) → `spide-loaders.js`
-   - `window.saveX` / `window.submitX` (form submit) → `spide-loaders.js`
-   - Delete any duplicate definitions from page files
-   - Verify with `Select-String -Path .\internal\templates\pos.html -Pattern "function loadX"` → should be empty
+### Local dev loop
+1. Edit code in VS Code
+2. If Go change: air rebuilds automatically (2-3 sec)
+3. If template/JS change: just save, hard-refresh browser (`Ctrl+F5`)
+4. Test at http://localhost:8081
 
-2. **Backend**
-   - Handler reads `claims.CompanyID`, refuses if 0
-   - Handler sets `item.CompanyID = claims.CompanyID` (never trusts payload)
-   - Handler returns JSON on both success and error
-   - DB query filters by `company_id`
-   - DB returns `[]T{}` not `var x []T` for lists
-   - SQL uses snake_case columns
-   - `COALESCE` on nullable columns
+### Deploying Go changes to production
+```powershell
+cd C:\Users\sam\spide-pos
+$env:GOOS="linux"; $env:GOARCH="amd64"; $env:CGO_ENABLED="0"
+go build -o spide-pos cmd/server/main.go
+scp .\spide-pos root@64.226.124.37:/tmp/spide-pos.new
+```
+Then on server:
+```bash
+cp /var/www/spide/spide-pos /root/backups/spide-pos.$(date +%Y%m%d_%H%M)
+mv /tmp/spide-pos.new /var/www/spide/spide-pos
+chmod +x /var/www/spide/spide-pos
+systemctl restart spide-pos
+systemctl status spide-pos --no-pager
+```
 
-3. **Test**
-   - Open modal from POS, dashboard, director — behavior identical
-   - Verify row in DB with `SELECT ... WHERE id = X` (confirm `company_id` is correct)
-   - Verify cross-company access is blocked (try editing another company's row via curl)
+### Deploying template/JS changes (no rebuild, no restart)
+```powershell
+scp .\internal\templates\pos.html root@64.226.124.37:/tmp/pos.html.new
+scp .\static\js\spide-loaders.js  root@64.226.124.37:/tmp/spide-loaders.js.new
+# also spide-modals.js if changed
+```
+Then on server:
+```bash
+cp /var/www/spide/internal/templates/pos.html /root/backups/pos.html.$(date +%Y%m%d_%H%M)
+mv /tmp/pos.html.new /var/www/spide/internal/templates/pos.html
+# same for JS files
+```
+
+### IMPORTANT: template and JS changes do NOT travel with the binary
+The Go binary embeds Go code. Templates and JS are read from disk at request time. If you `go build` and deploy, the JS/template files on the server stay at their old versions. **You must SCP them separately if they changed.**
 
 ## Diagnostic commands
 
+### Server-side
+```bash
+# App log (live)
+journalctl -u spide-pos -f
+
+# Recent errors
+journalctl -u spide-pos --since "5 minutes ago" --no-pager | grep -E "❌|Error|panic"
+
+# MySQL process list (spot stuck queries)
+mysql -u root -p'Tende@2016' -e "SHOW PROCESSLIST;"
+
+# Check gzip is working
+curl -s -D - -o /dev/null -H "Accept-Encoding: gzip" \
+  -H "Authorization: Bearer <token>" \
+  https://pos.spide.co.ke/api/products?shop_id=4 | grep -i content-encoding
+
+# Tail MySQL general log (turn on first — see below)
+mysql -u root -p'Tende@2016' -e "SET GLOBAL general_log_file='/tmp/mysql.log'; SET GLOBAL general_log='ON';"
+# ...do the thing...
+mysql -u root -p'Tende@2016' -e "SET GLOBAL general_log='OFF';"
+grep "Query\|Execute" /tmp/mysql.log | tail -40
+```
+
+### Local (Windows PowerShell)
 ```powershell
 # Find a handler
 Get-ChildItem -Recurse -Filter "*.go" | Select-String -Pattern "func CreateXHandler"
@@ -128,45 +209,64 @@ Get-ChildItem -Recurse -Filter "*.go" | Select-String -Pattern "func GetX"
 Select-String -Path .\static\js\spide-loaders.js -Pattern "window\.loadX"
 Select-String -Path .\internal\templates\pos.html -Pattern "function loadX"
 
-# Find duplicate definitions across pages
-Select-String -Path .\internal\templates\*.html -Pattern "function (loadX|saveX)"
-
-# Build
-go build ./...
-go run ./cmd/server
-
-# Git
-git status
-git log --oneline -10
+# Build + run locally
+air
+# or:
+go build -o spide-pos.exe cmd/server/main.go
+.\spide-pos.exe
 ```
 
 ## Known gotchas / recent bugs fixed
 
-- **NULL vs `[]`**: Go `nil` slices encode as JSON `null`, which crashes frontend loops. Always initialize as `[]T{}`.
-- **`categoryID` vs `category_id`**: the SQL column is `category_id`. A camelCase typo in the SQL string throws `Unknown column`.
-- **`is_active` on `shops`**: doesn't exist. Only `products` has it.
-- **Missing JSON fields**: if the frontend omits a field, Go decodes it as the zero value. For update operations, use `*bool` / `*string` pointers in the request struct so missing means "preserve current value".
-- **Method mismatch**: frontend must send `PUT` for updates. If it sends `POST`, handler returns 405 plain text, and `response.json()` throws "Network error".
-- **`http.Error` vs JSON errors**: `http.Error` writes plain text. Frontend `response.json()` fails. Always use `writeJSONError` helpers.
+- **NULL vs `[]`**: Go `nil` slices encode as JSON `null`. Always initialize as `[]T{}`.
+- **`categoryID` vs `category_id`**: the SQL column is `category_id`.
+- **`is_active` on `shops`**: doesn't exist.
+- **Missing JSON fields**: use pointer types in request structs for partial updates.
+- **Method mismatch**: frontend must send `PUT` for updates, `POST` for creates.
+- **`http.Error` vs JSON errors**: always use `writeJSONError`.
 - **Path is `internal/templates/`, not `templates/`**.
+- **Receipt `window.onload` only fires once**: don't rely on it for auto-print on window reuse. Use explicit `printWindow.print()` in a `setTimeout`.
+- **`/api/sales/recent` returns no items unless you attach them**: `GetRecentSalesForShopAndCompany` must call `getSaleItems(db, sale.ID)` per row.
+- **Cart row HTML comes from Go, not JS**: `Product.RenderRowHTML()` in `models.go` generates the `<tr>`. Changes to the cart row layout require a Go rebuild.
+- **Two `printThermalReceipt` functions exist**: one in `pos.html`, one in `spide-loaders.js`. Loaders wins (loaded later). Edit loaders' version for behavior changes.
+- **Barcode duplicates**: fixed by adding `SKU-XXXXXXXX` synthetic barcodes to NULL-barcode products. The one-time backfill was `UPDATE products SET barcode = CONCAT('SKU-', LPAD(id, 8, '0')) WHERE barcode IS NULL OR barcode = '';`. Going forward, product creation should assign a barcode if missing (not yet implemented in handler).
+Symptom: JS change works in editor but not in browser — even after cache clear, incognito, and server restart. Check the editor's save state. VS Code (or any editor) can hold an unsaved buffer indefinitely. Before diving into caching/path/binary diagnostics, verify with Get-Item <file> that the on-disk mtime matches when you last saved. Enable files.autoSave in VS Code to prevent this class of confusion entirely.
 
 ## Environment
 
-- `.env` file at project root (gitignored):
+- `.env` at project root (gitignored):
   ```
   JWT_SECRET=<hex>
   DB_USER=root
-  DB_PASSWORD=<password>
+  DB_PASSWORD=Tende@2016
   DB_HOST=127.0.0.1
   DB_PORT=3306
   DB_NAME=spide_pos
   PORT=8081
   ```
-- Demo user: `demo_admin` / `admin123`, company_id `6`, shop_id `20`
+- Demo user (company 1): `demo_admin` / `admin123`
+- Live users (company 2): `David` (director), `Precious` (cashier)
+
+## Network / performance notes (2026-09-18)
+
+- **Server location**: Frankfurt, Germany (DigitalOcean)
+- **Client location**: Nairobi, Kenya — RTT ~250ms
+- **Problem**: 560 KB uncompressed JSON products list took ~38s to transfer over Kenyan DSL
+- **Fix applied**: gzip on nginx → 57 KB → ~5-6s transfer
+- **Remaining issue**: at ~1.5 Mbps, some transfers still take 20+ seconds
+- **Future fix**: Cloudflare (Nairobi PoP) would bring this to ~1s
 
 ## Conventions
 
-- Commit messages: short imperative, e.g. "Fix Z-report split payment aggregation"
-- Tags at milestones: `v0.1-working`, `v0.2-products`, `v0.3-users`, `v0.4-reports`
+- Commit messages: short imperative
+- Tags at milestones: `v0.1-working`, `v0.2-products`, etc.
 - Always `git push` before ending a session
 - Run `go build ./...` before committing Go changes
+
+## When in doubt
+
+- **Symptom: change works locally but not on server** → did you SCP the JS/template? The binary doesn't carry them.
+- **Symptom: JSON field is `null` when it should be `[]`** → Go `nil` slice, initialize with `[]T{}`.
+- **Symptom: server returns 200 but response is empty** → check `journalctl -u spide-pos -n 50`.
+- **Symptom: page slow to load over VPN/hotspot** → check gzip is on, check payload size in DevTools Network tab.
+- **Symptom: function undefined error in browser console** → check load order (modals before loaders), check the function is `window.`-prefixed if defined in loaders.js.
