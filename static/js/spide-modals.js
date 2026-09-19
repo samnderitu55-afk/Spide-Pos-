@@ -360,14 +360,16 @@
                         <div class="flex items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
                             <span class="text-xs text-gray-500">📅</span>
                             <input type="date" id="productsales-start-date" value=""
+                                onchange="loadProductSalesReportDebounced()"
                                 class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-28">
                             <span class="text-xs text-gray-400">to</span>
                             <input type="date" id="productsales-end-date" value=""
+                                onchange="loadProductSalesReportDebounced()"
                                 class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 w-28">
                         </div>
                         <div id="productsales-shop-filter-container" class="hidden items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
                             <span class="text-xs text-gray-500">🏪</span>
-                            <select id="productsales-shop-filter"
+                            <select id="productsales-shop-filter" onchange="onProductSalesShopChange()"
                                 class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1">
                                 <option value="0">All Shops</option>
                             </select>
@@ -386,7 +388,7 @@
                         <div id="productsales-product-filter-container"
                             class="hidden items-center gap-1 bg-gray-50 rounded-lg px-2 py-1 border border-gray-200">
                             <span class="text-xs text-gray-500">📦</span>
-                            <select id="productsales-product-filter" onchange="loadProductSalesReport()"
+                            <select id="productsales-product-filter" onchange="loadProductSalesReportDebounced()"
                                 class="text-xs bg-transparent border-0 focus:ring-0 focus:outline-none py-1 px-1 max-w-[180px]">
                                 <option value="">All Products</option>
                             </select>
@@ -436,17 +438,19 @@
                         <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
                             <tr>
                                 <th class="p-2">Product</th>
-                                <th class="p-2">Category</th>
-                                <th class="p-2 text-center">Units Sold</th>
-                                <th class="p-2 text-right">Total Revenue</th>
-                                <th class="p-2 text-right">Total COGS</th>
-                                <th class="p-2 text-right">Gross Profit</th>
-                                <th class="p-2 text-right">Margin %</th>
+                                    <th class="p-2">Category</th>
+                                    <th class="p-2 text-center">Units Sold</th>
+                                    <th class="p-2 text-center">Current Stock</th>
+                                    <th class="p-2 text-center">Stock Cap</th>
+                                    <th class="p-2 text-right">Total Revenue</th>
+                                    <th class="p-2 text-right">Total COGS</th>
+                                    <th class="p-2 text-right">Gross Profit</th>
+                                    <th class="p-2 text-right">Margin %</th>
                             </tr>
                         </thead>
                         <tbody id="productsales-table-body">
                             <tr>
-                                <td colspan="7" class="p-4 text-center text-gray-500">Select date range and click Generate
+                                <td colspan="9" class="p-4 text-center text-gray-500">Select date range and click Generate
                                 </td>
                             </tr>
                         </tbody>
@@ -2091,12 +2095,12 @@
                     <span id="modal-total" class="text-xl font-extrabold text-purple-900">KES 0.00</span>
                 </div>
                 <div class="space-y-4">
-                    <div><label class="block text-xs font-semibold uppercase text-gray-500 mb-1">💵 Cash Amount
-                            (KES)</label><input type="number" id="cash-input" value="0" step="0.01" oninput="calculateSplit()"
+                   <div><label class="block text-xs font-semibold uppercase text-gray-500 mb-1">💵 Cash Amount (KES)</label>
+                            <input type="number" id="cash-input" value="0" step="0.01" onfocus="this.select()" oninput="calculateSplit()"
                             class="w-full p-3 border rounded-lg text-lg focus:ring-2 focus:ring-emerald-600 focus:outline-none">
                     </div>
-                    <div><label class="block text-xs font-semibold uppercase text-gray-500 mb-1">📲 M-Pesa Amount
-                            (KES)</label><input type="number" id="mpesa-input" value="0" step="0.01" oninput="calculateSplit()"
+                    <div><label class="block text-xs font-semibold uppercase text-gray-500 mb-1">📲 M-Pesa Amount (KES)</label>
+                            <input type="number" id="mpesa-input" value="0" step="0.01" onfocus="this.select()" oninput="calculateSplit()"
                             class="w-full p-3 border rounded-lg text-lg focus:ring-2 focus:ring-emerald-600 focus:outline-none">
                     </div>
                     <div><label class="block text-xs font-semibold uppercase text-gray-500 mb-1">M-Pesa Ref / Code
@@ -2115,9 +2119,9 @@
                             </p>
                         </div>
                         <div class="flex items-center gap-2">
-                            <input type="number" id="deposit-input" value="0" step="0.01" min="0"
-                                oninput="updateDepositCalculation()"
-                                class="w-32 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none">
+                           <input type="number" id="deposit-input" value="0" step="0.01" min="0"
+                            onfocus="this.select()" oninput="updateDepositCalculation()"
+                            class="w-32 px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none">
                             <button
                                 onclick="document.getElementById('deposit-input').value = Math.min(customerDepositBalance, totalAmount); updateDepositCalculation();"
                                 class="text-xs bg-purple-100 hover:bg-purple-200 text-purple-700 px-2 py-1 rounded-lg transition">Max</button>

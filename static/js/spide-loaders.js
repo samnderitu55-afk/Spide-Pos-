@@ -68,6 +68,7 @@
     }
 
     window.__receiptWindow = null;
+    let productSalesDebounce = null;
 
     function getReceiptWindow() {
         if (!window.__receiptWindow || window.__receiptWindow.closed) {
@@ -156,7 +157,7 @@
         const category = catEl ? catEl.value : '';
         const productId = prodEl ? prodEl.value : '';
 
-        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">Loading...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-gray-500">Loading...</td></tr>';
 
         try {
             const token = window.getCookie('spide_token');
@@ -180,27 +181,28 @@
             window.renderProductSalesReport(data);
         } catch (err) {
             console.error('Product sales error:', err);
-            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-500">Error: ' + err.message + '</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-red-500">Error: ' + err.message + '</td></tr>';
         }
+    };
+
+    window.loadProductSalesReportDebounced = function () {
+        clearTimeout(productSalesDebounce);
+        productSalesDebounce = setTimeout(() => {
+            window.loadProductSalesReport();
+        }, 300);
     };
 
     window.renderProductSalesReport = function (data) {
         const tbody = document.getElementById('productsales-table-body');
         if (!tbody) return;
 
-        // API returns a flat array, not {products, totals}
         const products = Array.isArray(data) ? data : (data.products || []);
 
-        // Compute summary totals from the rows
-        let totalRevenue = 0;
-        let totalCogs = 0;
-        let totalProfit = 0;
-        let totalUnits = 0;
+        let totalRevenue = 0, totalCogs = 0, totalProfit = 0;
         products.forEach(p => {
             totalRevenue += p.total_revenue || 0;
             totalCogs += p.total_cost || 0;
             totalProfit += p.net_profit || 0;
-            totalUnits += p.units_sold || 0;
         });
         const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
 
@@ -211,7 +213,7 @@
         setText('ps-avg-margin', avgMargin.toFixed(1) + '%');
 
         if (products.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No sales in this range</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" class="p-4 text-center text-gray-500">No sales in this range</td></tr>';
             return;
         }
 
@@ -219,10 +221,16 @@
         products.forEach(p => {
             const margin = p.margin_pct || 0;
             const marginColor = margin > 30 ? 'text-emerald-600' : margin > 15 ? 'text-blue-600' : 'text-amber-600';
+            const stock = p.current_stock || 0;
+            const cap = p.stock_cap || 0;
+            const capDisplay = cap > 0 ? cap : '—';
+            const stockClass = stock === 0 ? 'text-red-600 font-bold' : 'text-gray-800';
             html += `<tr class="border-b hover:bg-blue-50/50 transition">
             <td class="p-2 font-medium text-gray-800">${p.product_name}</td>
             <td class="p-2 text-gray-500">${p.category || 'General'}</td>
             <td class="p-2 text-center font-bold">${p.units_sold}</td>
+            <td class="p-2 text-center ${stockClass}">${stock}</td>
+            <td class="p-2 text-center text-gray-500">${capDisplay}</td>
             <td class="p-2 text-right font-mono">KES ${(p.total_revenue || 0).toFixed(2)}</td>
             <td class="p-2 text-right font-mono text-amber-700">KES ${(p.total_cost || 0).toFixed(2)}</td>
             <td class="p-2 text-right font-mono text-emerald-700">KES ${(p.net_profit || 0).toFixed(2)}</td>
@@ -373,27 +381,29 @@
     window.loadProductSalesCategories = async function () {
         const select = document.getElementById('productsales-category-filter');
         if (!select) return;
-
-        // Preserve current selection
         const currentValue = select.value;
+        const shopEl = document.getElementById('productsales-shop-filter');
+        const shopId = shopEl ? (shopEl.value || 0) : 0;
 
         try {
             const token = window.getCookie('spide_token');
-            const res = await fetch('/api/categories', {
+            const res = await fetch('/api/reports/product-sales/categories?shop_id=' + shopId, {
                 headers: token ? { 'Authorization': 'Bearer ' + token } : {}
             });
             if (!res.ok) return;
             const categories = await res.json();
 
             select.innerHTML = '<option value="">All Categories</option>';
-            (categories || []).forEach(cat => {
+            (categories || []).forEach(name => {
                 const opt = document.createElement('option');
-                opt.value = cat.name || cat;
-                opt.textContent = cat.name || cat;
+                opt.value = name;
+                opt.textContent = name;
                 select.appendChild(opt);
             });
-
-            if (currentValue) select.value = currentValue;
+            if (currentValue) {
+                const stillExists = [...select.options].some(o => o.value === currentValue);
+                if (stillExists) select.value = currentValue;
+            }
         } catch (e) {
             console.error('Error loading categories:', e);
         }
@@ -401,48 +411,59 @@
 
     window.loadProductSalesProducts = async function () {
         const select = document.getElementById('productsales-product-filter');
-        const categorySelect = document.getElementById('productsales-category-filter');
         if (!select) return;
-
-        const category = categorySelect ? categorySelect.value : '';
         const currentValue = select.value;
+        const shopEl = document.getElementById('productsales-shop-filter');
+        const catEl = document.getElementById('productsales-category-filter');
+        const shopId = shopEl ? (shopEl.value || 0) : 0;
+        const category = catEl ? catEl.value : '';
 
         try {
             const token = window.getCookie('spide_token');
-            // Fetch all products; filter client-side by category
-            const res = await fetch('/api/products?shop_id=0', {
+            const params = new URLSearchParams({ shop_id: String(shopId) });
+            if (category) params.set('category', category);
+            const res = await fetch('/api/reports/product-sales/products?' + params.toString(), {
                 headers: token ? { 'Authorization': 'Bearer ' + token } : {}
             });
             if (!res.ok) return;
             const products = await res.json();
 
             select.innerHTML = '<option value="">All Products</option>';
-            (products || [])
-                .filter(p => !category || (p.category || '').toLowerCase() === category.toLowerCase())
-                .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-                .forEach(p => {
-                    const opt = document.createElement('option');
-                    opt.value = p.id;
-                    opt.textContent = p.name + (p.category ? ' — ' + p.category : '');
-                    select.appendChild(opt);
-                });
-
-            // Preserve selection if the product is still in the list
+            (products || []).forEach(p => {
+                const opt = document.createElement('option');
+                opt.value = p.id;
+                opt.textContent = p.name;
+                select.appendChild(opt);
+            });
             if (currentValue) {
                 const stillExists = [...select.options].some(o => o.value === currentValue);
                 if (stillExists) select.value = currentValue;
             }
-
         } catch (e) {
             console.error('Error loading products:', e);
         }
     };
 
+    window.onProductSalesShopChange = async function () {
+        // Reset category and product on shop change (per decision)
+        const catEl = document.getElementById('productsales-category-filter');
+        const prodEl = document.getElementById('productsales-product-filter');
+        if (catEl) catEl.value = '';
+        if (prodEl) prodEl.value = '';
+
+        // Reload categories (filtered by shop) and products, then report
+        if (typeof window.loadProductSalesCategories === 'function') {
+            await window.loadProductSalesCategories();
+        }
+        if (typeof window.loadProductSalesProducts === 'function') {
+            await window.loadProductSalesProducts();
+        }
+        window.loadProductSalesReport();
+    };
+
     window.onProductSalesCategoryChange = async function () {
         await window.loadProductSalesProducts();
-        if (typeof window.loadProductSalesReport === 'function') {
-            window.loadProductSalesReport();
-        }
+        window.loadProductSalesReportDebounced();
     };
 
     window.reprintReceipt = function (saleId) {
@@ -477,11 +498,41 @@
     window.printThermalReceipt = function (saleData, saleId, isReprint) {
         const printWindow = getReceiptWindow();
         if (!printWindow) return;
+
+        // Username (short form) from JWT
+        let servedBy = 'Staff';
+        try {
+            const token = (document.cookie.match(/spide_token=([^;]+)/) || [])[1];
+            if (token) {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                servedBy = payload.username || payload.full_name || 'Staff';
+            }
+        } catch (e) {
+            try {
+                const u = JSON.parse(localStorage.getItem('spide_user') || '{}');
+                servedBy = u.username || u.full_name || 'Staff';
+            } catch (e2) { }
+        }
+
+        const branchName = (window.currentShop && window.currentShop.name)
+            || localStorage.getItem('currentShopName')
+            || 'Main';
+
         let itemsRowsHTML = '';
         (saleData.items || []).forEach(function (item) {
             const name = item.product_name || 'Item #' + item.product_id;
-            itemsRowsHTML += '<tr><td style="padding:2px 0;vertical-align:top">' + name + '<br/><span style="font-size:10px;color:#555">' + item.quantity + ' x KES ' + item.unit_price.toFixed(2) + '</span></td><td style="text-align:right;padding:2px 0;vertical-align:top">' + item.subtotal.toFixed(2) + '</td></tr>';
+            itemsRowsHTML += '<tr>' +
+                '<td style="padding:4px 0;vertical-align:top;font-weight:600;font-size:12px;">' + name +
+                '<br/><span style="font-size:11px;color:#000;font-weight:600;">' +
+                item.quantity + ' &times; KES ' + item.unit_price.toFixed(2) +
+                '</span>' +
+                '</td>' +
+                '<td style="text-align:right;padding:4px 0;vertical-align:top;font-weight:700;font-size:12px;">' +
+                item.subtotal.toFixed(2) +
+                '</td>' +
+                '</tr>';
         });
+
         const now = new Date().toLocaleString('en-KE', { dateStyle: 'short', timeStyle: 'short' });
         const reprintHeader = isReprint ? '<div style="text-align:center;font-weight:bold;border:1px dashed #000;padding:4px;margin-bottom:6px;font-size:12px">*** REPRINTED RECEIPT ***</div>' : '';
         const companyName = localStorage.getItem('company_name') || '🕷️ SPIDE POS';
@@ -494,36 +545,73 @@
         const creditUsed = saleData.credit_amount || 0;
 
         let receiptHTML = '<!DOCTYPE html><html><head><title>Receipt #' + saleId + '</title>';
-        receiptHTML += '<style>@page{margin:0}body{font-family:"Courier New",monospace;width:260px;margin:10px auto;font-size:11px;color:#000;line-height:1.2}.center{text-align:center}.right{text-align:right}.dashed{border-bottom:1px dashed #000;margin:6px 0}table{width:100%;border-collapse:collapse}.bold{font-weight:bold}.shop-name{font-size:14px;font-weight:bold}</style>';
+        receiptHTML += '<style>' +
+            '@page{margin:0}' +
+            'body{font-family:"Courier New",monospace;width:260px;margin:10px auto;font-size:12px;color:#000;line-height:1.35;font-weight:600;}' +
+            '.center{text-align:center}' +
+            '.right{text-align:right}' +
+            '.dashed{border-bottom:1px dashed #000;margin:6px 0}' +
+            'table{width:100%;border-collapse:collapse}' +
+            'thead th{font-size:11px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;}' +
+            '.bold{font-weight:700}' +
+            '.shop-name{font-size:15px;font-weight:700}' +
+            '</style>';
         receiptHTML += '</head><body>';
         receiptHTML += reprintHeader;
         receiptHTML += '<div class="center">';
         if (companyLogo) receiptHTML += '<img src="' + companyLogo + '" style="max-width:100px;margin:0 auto 5px">';
         receiptHTML += '<div class="shop-name">' + companyName + '</div>';
-        if (companyPhone) receiptHTML += '<div style="font-size:9px">📞 ' + companyPhone + '</div>';
-        if (companyEmail) receiptHTML += '<div style="font-size:9px">✉️ ' + companyEmail + '</div>';
-        if (companyAddress) receiptHTML += '<div style="font-size:9px">📍 ' + companyAddress + '</div>';
-        receiptHTML += '<p style="margin:4px 0">Receipt #: <strong>' + saleId + '</strong></p>';
-        receiptHTML += '<p style="margin:2px 0;font-size:10px">Date: ' + now + '</p>';
+        if (companyPhone) receiptHTML += '<div style="font-size:10px">📞 ' + companyPhone + '</div>';
+        if (companyEmail) receiptHTML += '<div style="font-size:10px">✉️ ' + companyEmail + '</div>';
+        if (companyAddress) receiptHTML += '<div style="font-size:10px">📍 ' + companyAddress + '</div>';
+
+        // Branch
+        receiptHTML += '<p style="margin:4px 0;font-size:12px">Branch: <strong>' + branchName + '</strong></p>';
+
+        // Date (left) and Receipt # (right) side by side
+        receiptHTML += '<div style="display:flex;justify-content:space-between;font-size:11px;margin:4px 0;padding:0 2px;">';
+        receiptHTML += '<span>Date: ' + now + '</span>';
+        receiptHTML += '<span>Receipt #: <strong>' + saleId + '</strong></span>';
+        receiptHTML += '</div>';
+
         receiptHTML += '</div>';
         receiptHTML += '<div class="dashed"></div>';
-        receiptHTML += '<table><thead><tr style="text-align:left;border-bottom:1px solid #000"><th>Item</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>' + itemsRowsHTML + '</tbody></table>';
+        receiptHTML += '<table><thead><tr><th style="text-align:left">Item</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>' + itemsRowsHTML + '</tbody></table>';
         receiptHTML += '<div class="dashed"></div>';
-        receiptHTML += '<table><tr class="bold"><td>TOTAL:</td><td class="right">KES ' + (saleData.total_amount || 0).toFixed(2) + '</td></tr>';
-        if (saleData.cash_amount > 0) receiptHTML += '<tr><td>Cash:</td><td class="right">KES ' + saleData.cash_amount.toFixed(2) + '</td></tr>';
-        if (saleData.mpesa_amount > 0) receiptHTML += '<tr><td>M-Pesa:</td><td class="right">KES ' + saleData.mpesa_amount.toFixed(2) + '</td></tr>';
-        if (saleData.change_given > 0) receiptHTML += '<tr><td>Change:</td><td class="right">KES ' + saleData.change_given.toFixed(2) + '</td></tr>';
-        if (depositUsed > 0) receiptHTML += '<tr><td>Deposit Used:</td><td class="right">KES ' + depositUsed.toFixed(2) + '</td></tr>';
-        if (creditUsed > 0) receiptHTML += '<tr><td>Credit:</td><td class="right">KES ' + creditUsed.toFixed(2) + '</td></tr>';
+        receiptHTML += '<table>';
+        receiptHTML += '<tr class="bold"><td style="padding:3px 0;font-size:13px;">TOTAL:</td><td class="right" style="padding:3px 0;font-size:13px;">KES ' + (saleData.total_amount || 0).toFixed(2) + '</td></tr>';
+        if (saleData.cash_amount > 0) receiptHTML += '<tr><td style="padding:2px 0;">Cash:</td><td class="right" style="padding:2px 0;">KES ' + saleData.cash_amount.toFixed(2) + '</td></tr>';
+        if (saleData.mpesa_amount > 0) receiptHTML += '<tr><td style="padding:2px 0;">M-Pesa:</td><td class="right" style="padding:2px 0;">KES ' + saleData.mpesa_amount.toFixed(2) + '</td></tr>';
+        if (saleData.change_given > 0) receiptHTML += '<tr><td style="padding:2px 0;">Change:</td><td class="right" style="padding:2px 0;">KES ' + saleData.change_given.toFixed(2) + '</td></tr>';
+        if (depositUsed > 0) receiptHTML += '<tr><td style="padding:2px 0;">Deposit Used:</td><td class="right" style="padding:2px 0;">KES ' + depositUsed.toFixed(2) + '</td></tr>';
+        if (creditUsed > 0) receiptHTML += '<tr><td style="padding:2px 0;">Credit:</td><td class="right" style="padding:2px 0;">KES ' + creditUsed.toFixed(2) + '</td></tr>';
         receiptHTML += '</table>';
         receiptHTML += '<div class="dashed"></div>';
-        receiptHTML += '<div class="center" style="margin-top:8px;font-size:10px"><p style="margin:2px 0">' + companyFooter + '</p><p style="margin:2px 0">Goods once sold are not returnable.</p></div>';
-        receiptHTML += '<script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)};<\/script>';
+
+        // Footer
+        receiptHTML += '<div class="center" style="margin-top:8px;font-size:11px">';
+        receiptHTML += '<p style="margin:2px 0;font-weight:600">You were served by: ' + servedBy + '</p>';
+        receiptHTML += '<p style="margin:6px 0 2px 0">' + companyFooter + '</p>';
+        receiptHTML += '</div>';
+
         receiptHTML += '</body></html>';
+
         printWindow.document.open();
         printWindow.document.write(receiptHTML);
         printWindow.document.close();
         printWindow.focus();
+
+        setTimeout(function () {
+            try {
+                printWindow.focus();
+                printWindow.print();
+            } catch (e) {
+                console.error('Receipt print failed:', e);
+            }
+            setTimeout(function () {
+                try { printWindow.close(); } catch (e) { }
+            }, 1000);
+        }, 200);
     };
 
     // =========================================================
@@ -1478,6 +1566,7 @@
             const response = await fetch(url, { headers: token ? { 'Authorization': 'Bearer ' + token } : {} });
             if (!response.ok) throw new Error('Failed to load Z-Report');
             const data = await response.json();
+            window.__lastZReportData = data;
             window.renderZReport(data);
         } catch (error) {
             container.innerHTML = '<div class="text-center text-red-500 py-8">Error: ' + error.message + '</div>';
@@ -1513,10 +1602,218 @@
     };
 
     window.printZReport = function () {
-        const content = document.getElementById('zreport-content');
-        if (!content) return;
-        const printWindow = window.open('', '_blank', 'width=800,height=600');
-        printWindow.document.write(`<html><head><title>Z-Report</title><style>body{font-family:Arial,sans-serif;padding:20px}</style></head><body>${content.innerHTML}<script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)};<\/script></body></html>`);
+        const data = window.__lastZReportData;
+        if (!data || !data.total_revenue) {
+            alert('Generate a Z-Report first, then print.');
+            return;
+        }
+
+        // Resolve shop name and company info
+        const shopName = data.shop_name || localStorage.getItem('currentShopName') || 'Main';
+        const companyName = localStorage.getItem('company_name') || 'Spide POS';
+        const companyPhone = localStorage.getItem('company_phone') || '';
+        const companyAddress = localStorage.getItem('company_address') || '';
+
+        // Human-friendly date
+        function humanDate(isoDate) {
+            if (!isoDate) return '';
+            const d = new Date(isoDate + 'T00:00:00');
+            if (isNaN(d)) return isoDate;
+            return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        const reportDate = humanDate(data.report_date) || humanDate(new Date().toISOString().split('T')[0]);
+        const generatedAt = new Date().toLocaleString('en-GB', {
+            day: '2-digit', month: 'short', year: 'numeric',
+            hour: '2-digit', minute: '2-digit'
+        });
+
+        // Report serial — stable within a day+shop combination
+        const serialDate = (data.report_date || '').replace(/-/g, '');
+        const reportSerial = 'Z-' + serialDate + '-' + (data.shop_id || 'ALL');
+
+        // Currency formatter — right-aligns and adds KES
+        function money(n) {
+            const v = (n || 0);
+            return 'KES ' + v.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        const revenue = data.total_revenue || 0;
+        const cogs = data.total_cost || 0;
+        const grossProfit = data.total_profit || 0;
+        const margin = data.margin_percent || 0;
+        const cash = data.total_cash || 0;
+        const mpesa = data.total_mpesa || 0;
+        const deposit = data.total_deposit || 0;
+        const credit = data.total_credit || 0;
+        const expenses = data.total_expenses || 0;
+        const netProfit = data.net_profit || 0;
+        const salesCount = data.total_sales_count || 0;
+        const avgTicket = salesCount > 0 ? revenue / salesCount : 0;
+
+        // Expense breakdown rows (if any)
+        let expenseRowsHTML = '';
+        const breakdown = data.expense_breakdown || {};
+        const breakdownKeys = Object.keys(breakdown);
+        if (breakdownKeys.length > 0) {
+            breakdownKeys.forEach(cat => {
+                expenseRowsHTML += `
+                <tr><td class="indent">${cat}</td><td class="right">${money(breakdown[cat])}</td></tr>
+            `;
+            });
+        }
+
+        const html = `<!DOCTYPE html>
+            <html>
+            <head>
+                <title>Z-Report ${reportSerial}</title>
+                <style>
+                   @page { size: 80mm auto; margin: 4mm; }
+                    * { box-sizing: border-box; }
+                    body {
+                        font-family: "Courier New", monospace;
+                        width: 72mm;
+                        margin: 0 auto;
+                        font-size: 12px;
+                        line-height: 1.35;
+                        color: #000;
+                        font-weight: 700;
+                        -webkit-font-smoothing: none;
+                    }
+                    .center { text-align: center; }
+                    .right  { text-align: right; }
+                    .bold   { font-weight: 800; }
+                    .big    { font-size: 15px; font-weight: 800; }
+                    .shop-name { font-size: 16px; font-weight: 800; letter-spacing: 0.5px; }
+                    .section-title {
+                        text-align: center;
+                        font-size: 12px;
+                        font-weight: 800;
+                        letter-spacing: 1.5px;
+                        margin: 8px 0 3px 0;
+                        padding: 3px 0;
+                        border-top: 1px dashed #000;
+                        border-bottom: 1px dashed #000;
+                    }
+                    .divider {
+                        border-top: 1px dashed #000;
+                        margin: 5px 0;
+                    }
+                    .solid-divider {
+                        border-top: 1.5px solid #000;
+                        margin: 5px 0;
+                    }
+                    table { width: 100%; border-collapse: collapse; }
+                    td { padding: 2px 0; vertical-align: top; font-weight: 700; }
+                    td.indent { padding-left: 8px; }
+                    .total-row td {
+                        font-weight: 800;
+                        font-size: 13px;
+                        padding-top: 4px;
+                        padding-bottom: 4px;
+                        border-top: 1.5px solid #000;
+                    }
+                    .muted { font-size: 10px; color: #000; font-weight: 700; }
+                    .footer {
+                        margin-top: 10px;
+                        padding-top: 5px;
+                        border-top: 1px dashed #000;
+                        font-size: 10px;
+                        text-align: center;
+                        line-height: 1.35;
+                        font-weight: 700;
+                    }
+                    .serial {
+                        font-size: 11px;
+                        text-align: center;
+                        margin-top: 3px;
+                        letter-spacing: 1px;
+                        font-weight: 800;
+                    }
+                </style>
+            </head>
+            <body>
+
+                <!-- Header -->
+                <div class="center">
+                    <div class="shop-name">${companyName}</div>
+                    ${companyAddress ? `<div class="muted">${companyAddress}</div>` : ''}
+                    ${companyPhone ? `<div class="muted">📞 ${companyPhone}</div>` : ''}
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="center">
+                    <div class="big">Z-REPORT</div>
+                    <div class="muted">End of Day Summary</div>
+                    <div class="serial">${reportSerial}</div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- Meta -->
+                <table>
+                    <tr><td>Shop</td><td class="right">${shopName}</td></tr>
+                    <tr><td>Report Date</td><td class="right">${reportDate}</td></tr>
+                    <tr><td>Generated</td><td class="right">${generatedAt}</td></tr>
+                </table>
+
+                <!-- Sales -->
+                <div class="section-title">SALES</div>
+                <table>
+                    <tr><td class="indent">Cash</td><td class="right">${money(cash)}</td></tr>
+                    <tr><td class="indent">M-Pesa</td><td class="right">${money(mpesa)}</td></tr>
+                    <tr><td class="indent">Deposit</td><td class="right">${money(deposit)}</td></tr>
+                    <tr><td class="indent">Credit</td><td class="right">${money(credit)}</td></tr>
+                    <tr class="total-row"><td>Total Revenue</td><td class="right">${money(revenue)}</td></tr>
+                </table>
+
+                <!-- Transactions -->
+                <div class="section-title">TRANSACTIONS</div>
+                <table>
+                    <tr><td class="indent">Number of Sales</td><td class="right">${salesCount}</td></tr>
+                    <tr><td class="indent">Average Ticket</td><td class="right">${money(avgTicket)}</td></tr>
+                </table>
+
+                <!-- Profit -->
+                <div class="section-title">PROFIT</div>
+                <table>
+                    <tr><td class="indent">Cost of Goods Sold</td><td class="right">${money(cogs)}</td></tr>
+                    <tr><td class="indent">Gross Profit</td><td class="right">${money(grossProfit)}</td></tr>
+                    <tr><td class="indent">Margin</td><td class="right">${margin.toFixed(1)}%</td></tr>
+                </table>
+
+                <!-- Expenses -->
+                <div class="section-title">EXPENSES</div>
+                <table>
+                    ${expenseRowsHTML || '<tr><td class="indent muted">No expenses recorded</td><td class="right"></td></tr>'}
+                    <tr class="total-row"><td>Total Expenses</td><td class="right">${money(expenses)}</td></tr>
+                </table>
+
+                <!-- Net -->
+                <div class="solid-divider"></div>
+                <table>
+                    <tr class="total-row"><td class="big">NET PROFIT</td><td class="right big">${money(netProfit)}</td></tr>
+                </table>
+                <div class="solid-divider"></div>
+
+                <!-- Footer -->
+                <div class="footer">
+                    Generated by Spide POS<br/>
+                    Report #${reportSerial}<br/>
+                    ${generatedAt}
+                </div>
+
+                <script>window.onload=function(){window.print();setTimeout(function(){window.close()},500)};<\/script>
+            </body>
+            </html>`;
+
+        const printWindow = window.open('', '_blank', 'width=400,height=700');
+        if (!printWindow) {
+            alert('Pop-up blocked. Please allow pop-ups for this site to print.');
+            return;
+        }
+        printWindow.document.write(html);
         printWindow.document.close();
     };
 
