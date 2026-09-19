@@ -293,7 +293,7 @@
     </div>
 
     <!-- MAIN POS CONTENT -->
-    <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <div class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
         <div class="lg:col-span-1 space-y-6">
             <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
                 <h2 class="text-lg font-bold text-gray-800 mb-4">Scan / Lookup Item</h2>
@@ -317,7 +317,6 @@
                         <label class="block text-xs font-semibold uppercase text-gray-500 mb-1">Quantity</label>
                         <input type="number" id="qty-input" value="1" min="1"
                             class="w-full p-3 border rounded-lg text-lg focus:ring-2 focus:ring-purple-600 focus:outline-none">
-                        <p class="text-xs text-gray-400 mt-1">💡 Ordering 6+ auto-applies wholesale price!</p>
                     </div>
                     <button onclick="handleAddToCart()"
                         class="w-full bg-purple-700 hover:bg-purple-800 text-white font-bold py-3 rounded-lg shadow transition">Add
@@ -326,7 +325,7 @@
             </div>
         </div>
         <div
-            class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between">
+            class="lg:col-span-3 bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-col justify-between">
             <div>
                 <h2 class="text-lg font-bold text-gray-800 mb-4">Current Order Items</h2>
                 <div class="flex items-center gap-3 mb-4 p-3 bg-purple-50 rounded-lg border border-purple-200">
@@ -379,7 +378,6 @@
             </div>
         </div>
     </div>
-
     <!-- ============================================ -->
     <!-- JAVASCRIPT -->
     <!-- ============================================ -->
@@ -716,6 +714,30 @@
             updateCartTotals();
         }
 
+        function adjustCartQty(btn, delta) {
+            const row = btn.closest('tr');
+            if (!row) return;
+            const qtyInput = row.querySelector('.cart-qty-input');
+            if (!qtyInput) return;
+            const current = parseInt(qtyInput.value) || 1;
+            const next = current + delta;
+            const max = parseInt(qtyInput.max) || 999;
+            if (next < 1) return;
+            if (next > max) {
+                qtyInput.value = max;
+                if (typeof showNotification === 'function') showNotification('Only ' + max + ' available', 'warning');
+            } else {
+                qtyInput.value = next;
+            }
+            qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+
+        function removeCartRow(btn) {
+            const row = btn.closest('tr');
+            if (row) row.remove();
+            updateCartTotals();
+        }
+
         // ============================================
         // PAYMENT
         // ============================================
@@ -723,7 +745,7 @@
             if (totalAmount <= 0) { alert('Cart is empty!'); return; }
             if (!selectedCustomerId || selectedCustomerId === 0) selectedCustomerId = 1;
             document.getElementById('modal-total').innerText = 'KES ' + totalAmount.toFixed(2);
-            document.getElementById('cash-input').value = totalAmount.toFixed(2);
+            document.getElementById('cash-input').value = '0.00';
             document.getElementById('mpesa-input').value = '0.00';
             document.getElementById('deposit-input').value = '0.00';
             document.getElementById('payment-modal').classList.remove('hidden');
@@ -2096,7 +2118,7 @@
 
     </script>
 
-    <script src="/static/js/spide-modals.js"></script>
+    <script src="/static/js/spide-modals.js?v=2"></script>
     <script src="/static/js/spide-loaders.js"></script>
 
 </body>

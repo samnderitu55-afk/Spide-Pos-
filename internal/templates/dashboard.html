@@ -179,7 +179,7 @@
                     </svg>
                 </button>
                 <!-- Shop Selector Dropdown -->
-                <div class="shop-selector-dropdown hidden" id="shop-selector-dropdown">
+                <div class="shop-selector-dropdown" id="shop-selector-dropdown">
                     <div class="px-3 py-2 text-xs font-semibold text-gray-500 uppercase border-b">Select Shop</div>
                     <div id="shop-list-dropdown"></div>
                 </div>
@@ -499,8 +499,9 @@
             }
         }
 
-        function closeShopSelector() {
-            document.getElementById('shop-selector-dropdown').classList.remove('show');
+        function closeDashboardShopSelector() {
+            const dropdown = document.getElementById('shop-selector-dropdown');
+            if (dropdown) dropdown.classList.remove('show');
         }
 
         async function loadShopList() {
@@ -546,14 +547,16 @@
         }
 
         async function selectShop(id, name) {
+            closeDashboardShopSelector();
+           
             let shopName = name;
             if (!shopName) {
                 shopName = await getShopName(id);
             }
             currentShop.id = id;
-            currentShop.name = name;
+            currentShop.name = shopName;toggleShopSelector
             updateShopDisplay();
-            closeShopSelector();
+            closeDashboardShopSelector();
             refreshDashboard();
             showNotification('Switched to ' + name);
         }
@@ -568,7 +571,7 @@
         document.addEventListener('click', function (event) {
             const container = document.getElementById('shop-selector-container');
             if (container && !container.contains(event.target)) {
-                closeShopSelector();
+              closeDashboardShopSelector();
             }
         });
 
@@ -879,7 +882,7 @@
             });
             container.innerHTML = html;
         }
- 
+
         function renderRecentSales(sales) {
             const container = document.getElementById('dashboard-recent-sales-list');
             if (!sales || sales.length === 0) {
@@ -901,10 +904,10 @@
                    </div>
                    <div class="font-bold text-purple-900 text-sm whitespace-nowrap ml-2">KES ${sale.total_amount.toFixed(2)}</div>
             </div>`;
-           });
+            });
             container.innerHTML = html;
         }
-        
+
         // ============================================
         // SHOP DASHBOARD (for cashiers/managers)
         // ============================================
