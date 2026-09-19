@@ -15,7 +15,7 @@ import (
 
 func GetShopsHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -64,7 +64,7 @@ func GetShopsHandler(w http.ResponseWriter, r *http.Request) {
 
 func CreateShopHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -110,17 +110,6 @@ func CreateShopHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Handle empty strings as NULL
-	if shop.Location.String == "" {
-		shop.Location.Valid = false
-	}
-	if shop.Phone.String == "" {
-		shop.Phone.Valid = false
-	}
-	if shop.Email.String == "" {
-		shop.Email.Valid = false
-	}
-
 	shop.ID = int(id)
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -136,7 +125,7 @@ func CreateShopHandler(w http.ResponseWriter, r *http.Request) {
 
 func UpdateShopHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPut {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -193,7 +182,7 @@ func UpdateShopHandler(w http.ResponseWriter, r *http.Request) {
 
 func DeleteShopHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 
@@ -253,7 +242,7 @@ func ShopsHandler(w http.ResponseWriter, r *http.Request) {
 
 func GetShopsByCompanyHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		writeJSONError(w, http.StatusMethodNotAllowed, "Method not allowed")
 		return
 	}
 

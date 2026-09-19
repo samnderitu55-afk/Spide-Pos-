@@ -1,0 +1,84 @@
+warning: in the working copy of 'internal/db/shops.go', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/internal/db/shops.go b/internal/db/shops.go[m
+[1mindex 7ba111b..3b78b02 100644[m
+[1m--- a/internal/db/shops.go[m
+[1m+++ b/internal/db/shops.go[m
+[36m@@ -6,23 +6,27 @@[m [mimport ([m
+ )[m
+ [m
+ type Shop struct {[m
+[31m-	ID        int            `json:"id"`[m
+[31m-	CompanyID int            `json:"company_id"`[m
+[31m-	Name      string         `json:"name"`[m
+[31m-	Location  sql.NullString `json:"location"`[m
+[31m-	Phone     sql.NullString `json:"phone"`[m
+[31m-	Email     sql.NullString `json:"email"`[m
+[31m-	CreatedAt time.Time      `json:"created_at"`[m
+[31m-	UpdatedAt time.Time      `json:"updated_at"`[m
+[32m+[m	[32mID        int       `json:"id"`[m
+[32m+[m	[32mName      string    `json:"name"`[m
+[32m+[m	[32mLocation  string    `json:"location"`[m
+[32m+[m	[32mPhone     string    `json:"phone"`[m
+[32m+[m	[32mEmail     string    `json:"email"`[m
+[32m+[m	[32mCompanyID int       `json:"company_id"`[m
+[32m+[m	[32mCreatedAt time.Time `json:"created_at"`[m
+[32m+[m	[32mUpdatedAt time.Time `json:"updated_at"`[m
+ }[m
+ [m
+ func GetShopsByCompany(db *sql.DB, companyID int) ([]Shop, error) {[m
+ 	query := `[m
+[31m-        SELECT id, company_id, name, location, phone, email, created_at, updated_at[m
+[31m-        FROM shops[m
+[31m-        WHERE company_id = ?[m
+[31m-        ORDER BY name[m
+[31m-    `[m
+[32m+[m[32m    SELECT id, company_id, name,[m
+[32m+[m[32m           COALESCE(location, '') as location,[m
+[32m+[m[32m           COALESCE(phone, '') as phone,[m
+[32m+[m[32m           COALESCE(email, '') as email,[m
+[32m+[m[32m           created_at, updated_at[m
+[32m+[m[32m    FROM shops[m
+[32m+[m[32m    WHERE company_id = ?[m
+[32m+[m[32m    ORDER BY name[m
+[32m+[m[32m`[m
+ 	rows, err := db.Query(query, companyID)[m
+ 	if err != nil {[m
+ 		return nil, err[m
+[36m@@ -86,10 +90,14 @@[m [mfunc UpdateShop(db *sql.DB, shop Shop) error {[m
+ [m
+ func GetAllShops(db *sql.DB) ([]Shop, error) {[m
+ 	query := `[m
+[31m-        SELECT id, company_id, name, location, phone, email, created_at, updated_at[m
+[31m-        FROM shops[m
+[31m-        ORDER BY name[m
+[31m-    `[m
+[32m+[m[32m    SELECT id, company_id, name,[m
+[32m+[m[32m           COALESCE(location, '') as location,[m
+[32m+[m[32m           COALESCE(phone, '') as phone,[m
+[32m+[m[32m           COALESCE(email, '') as email,[m
+[32m+[m[32m           created_at, updated_at[m
+[32m+[m[32m    FROM shops[m
+[32m+[m[32m    ORDER BY name[m
+[32m+[m[32m`[m
+ 	rows, err := db.Query(query)[m
+ 	if err != nil {[m
+ 		return nil, err[m
+[36m@@ -135,10 +143,14 @@[m [mfunc DeleteShop(db *sql.DB, id int, companyID int) error {[m
+ func GetShopByID(db *sql.DB, id int) (*Shop, error) {[m
+ 	var shop Shop[m
+ 	query := `[m
+[31m-        SELECT id, company_id, name, location, phone, email, created_at, updated_at[m
+[31m-        FROM shops[m
+[31m-        WHERE id = ?[m
+[31m-    `[m
+[32m+[m[32m    SELECT id, company_id, name,[m
+[32m+[m[32m           COALESCE(location, '') as location,[m
+[32m+[m[32m           COALESCE(phone, '') as phone,[m
+[32m+[m[32m           COALESCE(email, '') as email,[m
+[32m+[m[32m           created_at, updated_at[m
+[32m+[m[32m    FROM shops[m
+[32m+[m[32m    WHERE id = ?[m
+[32m+[m[32m`[m
+ 	err := db.QueryRow(query, id).Scan([m
+ 		&shop.ID, &shop.CompanyID, &shop.Name,[m
+ 		&shop.Location, // ✅ sql.NullString[m

@@ -1,0 +1,72 @@
+﻿<!-- ============================================ -->
+<!-- INVENTORY VALUATION MODAL -->
+<!-- ============================================ -->
+<div id="valuation-modal" class="fixed inset-0 bg-black/60 hidden z-50 flex items-center justify-center p-4">
+    <div class="bg-white w-full max-w-5xl rounded-2xl shadow-2xl p-6 space-y-4 max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center border-b pb-3">
+            <div>
+                <h2 class="text-xl font-bold text-gray-900 flex items-center gap-2"><span class="text-indigo-600">💎</span> Inventory Asset Valuation & Capital Distribution</h2>
+                <p class="text-xs text-gray-500">Click any category row to drill down into itemized stock breakdown</p>
+            </div>
+            <button onclick="closeInventoryValuationModal()" class="text-gray-400 hover:text-gray-600 font-bold text-xl">✕</button>
+        </div>
+        <div class="grid grid-cols-4 gap-3">
+            <div class="bg-blue-50 border border-blue-200 p-3 rounded-xl">
+                <p class="text-[10px] font-bold uppercase text-blue-700">Capital at Cost</p>
+                <p id="val-total-cost" class="text-lg font-black text-blue-950 font-mono">KES 0.00</p>
+            </div>
+            <div class="bg-purple-50 border border-purple-200 p-3 rounded-xl">
+                <p class="text-[10px] font-bold uppercase text-purple-700">Retail Potential</p>
+                <p id="val-total-retail" class="text-lg font-black text-purple-950 font-mono">KES 0.00</p>
+            </div>
+            <div class="bg-emerald-50 border border-emerald-200 p-3 rounded-xl">
+                <p class="text-[10px] font-bold uppercase text-emerald-700">Gross Unrealized Profit</p>
+                <p id="val-total-profit" class="text-lg font-black text-emerald-950 font-mono">KES 0.00</p>
+            </div>
+            <div class="bg-indigo-50 border border-indigo-200 p-3 rounded-xl">
+                <p class="text-[10px] font-bold uppercase text-indigo-700">Overall Gross Margin</p>
+                <p id="val-avg-margin" class="text-lg font-black text-indigo-950 font-mono">0.0%</p>
+            </div>
+        </div>
+        <div class="overflow-y-auto flex-1 border rounded-xl relative">
+            <table class="w-full text-left border-collapse text-sm">
+                <thead class="bg-gray-100 sticky top-0 border-b text-xs uppercase text-gray-600 z-10">
+                    <tr>
+                        <th class="p-3">Category</th>
+                        <th class="p-3 text-center">Capital Share</th>
+                        <th class="p-3 text-center">Units</th>
+                        <th class="p-3 text-right">Cost Value</th>
+                        <th class="p-3 text-right">Retail Value</th>
+                        <th class="p-3 text-right">Margin %</th>
+                        <th class="p-3 text-center">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="valuation-rows">
+                    <tr><td colspan="7" class="p-4 text-center text-gray-500">Loading inventory metrics...</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <div id="valuation-drilldown-panel" class="hidden bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 max-h-60 overflow-y-auto">
+            <div class="flex justify-between items-center mb-2">
+                <h3 id="drilldown-category-title" class="font-bold text-indigo-950 text-sm">Category Products</h3>
+                <button onclick="closeDrilldown()" class="text-xs text-indigo-700 font-bold hover:underline">Close Drill-Down ✕</button>
+            </div>
+            <table class="w-full text-left border-collapse text-xs bg-white rounded-lg overflow-hidden shadow-sm">
+                <thead class="bg-indigo-100 text-indigo-950 uppercase text-[10px]">
+                    <tr>
+                        <th class="p-2">Product Name</th>
+                        <th class="p-2 text-center">In Stock</th>
+                        <th class="p-2 text-right">Unit Cost</th>
+                        <th class="p-2 text-right">Unit Retail</th>
+                        <th class="p-2 text-right">Total Cost Value</th>
+                    </tr>
+                </thead>
+                <tbody id="drilldown-rows"></tbody>
+            </table>
+        </div>
+        <div class="flex justify-between items-center border-t pt-3">
+            <button onclick="printInventoryValuationReport()" class="bg-gray-900 hover:bg-black text-white font-semibold px-5 py-2 rounded-xl transition flex items-center gap-2 text-sm">🖨️ Print Asset Audit</button>
+            <button onclick="closeInventoryValuationModal()" class="bg-gray-200 text-gray-800 font-semibold px-5 py-2 rounded-xl hover:bg-gray-300 transition">Close</button>
+        </div>
+    </div>
+</div>

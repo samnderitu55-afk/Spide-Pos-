@@ -1,0 +1,84 @@
+﻿<!-- ============================================ -->
+<!-- PURCHASE ORDERS MODAL -->
+<!-- ============================================ -->
+<div id="purchase-modal" class="fixed inset-0 bg-gray-900/60 backdrop-blur-sm hidden items-center justify-center z-50 p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl border border-gray-100 transform transition-all my-8">
+        <div class="bg-purple-900 text-white px-6 py-4 rounded-t-2xl flex justify-between items-center">
+            <h3 class="text-lg font-bold flex items-center gap-2">📦 New Purchase Order</h3>
+            <button onclick="closePurchaseModal()" class="text-purple-200 hover:text-white hover:bg-purple-800 p-1 rounded-lg text-xl font-bold transition">✕</button>
+        </div>
+        <form id="purchaseForm" onsubmit="createPurchase(event)" class="p-6 space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Supplier *</label>
+                    <select id="purchaseSupplier" required class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none text-sm bg-white">
+                        <option value="">-- Select Supplier --</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Purchase Date</label>
+                    <input type="date" id="purchaseDate" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none text-sm">
+                </div>
+            </div>
+            <div>
+                <div class="flex justify-between items-center mb-2">
+                    <label class="block text-xs font-semibold text-gray-700 uppercase">Items to Purchase</label>
+                    <button type="button" onclick="addPurchaseRow()" class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold px-3 py-1.5 rounded-lg transition">➕ Add Item</button>
+                </div>
+                <div class="border rounded-xl overflow-hidden">
+                    <table class="w-full text-sm">
+                        <thead class="bg-gray-100 text-gray-600 text-xs uppercase">
+                            <tr>
+                                <th class="p-2 text-left">Product</th>
+                                <th class="p-2 text-center w-24">Quantity</th>
+                                <th class="p-2 text-right w-28">Cost Price</th>
+                                <th class="p-2 text-right w-28">Subtotal</th>
+                                <th class="p-2 text-center w-12">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="purchase-items-body">
+                            <tr id="purchase-row-0">
+                                <td class="p-2">
+                                    <select class="purchase-product-select w-full px-2 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-600 outline-none" onchange="updatePurchaseRow(this)" required>
+                                        <option value="">-- Select Product --</option>
+                                    </select>
+                                </td>
+                                <td class="p-2">
+                                    <input type="number" class="purchase-qty w-full px-2 py-1 border border-gray-300 rounded-lg text-sm text-center focus:ring-2 focus:ring-purple-600 outline-none" min="1" value="1" oninput="updatePurchaseRow(this)" required>
+                                </td>
+                                <td class="p-2">
+                                    <input type="number" step="0.01" class="purchase-price w-full px-2 py-1 border border-gray-300 rounded-lg text-sm text-right focus:ring-2 focus:ring-purple-600 outline-none" value="0.00" oninput="updatePurchaseRow(this)" required>
+                                </td>
+                                <td class="p-2 text-right font-mono font-bold purchase-subtotal">KES 0.00</td>
+                                <td class="p-2 text-center">
+                                    <button type="button" onclick="removePurchaseRow(this)" class="text-red-500 hover:text-red-700 font-bold">✕</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                        <tfoot class="bg-gray-50">
+                            <tr>
+                                <td colspan="3" class="p-2 text-right font-bold">Total Items:</td>
+                                <td id="purchase-total-items" class="p-2 text-right font-bold">0</td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <td colspan="3" class="p-2 text-right font-bold text-purple-900">Total Cost:</td>
+                                <td id="purchase-total-cost" class="p-2 text-right font-bold text-purple-900">KES 0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Notes (Optional)</label>
+                <textarea id="purchaseNotes" rows="2" placeholder="Additional details..." class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent outline-none text-sm"></textarea>
+            </div>
+            <div id="purchaseAlert" class="hidden p-3 rounded-lg text-sm font-medium"></div>
+            <div class="flex justify-end gap-3 pt-4 border-t border-gray-100">
+                <button type="button" onclick="closePurchaseModal()" class="px-4 py-2 text-sm font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition">Cancel</button>
+                <button type="submit" id="savePurchaseBtn" class="px-5 py-2 text-sm font-semibold text-white bg-purple-800 hover:bg-purple-700 rounded-lg shadow-md transition flex items-center gap-2">💾 Create Purchase</button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -293,6 +293,13 @@ func GetRecentSalesForShopAndCompany(db *sql.DB, shopID, companyID int, limit in
 		if err != nil {
 			return nil, err
 		}
+
+		// ✅ Attach the sale's items so reprints and detail views work
+		items, err := getSaleItems(db, s.ID)
+		if err == nil {
+			s.Items = items
+		}
+
 		sales = append(sales, s)
 	}
 	if err = rows.Err(); err != nil {
