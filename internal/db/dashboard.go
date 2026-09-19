@@ -10,30 +10,42 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 	today := time.Now().Format("2006-01-02")
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
 
-	// Get today's sales stats
+	// Get today's sales stats (revenue, transactions, average ticket)
 	query := `
         SELECT 
-            COALESCE(SUM(total_amount), 0),
-            COUNT(*),
-            COALESCE(AVG(total_amount), 0),
-            COALESCE(SUM(si.quantity), 0)
+            COALESCE(SUM(s.total_amount), 0) AS total_revenue,
+            COUNT(DISTINCT s.id)             AS transaction_count,
+            COALESCE(AVG(s.total_amount), 0) AS average_ticket
         FROM sales s
-        LEFT JOIN sale_items si ON s.id = si.sale_id
-        WHERE DATE(s.created_at) = ? 
+        WHERE DATE(s.created_at) = ?
     `
 	args := []interface{}{today}
-
 	if shopID > 0 {
 		query += " AND s.shop_id = ?"
 		args = append(args, shopID)
 	}
-
 	err := db.QueryRow(query, args...).Scan(
 		&stats.TodaySales.TotalRevenue,
 		&stats.TodaySales.TransactionCount,
 		&stats.TodaySales.AverageTicket,
-		&stats.TodaySales.TotalItems,
 	)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+
+	// Get today's item count separately (separate query, no cross-multiplication)
+	itemQuery := `
+        SELECT COALESCE(SUM(si.quantity), 0)
+        FROM sale_items si
+        JOIN sales s ON si.sale_id = s.id
+        WHERE DATE(s.created_at) = ?
+    `
+	itemArgs := []interface{}{today}
+	if shopID > 0 {
+		itemQuery += " AND s.shop_id = ?"
+		itemArgs = append(itemArgs, shopID)
+	}
+	err = db.QueryRow(itemQuery, itemArgs...).Scan(&stats.TodaySales.TotalItems)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
@@ -41,18 +53,16 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 	// Get yesterday's sales
 	query = `
         SELECT 
-            COALESCE(SUM(total_amount), 0),
-            COUNT(*)
+            COALESCE(SUM(s.total_amount), 0),
+            COUNT(DISTINCT s.id)
         FROM sales s
-        WHERE DATE(s.created_at) = ? 
+        WHERE DATE(s.created_at) = ?
     `
 	args = []interface{}{yesterday}
-
 	if shopID > 0 {
 		query += " AND s.shop_id = ?"
 		args = append(args, shopID)
 	}
-
 	err = db.QueryRow(query, args...).Scan(
 		&stats.YesterdaySales.TotalRevenue,
 		&stats.YesterdaySales.TransactionCount,
@@ -61,17 +71,16 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 		return nil, err
 	}
 
-	// Get quick stats
+	// Get quick stats — only products actually stocked in this shop
 	var totalProducts int
 	var totalStockValue float64
-
 	if shopID > 0 {
 		err = db.QueryRow(`
             SELECT 
                 COUNT(DISTINCT p.id),
                 COALESCE(SUM(ss.quantity * p.cost_price), 0)
             FROM products p
-            LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ?
+            JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ?
             WHERE p.is_active = 1
         `, shopID).Scan(&totalProducts, &totalStockValue)
 	} else {
@@ -80,7 +89,7 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
                 COUNT(DISTINCT p.id),
                 COALESCE(SUM(ss.quantity * p.cost_price), 0)
             FROM products p
-            LEFT JOIN shop_stock ss ON p.id = ss.product_id
+            JOIN shop_stock ss ON p.id = ss.product_id
             WHERE p.is_active = 1
         `).Scan(&totalProducts, &totalStockValue)
 	}
@@ -90,22 +99,20 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 	stats.QuickStats.TotalProducts = totalProducts
 	stats.QuickStats.TotalStockValue = totalStockValue
 
-	// Get sales trend
+	// Get sales trend (unchanged — no sale_items join, so no bug)
 	query = `
         SELECT 
             HOUR(created_at) as hour,
             COALESCE(SUM(total_amount), 0) as amount,
             COUNT(*) as count
         FROM sales s
-        WHERE DATE(s.created_at) = ? 
+        WHERE DATE(s.created_at) = ?
     `
 	args = []interface{}{today}
-
 	if shopID > 0 {
 		query += " AND s.shop_id = ?"
 		args = append(args, shopID)
 	}
-
 	query += " GROUP BY HOUR(created_at) ORDER BY hour ASC"
 
 	rows, err := db.Query(query, args...)
@@ -125,8 +132,7 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 			Amount float64 `json:"amount"`
 			Count  int     `json:"count"`
 		}
-		err := rows.Scan(&t.Hour, &t.Amount, &t.Count)
-		if err != nil {
+		if err := rows.Scan(&t.Hour, &t.Amount, &t.Count); err != nil {
 			return nil, err
 		}
 		trend = append(trend, t)
@@ -136,7 +142,7 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 	}
 	stats.SalesTrend = trend
 
-	// Get top products
+	// Get top products (already correct — groups by product, no cross-multiplication issue)
 	query = `
         SELECT 
             p.name,
@@ -145,15 +151,13 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
         FROM sale_items si
         JOIN products p ON si.product_id = p.id
         JOIN sales s ON si.sale_id = s.id
-        WHERE DATE(s.created_at) = ? 
+        WHERE DATE(s.created_at) = ?
     `
 	args = []interface{}{today}
-
 	if shopID > 0 {
 		query += " AND s.shop_id = ?"
 		args = append(args, shopID)
 	}
-
 	query += " GROUP BY p.id, p.name ORDER BY units_sold DESC LIMIT 10"
 
 	rows, err = db.Query(query, args...)
@@ -173,8 +177,7 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 			UnitsSold   int     `json:"units_sold"`
 			Revenue     float64 `json:"revenue"`
 		}
-		err := rows.Scan(&tp.ProductName, &tp.UnitsSold, &tp.Revenue)
-		if err != nil {
+		if err := rows.Scan(&tp.ProductName, &tp.UnitsSold, &tp.Revenue); err != nil {
 			return nil, err
 		}
 		topProducts = append(topProducts, tp)
@@ -184,28 +187,20 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 	}
 	stats.TopProducts = topProducts
 
-	// Get recent sales
+	// Get recent sales (unchanged)
 	query = `
         SELECT 
-            s.id,
-            s.total_amount,
-            s.cash_amount,
-            s.mpesa_amount,
-            s.mpesa_code,
-            s.payment_type,
-            s.change_given,
-            s.shop_id,
-            s.created_at
+            s.id, s.total_amount, s.cash_amount, s.mpesa_amount,
+            s.mpesa_code, s.payment_type, s.change_given,
+            s.shop_id, s.created_at
         FROM sales s
-        WHERE 1=1 
+        WHERE 1=1
     `
 	args = []interface{}{}
-
 	if shopID > 0 {
 		query += " AND s.shop_id = ?"
 		args = append(args, shopID)
 	}
-
 	query += " ORDER BY s.id DESC LIMIT 10"
 
 	rows, err = db.Query(query, args...)
@@ -217,15 +212,13 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 	recentSales := []Sale{}
 	for rows.Next() {
 		var sale Sale
-		err := rows.Scan(
+		if err := rows.Scan(
 			&sale.ID, &sale.TotalAmount, &sale.CashAmount,
 			&sale.MpesaAmount, &sale.MpesaCode, &sale.PaymentType,
 			&sale.ChangeGiven, &sale.ShopID, &sale.CreatedAt,
-		)
-		if err != nil {
+		); err != nil {
 			return nil, err
 		}
-		// Get items for this sale
 		items, err := getSaleItems(db, sale.ID)
 		if err == nil {
 			sale.Items = items
@@ -237,23 +230,24 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 	}
 	stats.RecentSales = recentSales
 
-	// Get low stock items
+	// Get low stock items — INNER JOIN, only products stocked in this shop
 	lowStock := []LowStockReportItem{}
 	var lowStockRows *sql.Rows
-
 	if shopID > 0 {
 		lowStockRows, err = db.Query(`
             SELECT 
                 p.name,
                 p.category,
-                COALESCE(ss.quantity, 0) as stock_quantity,
-                p.reorder_level,
+                ss.quantity,
+                COALESCE(ss.reorder_level, p.reorder_level) AS reorder_level,
                 p.cost_price,
-                COALESCE(ss.quantity * p.cost_price, 0) as restock_cost
-            FROM products p
-            LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ?
-            WHERE p.is_active = 1 AND COALESCE(ss.quantity, 0) <= p.reorder_level
-            ORDER BY stock_quantity ASC
+                ((COALESCE(ss.reorder_level, p.reorder_level) - ss.quantity) * p.cost_price) as restock_cost
+            FROM shop_stock ss
+            JOIN products p ON p.id = ss.product_id
+            WHERE ss.shop_id = ? 
+              AND p.is_active = 1 
+              AND ss.quantity <= COALESCE(ss.reorder_level, p.reorder_level)
+            ORDER BY ss.quantity ASC
             LIMIT 20
         `, shopID)
 	} else {
@@ -261,14 +255,15 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
             SELECT 
                 p.name,
                 p.category,
-                COALESCE(ss.quantity, 0) as stock_quantity,
-                p.reorder_level,
+                ss.quantity,
+                COALESCE(ss.reorder_level, p.reorder_level) AS reorder_level,
                 p.cost_price,
-                COALESCE(ss.quantity * p.cost_price, 0) as restock_cost
-            FROM products p
-            LEFT JOIN shop_stock ss ON p.id = ss.product_id
-            WHERE p.is_active = 1 AND COALESCE(ss.quantity, 0) <= p.reorder_level
-            ORDER BY stock_quantity ASC
+                ((COALESCE(ss.reorder_level, p.reorder_level) - ss.quantity) * p.cost_price) as restock_cost
+            FROM shop_stock ss
+            JOIN products p ON p.id = ss.product_id
+            WHERE p.is_active = 1 
+              AND ss.quantity <= COALESCE(ss.reorder_level, p.reorder_level)
+            ORDER BY ss.quantity ASC
             LIMIT 20
         `)
 	}
@@ -279,15 +274,10 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 		defer lowStockRows.Close()
 		for lowStockRows.Next() {
 			var item LowStockReportItem
-			err := lowStockRows.Scan(
-				&item.ProductName,
-				&item.Category,
-				&item.StockQuantity,
-				&item.ReorderLevel,
-				&item.CostPrice,
-				&item.RestockCost,
-			)
-			if err != nil {
+			if err := lowStockRows.Scan(
+				&item.ProductName, &item.Category, &item.StockQuantity,
+				&item.ReorderLevel, &item.CostPrice, &item.RestockCost,
+			); err != nil {
 				return nil, err
 			}
 			lowStock = append(lowStock, item)
