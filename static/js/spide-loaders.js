@@ -659,8 +659,12 @@
     window.handleTransferSearch = function (query) {
         const dropdown = document.getElementById('transfer-search-results');
         if (!dropdown) return;
-        const trimmed = (query || '').trim();
-        if (trimmed.length < 2) { dropdown.classList.add('hidden'); return; }
+        const trimmed = (query || '').trim(); 
+        if (trimmed.length < 2) {
+            dropdown.classList.add('hidden');
+            window.__transferSearchResults = [];
+            return;
+        }
 
         const token = window.getCookie('spide_token');
         const shopId = window.getCurrentShopId();
@@ -679,7 +683,7 @@
                 list.slice(0, 15).forEach((p, i) => {
                     html += `<div onclick="selectTransferProduct(${i})" data-idx="${i}" class="transfer-search-item p-2 hover:bg-blue-50 cursor-pointer border-b last:border-b-0">
                         <div class="font-semibold text-sm text-gray-900">${p.name}</div>
-                        <div class="text-xs text-gray-500">${p.barcode || 'no barcode'} • Stock: ${p.stock_quantity || 0} • Cost: KES ${(p.cost_price || 0).toFixed(2)}</div>
+                        <div class="text-xs text-gray-500">${p.barcode || 'no barcode'} • Stock: ${p.stock_quantity || 0} • Cost: KES ${(parseFloat(p.cost_price) || 0).toFixed(2)}</div>
                     </div>`;
                 });
                 dropdown.innerHTML = html;
@@ -1008,8 +1012,9 @@
         const tbody = document.getElementById('transfer-detail-items');
         if (tbody) tbody.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">Loading...</td></tr>';
 
+        // Reset in-memory state for this transfer
         currentTransferId = id;
-        currentTransferData = t;
+        currentTransferData = null;   // set properly once the fetch resolves
 
         try {
             const token = window.getCookie('spide_token');
@@ -1018,13 +1023,15 @@
             });
             if (!response.ok) throw new Error('Failed to load transfer');
             const t = await response.json();
+            currentTransferData = t;   // ✅ assigned here, after we actually have the data
+
             setText('transfer-detail-number', t.transfer_number || ('#TRF-' + id));
             setText('td-from-shop', t.from_shop_name || '#' + t.from_shop_id);
             setText('td-to-shop', t.to_shop_name || '#' + t.to_shop_id);
             setText('td-date', t.transfer_date || '');
             setText('td-status', t.status || '');
             setText('td-total-items', String(t.total_items || 0));
-            setText('td-total-cost', 'KES ' + (t.total_cost || 0).toFixed(2));
+            setText('td-total-cost', 'KES ' + (parseFloat(t.total_cost) || 0).toFixed(2));
 
             const items = t.items || [];
             if (tbody) {
@@ -1034,12 +1041,12 @@
                     let html = '';
                     items.forEach(it => {
                         html += `<tr class="border-b">
-                            <td class="p-2 font-medium text-gray-800">${it.product_name}</td>
-                            <td class="p-2 font-mono text-xs text-gray-500">${it.barcode || 'N/A'}</td>
-                            <td class="p-2 text-center font-bold">${it.quantity}</td>
-                            <td class="p-2 text-right font-mono">KES ${(it.cost_price || 0).toFixed(2)}</td>
-                            <td class="p-2 text-right font-mono">KES ${(it.subtotal || 0).toFixed(2)}</td>
-                        </tr>`;
+                        <td class="p-2 font-medium text-gray-800">${it.product_name}</td>
+                        <td class="p-2 font-mono text-xs text-gray-500">${it.barcode || 'N/A'}</td>
+                        <td class="p-2 text-center font-bold">${it.quantity}</td>
+                        <td class="p-2 text-right font-mono">KES ${(parseFloat(it.cost_price) || 0).toFixed(2)}</td>
+                        <td class="p-2 text-right font-mono">KES ${(parseFloat(it.subtotal) || 0).toFixed(2)}</td>
+                    </tr>`;
                     });
                     tbody.innerHTML = html;
                 }
@@ -1203,6 +1210,8 @@
     // =========================================================
     window.__allProducts = window.__allProducts || [];
     window.__filteredProducts = window.__filteredProducts || [];
+    window.__catalogRenderLimit = window.__catalogRenderLimit || 100;
+    window.__catalogRenderStep = window.__catalogRenderStep || 100;
 
     window.loadProducts = async function () {
         const tbody = document.getElementById('product-catalog-rows');
@@ -1223,6 +1232,7 @@
             const products = await response.json();
             window.__allProducts = products || [];
             window.__filteredProducts = [...window.__allProducts];
+            window.__catalogRenderLimit = 100;      // ← reset on fresh load
             window.updateCatalogCounts();
             // ✅ Refresh category filter options
             if (typeof window.populateCatalogCategoryFilter === 'function') {
@@ -1248,37 +1258,91 @@
             tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-gray-500">No products</td></tr>';
             return;
         }
+
+        // Are we viewing "All Shops" (aggregate) or a specific shop?
+        const catalogFilter = document.getElementById('catalog-shop-filter');
+        const catalogWrapper = document.getElementById('catalog-shop-filter-wrapper');
+        const filterVisible = catalogWrapper && !catalogWrapper.classList.contains('hidden');
+        const isAllShopsView = filterVisible && (!catalogFilter || catalogFilter.value === '0' || catalogFilter.value === '');
+
+        // ✅ Only render the first N rows, plus a "Show more" row if there are extras
+        const limit = window.__catalogRenderLimit || 100;
+        const visible = products.slice(0, limit);
+        const remaining = products.length - visible.length
+
         let html = '';
-        products.forEach(p => {
+        visible.forEach(p => {
             const barcodeDisplay = p.barcode || 'N/A';
             const stock = p.stock_quantity || 0;
-            const isLow = stock <= p.reorder_level && stock > 0;
+            const cap = p.stock_cap || 0;
+            const capDisplay = cap > 0 ? cap : '∞';
+            const overCap = cap > 0 && stock > cap;
+            const isLow = stock <= (p.shop_reorder_level || p.reorder_level || 5) && stock > 0;
             const isOut = stock <= 0;
             const role = typeof window.getCurrentUserRole === 'function' ? window.getCurrentUserRole() : 'cashier';
             const canEdit = (role === 'director' || role === 'admin' || role === 'manager');
 
+            // In "All Shops" mode, only show the raw stock number (no cap)
+            const stockLabel = isAllShopsView ? String(stock) : `${stock} / ${capDisplay}`;
+
             let stockBadge, stockClass;
-            if (isOut) { stockBadge = '<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">Out</span>'; stockClass = 'text-red-600 font-bold'; }
-            else if (isLow) { stockBadge = '<span class="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">' + stock + ' (Low)</span>'; stockClass = 'text-amber-600 font-bold'; }
-            else { stockBadge = '<span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full">' + stock + '</span>'; stockClass = 'text-emerald-600'; }
+            if (isOut) {
+                stockBadge = `<span class="bg-red-100 text-red-800 text-xs font-bold px-2 py-0.5 rounded-full">${stockLabel}</span>`;
+                stockClass = 'text-red-600 font-bold';
+            } else if (overCap && !isAllShopsView) {
+                stockBadge = `<span class="bg-purple-100 text-purple-800 text-xs font-bold px-2 py-0.5 rounded-full">${stockLabel} ⚠️</span>`;
+                stockClass = 'text-purple-600 font-bold';
+            } else if (isLow) {
+                const suffix = isAllShopsView ? ' (Low)' : ' (Low)';
+                stockBadge = `<span class="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">${stockLabel}${suffix}</span>`;
+                stockClass = 'text-amber-600 font-bold';
+            } else {
+                stockBadge = `<span class="bg-emerald-100 text-emerald-800 text-xs font-bold px-2 py-0.5 rounded-full">${stockLabel}</span>`;
+                stockClass = 'text-emerald-600';
+            }
+
             html += `<tr class="border-b hover:bg-purple-50/50 transition" data-product-id="${p.id}">
-                <td class="p-3 font-mono text-xs text-gray-500 font-semibold">${barcodeDisplay}</td>
-                <td class="p-3 font-semibold text-gray-900">${p.name}</td>
-                <td class="p-3 text-gray-500 text-xs">${p.category || 'General'}</td>
-                <td class="p-3 text-right font-mono font-bold text-purple-900">KES ${(p.retail_price || 0).toFixed(2)}</td>
-                <td class="p-3 text-right font-mono text-gray-700">KES ${(p.wholesale_price || 0).toFixed(2)}</td>
-                <td class="p-3 text-center ${stockClass}">${stockBadge}</td>
-                <td class="p-3 text-center">
-                    ${canEdit ? `
-                        <button onclick='editProduct(${JSON.stringify(p).replace(/'/g, "&#39;")})' 
-                            class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-lg transition">✏️ Edit</button>
-                        <button onclick='quickUpdateStock(${p.id}, "${(p.name || '').replace(/"/g, '\\"')}", ${stock})' 
-                            class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg transition ml-1">📦 Stock</button>
-                    ` : '<span class="text-xs text-gray-400">—</span>'}
-                </td>
-            </tr>`;
+            <td class="p-3 font-mono text-xs text-gray-500 font-semibold">${barcodeDisplay}</td>
+            <td class="p-3 font-semibold text-gray-900">${p.name}</td>
+            <td class="p-3 text-gray-500 text-xs">${p.category || 'General'}</td>
+            <td class="p-3 text-right font-mono font-bold text-purple-900">KES ${(p.retail_price || 0).toFixed(2)}</td>
+            <td class="p-3 text-right font-mono text-gray-700">KES ${(p.wholesale_price || 0).toFixed(2)}</td>
+            <td class="p-3 text-center ${stockClass}">${stockBadge}</td>
+            <td class="p-3 text-center">
+                ${canEdit ? `
+                    <button onclick='editProduct(${JSON.stringify(p).replace(/'/g, "&#39;")})' 
+                        class="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold px-2.5 py-1 rounded-lg transition">✏️ Edit</button>
+                    <button onclick='quickUpdateStock(${p.id}, "${(p.name || '').replace(/"/g, '\\"')}", ${stock}, ${cap}, ${p.shop_reorder_level || p.reorder_level || 5})' 
+                        class="bg-emerald-100 hover:bg-emerald-200 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-lg transition ml-1">📦 Stock</button>
+                ` : '<span class="text-xs text-gray-400">—</span>'}
+            </td>
+        </tr>`;
         });
+
+        // Append the "Show more" row if there are hidden products
+        if (remaining > 0) {
+            const nextBatch = Math.min(remaining, window.__catalogRenderStep);
+            html += `<tr><td colspan="7" class="p-3 text-center bg-gray-50">
+            <button onclick="catalogLoadMore()" class="bg-purple-100 hover:bg-purple-200 text-purple-800 text-xs font-bold px-4 py-2 rounded-lg transition">
+                Show ${nextBatch} more (showing ${visible.length} of ${products.length})
+            </button>
+        </td></tr>`;
+        }
+
         tbody.innerHTML = html;
+    };
+
+    window.catalogLoadMore = function () {
+        window.__catalogRenderLimit = (window.__catalogRenderLimit || 100) + (window.__catalogRenderStep || 100);
+        window.renderProductCatalog(window.__filteredProducts);
+    };
+
+    let __catalogFilterTimer = null;
+    window.filterCatalogDebounced = function () {
+        clearTimeout(__catalogFilterTimer);
+        __catalogFilterTimer = setTimeout(() => {
+            window.filterCatalog();
+        }, 250);
     };
 
     window.populateCatalogShopFilter = async function () {
@@ -1312,6 +1376,9 @@
 
         // Extract unique categories from loaded products
         const products = window.__allProducts || [];
+        window.__filteredProducts = window.__filteredProducts || [];
+        window.__catalogRenderLimit = 100;      // ← new
+        window.__catalogRenderStep = 100;       // ← new
         const categories = new Set();
         products.forEach(p => {
             const c = (p.category || '').trim();
@@ -1337,86 +1404,184 @@
     // =========================================================
     // QUICK STOCK UPDATE
     // =========================================================
-    window.quickUpdateStock = function (productId, productName, currentStock) {
+    window.quickUpdateStock = function (productId, productName, currentStock, currentCap, currentReorder) {
+        // Determine which shop's stock we're editing.
+        // Priority:
+        //   1. If the catalog shop filter is visible AND a specific shop is selected → use that
+        //   2. Otherwise (non-director, or no filter visible) → use the session's current shop
+        // If the filter is visible and set to "All Shops", we can't know which shop to edit → refuse.
+        const catalogFilter = document.getElementById('catalog-shop-filter');
+        const catalogWrapper = document.getElementById('catalog-shop-filter-wrapper');
+        const filterVisible = catalogWrapper && !catalogWrapper.classList.contains('hidden');
+
+        let editShopId = 0;
+        let editShopName = '';
+
+        if (filterVisible && catalogFilter) {
+            if (catalogFilter.value && catalogFilter.value !== '0') {
+                editShopId = parseInt(catalogFilter.value) || 0;
+                const sel = catalogFilter.options[catalogFilter.selectedIndex];
+                if (sel) editShopName = sel.textContent;
+            } else {
+                alert('Please pick a specific shop in the filter before updating stock.\n\n(You currently have "All Shops" selected.)');
+                return;
+            }
+        } else {
+            editShopId = window.getCurrentShopId();
+            editShopName = localStorage.getItem('currentShopName') || ('Shop #' + editShopId);
+        }
+
+        if (!editShopId) {
+            alert('No shop selected. Cannot update stock.');
+            return;
+        }
+
+        // Normalize numeric args (JSON may deliver them as strings)
+        currentStock = parseInt(currentStock) || 0;
+        currentCap = parseInt(currentCap) || 0;
+        currentReorder = parseInt(currentReorder) || 5;
+
+        // Remember for saveStockUpdate
+        window.__stockEditShopId = editShopId;
+        window.__stockEditShopName = editShopName;
+
         const existing = document.getElementById('stock-update-modal');
         if (existing) existing.remove();
         const modal = document.createElement('div');
         modal.id = 'stock-update-modal';
         modal.className = 'fixed inset-0 bg-black/60 hidden z-[9999] flex items-center justify-center p-4';
         modal.innerHTML = `
-            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
-                <div class="flex justify-between items-center border-b border-gray-100 pb-3">
-                    <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2"><span class="bg-emerald-100 p-1.5 rounded-lg">📦</span>Update Stock</h2>
-                    <button onclick="closeStockUpdate()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div class="flex justify-between items-center border-b border-gray-100 pb-3">
+                <h2 class="text-lg font-bold text-gray-900 flex items-center gap-2"><span class="bg-emerald-100 p-1.5 rounded-lg">📦</span>Update Stock</h2>
+                <button onclick="closeStockUpdate()" class="text-gray-400 hover:text-gray-600 text-xl">✕</button>
+            </div>
+
+            <!-- Product + shop context -->
+            <div class="bg-purple-50 border border-purple-100 rounded-lg p-3 space-y-1">
+                <p class="text-sm font-medium text-gray-700">Product: <span class="text-purple-700">${productName}</span></p>
+                <p class="text-xs text-gray-500">Current Stock: <span class="font-bold">${currentStock}</span></p>
+                <p class="text-xs text-gray-500">Current Cap: <span class="font-bold">${currentCap > 0 ? currentCap : '∞ (unlimited)'}</span></p>
+                <p class="text-xs text-gray-600">Editing Shop: <span class="font-bold text-purple-700">${editShopName}</span></p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">New Stock Quantity</label>
+                <input type="number" id="stock-quantity-input" value="${currentStock}" min="0"
+                    class="w-full px-3 py-2 border rounded-lg text-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Stock Cap</label>
+                    <input type="number" id="stock-cap-input" value="${currentCap}" min="0"
+                        class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    <p class="text-xs text-gray-400 mt-0.5">0 = unlimited</p>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-gray-700">Product: <span class="text-purple-700">${productName}</span></p>
-                    <p class="text-xs text-gray-500 mt-1">Current Stock: <span class="font-bold">${currentStock}</span></p>
+                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Reorder Level</label>
+                    <input type="number" id="stock-reorder-input" value="${currentReorder}" min="0"
+                        class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    <p class="text-xs text-gray-400 mt-0.5">Low-stock alert threshold</p>
                 </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">New Stock Quantity</label>
-                    <input type="number" id="stock-quantity-input" value="${currentStock}" min="0" class="w-full px-3 py-2 border rounded-lg text-lg focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-                </div>
-                <div>
-                    <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Adjustment Type</label>
-                    <select id="stock-adjustment-type" class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
-                        <option value="set">Set Exact Quantity</option>
-                        <option value="add">Add to Current</option>
-                        <option value="subtract">Subtract from Current</option>
-                    </select>
-                </div>
-                <div id="stock-update-alert" class="hidden p-2 rounded-lg text-sm font-medium"></div>
-                <div class="flex gap-3 pt-4 border-t border-gray-100">
-                    <button onclick="closeStockUpdate()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
-                    <button onclick="saveStockUpdate(${productId})" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 rounded-lg transition text-sm">💾 Update Stock</button>
-                </div>
-            </div>`;
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Adjustment Type</label>
+                <select id="stock-adjustment-type"
+                    class="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                    <option value="set">Set Exact Quantity</option>
+                    <option value="add">Add to Current</option>
+                    <option value="subtract">Subtract from Current</option>
+                </select>
+            </div>
+
+            <div id="stock-update-alert" class="hidden p-2 rounded-lg text-sm font-medium"></div>
+
+            <div class="flex gap-3 pt-4 border-t border-gray-100">
+                <button onclick="closeStockUpdate()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium py-2 rounded-lg transition text-sm">Cancel</button>
+                <button onclick="saveStockUpdate(${productId})" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 rounded-lg transition text-sm">💾 Update Stock</button>
+            </div>
+        </div>`;
         document.body.appendChild(modal);
         modal.classList.remove('hidden');
-        setTimeout(() => { document.getElementById('stock-quantity-input')?.focus(); document.getElementById('stock-quantity-input')?.select(); }, 100);
-    };
-
-    window.closeStockUpdate = function () {
-        const modal = document.getElementById('stock-update-modal');
-        if (modal) { modal.classList.add('hidden'); setTimeout(() => modal.remove(), 300); }
+        setTimeout(() => {
+            const q = document.getElementById('stock-quantity-input');
+            if (q) { q.focus(); q.select(); }
+        }, 100);
     };
 
     window.saveStockUpdate = async function (productId) {
         const quantityInput = document.getElementById('stock-quantity-input');
+        const capInput = document.getElementById('stock-cap-input');
+        const reorderInput = document.getElementById('stock-reorder-input');
         const adjustmentType = document.getElementById('stock-adjustment-type').value;
         const alertBox = document.getElementById('stock-update-alert');
         const submitBtn = document.querySelector('#stock-update-modal .bg-emerald-600');
         if (!quantityInput) return;
+
         const newQuantity = parseInt(quantityInput.value) || 0;
+        const stockCap = capInput ? (parseInt(capInput.value) || 0) : 0;
+        const reorderLevel = reorderInput ? (parseInt(reorderInput.value) || 0) : 0;
+
         if (newQuantity < 0) { window.showStockAlert('Quantity cannot be negative', 'error'); return; }
+        if (stockCap < 0) { window.showStockAlert('Stock cap cannot be negative', 'error'); return; }
+        if (reorderLevel < 0) { window.showStockAlert('Reorder level cannot be negative', 'error'); return; }
+
         if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Saving...'; }
         alertBox?.classList.add('hidden');
+
         try {
             const token = window.getCookie('spide_token');
             if (!token) { window.showStockAlert('❌ Not authenticated.', 'error'); return; }
-            const shopId = window.getCurrentShopId();
+
+            const shopId = window.__stockEditShopId || window.getCurrentShopId();
             const payload = {
                 product_id: productId,
                 quantity: newQuantity,
                 adjustment_type: adjustmentType,
-                shop_id: parseInt(shopId) || 1
+                shop_id: parseInt(shopId) || 1,
+                stock_cap: stockCap,
+                reorder_level: reorderLevel
             };
+
             const response = await fetch('/api/products/update-stock', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
                 body: JSON.stringify(payload)
             });
+
             if (!response.ok) {
                 const text = await response.text();
                 window.showStockAlert('❌ Error: ' + (text || 'Unknown error'), 'error');
                 return;
             }
+
             const responseText = await response.text();
-            if (!responseText || responseText.trim() === '') { window.showStockAlert('❌ Empty response', 'error'); return; }
+            if (!responseText || responseText.trim() === '') {
+                window.showStockAlert('❌ Empty response', 'error');
+                return;
+            }
             let result;
-            try { result = JSON.parse(responseText); } catch (e) { window.showStockAlert('❌ Invalid response', 'error'); return; }
+            try { result = JSON.parse(responseText); }
+            catch (e) { window.showStockAlert('❌ Invalid response', 'error'); return; }
+
             if (result.success) {
-                window.showStockAlert('✅ Stock updated! New quantity: ' + result.new_quantity, 'success');
+                const shopLabel = window.__stockEditShopName || ('Shop #' + shopId);
+                let msg = '✅ ' + shopLabel + ' stock updated to ' + result.new_quantity;
+                if (result.stock_cap > 0) msg += ' / cap ' + result.stock_cap;
+                else msg += ' (no cap)';
+                window.showStockAlert(msg, 'success');
+
+                // Soft warn on over-cap
+                if (result.stock_cap > 0 && result.new_quantity > result.stock_cap) {
+                    setTimeout(() => {
+                        if (typeof window.showNotification === 'function') {
+                            window.showNotification('⚠️ Over cap: ' + result.new_quantity + '/' + result.stock_cap, 'warning');
+                        }
+                    }, 1600);
+                }
+
                 setTimeout(() => {
                     window.closeStockUpdate();
                     if (typeof window.loadProducts === 'function') window.loadProducts();
@@ -1432,6 +1597,13 @@
         }
     };
 
+    window.closeStockUpdate = function () {
+        const modal = document.getElementById('stock-update-modal');
+        if (modal) { modal.classList.add('hidden'); setTimeout(() => modal.remove(), 300); }
+        window.__stockEditShopId = null;
+        window.__stockEditShopName = null;
+    };
+
     window.showStockAlert = function (message, type) {
         const alertBox = document.getElementById('stock-update-alert');
         if (!alertBox) return;
@@ -1441,6 +1613,7 @@
     };
 
     window.filterCatalog = function () {
+        window.__catalogRenderLimit = 100;   // ← reset render limit on filter change
         const searchInput = document.getElementById('catalog-search-input');
         const categorySelect = document.getElementById('catalog-category-filter');
 

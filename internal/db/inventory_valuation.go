@@ -9,7 +9,7 @@ type InventoryValuation struct {
 	ShopID           int                 `json:"branch_id"`
 	ShopName         string              `json:"branch_name"`
 	TotalItems       int                 `json:"total_items"`
-	TotalQuantity    int                 `json:"total_quantity"`
+	TotalQuantity    float64             `json:"total_quantity"`
 	TotalCostValue   float64             `json:"total_cost_value"`
 	TotalRetailValue float64             `json:"total_retail_value"`
 	PotentialProfit  float64             `json:"potential_profit"`
@@ -20,7 +20,7 @@ type InventoryValuation struct {
 type CategoryValuation struct {
 	Category         string  `json:"category"`
 	ItemCount        int     `json:"item_count"`
-	TotalQuantity    int     `json:"total_quantity"`
+	TotalQuantity    float64 `json:"total_quantity"`
 	TotalCostValue   float64 `json:"total_cost_value"`
 	TotalRetailValue float64 `json:"total_retail_value"`
 	PotentialProfit  float64 `json:"potential_profit"`
@@ -31,7 +31,7 @@ type ProductValuation struct {
 	ProductName string  `json:"product_name"`
 	Barcode     string  `json:"barcode"`
 	Category    string  `json:"category"`
-	Quantity    int     `json:"quantity"`
+	Quantity    float64 `json:"quantity"`
 	CostPrice   float64 `json:"cost_price"`
 	RetailPrice float64 `json:"retail_price"`
 	CostValue   float64 `json:"cost_value"`
@@ -75,7 +75,7 @@ func GetInventoryValuation(db *sql.DB, companyID int, shopID int) (*InventoryVal
 	}
 	defer rows.Close()
 
-	var totalQuantity int
+	var totalQuantity float64
 	var totalCostValue float64
 	var totalRetailValue float64
 	var potentialProfit float64

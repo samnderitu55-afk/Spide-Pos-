@@ -168,13 +168,13 @@ func GetDashboardStats(db *sql.DB, shopID int) (*DashboardStats, error) {
 
 	topProducts := []struct {
 		ProductName string  `json:"product_name"`
-		UnitsSold   int     `json:"units_sold"`
+		UnitsSold   float64 `json:"units_sold"`
 		Revenue     float64 `json:"revenue"`
 	}{}
 	for rows.Next() {
 		var tp struct {
 			ProductName string  `json:"product_name"`
-			UnitsSold   int     `json:"units_sold"`
+			UnitsSold   float64 `json:"units_sold"`
 			Revenue     float64 `json:"revenue"`
 		}
 		if err := rows.Scan(&tp.ProductName, &tp.UnitsSold, &tp.Revenue); err != nil {

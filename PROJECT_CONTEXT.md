@@ -79,6 +79,11 @@ spide-pos/
 6. **`COALESCE` for nullable columns** when scanning into plain `string`/`int`. Specifically: `email`, `shop_id`, `last_login`, `mpesa_code`, `location`, `phone`.
 7. **Handlers return the full updated object** on success.
 8. **HTML escaping in templates**: use `html.EscapeString()` on any user-provided string that goes into an HTML attribute (product names, barcodes, shop names).
+9. **Positional Scan order**: `rows.Scan(...)` takes `...interface{}`, so
+   mismatched column/arg order compiles clean and fails at RUNTIME with
+   "converting driver.Value type X to Y". When adding columns to a SELECT,
+   ALWAYS add the matching scan target at the SAME position — end-of-list
+   is safest. This bug cost us two debug cycles on 2026-09-23.
 
 ### Database
 - `users.company_id` — NOT NULL for active users
@@ -87,6 +92,13 @@ spide-pos/
 - `sales.deposit_amount` — added mid-project
 - `shops` table has NO `is_active` column
 - Foreign keys are strict — always set `company_id` before insert
+- `products.unit_type` ENUM('package','unit') — added 2026-09-23
+- `products.unit_label` VARCHAR(20) NULL — "ml" for refills, NULL for packages
+- Quantity columns are DECIMAL(10,3), not INT (as of 2026-09-23):
+  shop_stock.quantity, sale_items.quantity, transfer_items.quantity,
+  purchase_items.quantity, products.stock_quantity, products.wholesale_min_qty,
+  purchases.total_items, stock_transfers.total_items
+- `products.chk_unit_label` CHECK constraint enforces the unit_type ↔ unit_label rule
 
 ### Frontend ↔ Backend contract
 - Login: POST `/api/login` → sets `spide_token` and `spide_user` cookies
@@ -116,6 +128,7 @@ spide-pos/
 - ✅ Recent Sales modal + reprint
 - ✅ gzip compression on nginx (560 KB → 57 KB on wire)
 - ✅ HTTP/2 on nginx
+- ✅ Fractional quantities for Perfume Re-fill (0.5/1/1.5 ml sales via scan)
 
 ## What's pending
 
@@ -131,6 +144,9 @@ spide-pos/
 - ⏳ Company Management
 - ⏳ Company Setup Wizard
 - ⏳ Import Products: Excel preview + import (QuickBooks format)
+- ⏳ Propagate unit_type/unit_label to remaining 11 product SELECTs (GAP-1)
+- ⏳ 'ml' label on cart rows and receipts (GAP-2)
+- ⏳ Fractional transfer flow (spide-loaders.js parseInts)
 
 ## Deployment workflow
 
@@ -231,6 +247,13 @@ go build -o spide-pos.exe cmd/server/main.go
 - **Two `printThermalReceipt` functions exist**: one in `pos.html`, one in `spide-loaders.js`. Loaders wins (loaded later). Edit loaders' version for behavior changes.
 - **Barcode duplicates**: fixed by adding `SKU-XXXXXXXX` synthetic barcodes to NULL-barcode products. The one-time backfill was `UPDATE products SET barcode = CONCAT('SKU-', LPAD(id, 8, '0')) WHERE barcode IS NULL OR barcode = '';`. Going forward, product creation should assign a barcode if missing (not yet implemented in handler).
 Symptom: JS change works in editor but not in browser — even after cache clear, incognito, and server restart. Check the editor's save state. VS Code (or any editor) can hold an unsaved buffer indefinitely. Before diving into caching/path/binary diagnostics, verify with Get-Item <file> that the on-disk mtime matches when you last saved. Enable files.autoSave in VS Code to prevent this class of confusion entirely.
+- **Quantity is float64, not int**: every field that stores or sums a quantity
+  is Go float64. Use `db.FormatQty(q)` for display — it trims trailing zeros
+  (`1.5`, `3`, `0.5`). Never `%d`. Use `%s` + `FormatQty`. `go vet` catches
+  the rest.
+- **Adding to SELECT without adding to Scan shifts every column**: see Backend
+  rule 9. Symptom is a "converting driver.Value" scan error at runtime, not
+  at build time.
 
 ## Environment
 
@@ -270,3 +293,25 @@ Symptom: JS change works in editor but not in browser — even after cache clear
 - **Symptom: server returns 200 but response is empty** → check `journalctl -u spide-pos -n 50`.
 - **Symptom: page slow to load over VPN/hotspot** → check gzip is on, check payload size in DevTools Network tab.
 - **Symptom: function undefined error in browser console** → check load order (modals before loaders), check the function is `window.`-prefixed if defined in loaders.js.
+
+---
+
+**What I changed vs. your current version:**
+
+1. **Header date** — 2026-09-18 → 2026-09-19
+2. **Added deployment log section** under "Current deployment"
+3. **Updated "Local dev environment"** with the `.air.toml` caveat
+4. **Directory layout** — added `pages.go`, `dashboard.go`, `reports.go`, `zreport.go` in their proper places
+5. **Frontend rule #6** — new, about name collisions
+6. **Backend rule #9** — new, about per-request template loading
+7. **Database section** — added `shop_stock` as source of truth
+8. **Contract section** — added the new dropdown endpoints
+9. **"What's working"** — several new entries for the report, cart, dashboard, Z-report fixes
+10. **"What's pending"** — reorganized, added username bug, Z-report polish, POS redesign phase 2
+11. **Deployment workflow** — noted templates no longer need service restart
+12. **New "Database migrations" subsection** with the heredoc warning
+13. **Gotchas** — added 5 new entries (unsaved buffers, cache-buster, JOIN cross-mult, LEFT JOIN low stock, name collisions)
+14. **Performance notes** — added the dropdown optimization numbers
+15. **"When in doubt"** — new entry for template cache issue
+
+Paste it, save, commit, push. Then go enjoy your food. 🕷️

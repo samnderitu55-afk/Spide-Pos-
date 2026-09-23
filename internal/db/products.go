@@ -120,16 +120,9 @@ func UpdateProduct(db *sql.DB, p *Product) error {
 		return fmt.Errorf("failed to update product: %w", err)
 	}
 
-	// Update stock in shop_stock for the current shop
-	stockQuery := `
-        UPDATE shop_stock 
-        SET quantity = ?, updated_at = NOW()
-        WHERE shop_id = 1 AND product_id = ?
-    `
-	_, err = tx.Exec(stockQuery, p.StockQuantity, p.ID)
-	if err != nil {
-		return fmt.Errorf("failed to update stock: %w", err)
-	}
+	// NOTE: Stock is intentionally NOT updated here.
+	// Stock lives in shop_stock and is managed via /api/products/update-stock
+	// (and via sales / transfers / purchases). Product edit only touches metadata.
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
@@ -285,7 +278,9 @@ func GetProductByBarcodeAndShop(db *sql.DB, barcode string, companyID int, shopI
             p.reorder_level, 
             p.is_active,
             p.created_at, 
-            p.updated_at
+            p.updated_at,
+			p.unit_type,
+            p.unit_label
         FROM products p
         LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ? AND ss.company_id = ?
         WHERE p.barcode = ? AND p.company_id = ?
@@ -311,6 +306,8 @@ func GetProductByBarcodeAndShop(db *sql.DB, barcode string, companyID int, shopI
 		&p.IsActive,
 		&p.CreatedAt,
 		&p.UpdatedAt,
+		&p.UnitType,
+		&p.UnitLabel,
 	)
 	if err == sql.ErrNoRows {
 		return nil, nil
@@ -706,6 +703,8 @@ func GetProductsByCompanyWithStock(db *sql.DB, companyID int, shopID int) ([]Pro
             p.wholesale_price, 
             p.wholesale_min_qty,
             COALESCE(ss.quantity, 0) as stock_quantity,
+            COALESCE(ss.stock_cap, 0) as stock_cap,
+            COALESCE(ss.reorder_level, p.reorder_level) as shop_reorder_level,
             p.reorder_level, 
             p.is_active,
             p.created_at, 
@@ -739,6 +738,8 @@ func GetProductsByCompanyWithStock(db *sql.DB, companyID int, shopID int) ([]Pro
 			&p.WholesalePrice,
 			&p.WholesaleMinQty,
 			&p.StockQuantity,
+			&p.StockCap,         // ← new
+			&p.ShopReorderLevel, // ← new
 			&p.ReorderLevel,
 			&p.IsActive,
 			&p.CreatedAt,
@@ -765,7 +766,9 @@ func getAllProductsWithTotalStock(db *sql.DB, companyID int) ([]Product, error) 
         SELECT 
             p.id, p.company_id, p.barcode, p.name, p.category, p.category_id,
             p.cost_price, p.retail_price, p.wholesale_price, p.wholesale_min_qty,
-            COALESCE(SUM(ss.quantity), 0) as stock_quantity,
+            COALESCE(SUM(ss.quantity), 0) AS stock_quantity,
+            COALESCE(SUM(ss.stock_cap), 0) AS stock_cap,
+            COALESCE(MAX(ss.reorder_level), p.reorder_level) AS shop_reorder_level,
             p.reorder_level, p.is_active, p.created_at, p.updated_at
         FROM products p
         LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.company_id = p.company_id
@@ -788,7 +791,8 @@ func getAllProductsWithTotalStock(db *sql.DB, companyID int) ([]Product, error) 
 		err := rows.Scan(
 			&p.ID, &p.CompanyID, &barcodePtr, &p.Name, &p.Category, &p.CategoryID,
 			&p.CostPrice, &p.RetailPrice, &p.WholesalePrice, &p.WholesaleMinQty,
-			&p.StockQuantity, &p.ReorderLevel, &p.IsActive, &p.CreatedAt, &p.UpdatedAt,
+			&p.StockQuantity, &p.StockCap, &p.ShopReorderLevel,
+			&p.ReorderLevel, &p.IsActive, &p.CreatedAt, &p.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err

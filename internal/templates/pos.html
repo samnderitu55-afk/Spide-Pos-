@@ -583,8 +583,8 @@
                 const existingRow = document.querySelector(`#cart-items tr[data-barcode="${product.barcode}"]`);
                 if (existingRow) {
                     const qtyInput = existingRow.querySelector('.cart-qty-input');
-                    const currentQty = parseInt(qtyInput.value) || 1;
-                    const qty = parseInt(document.getElementById('qty-input').value) || 1;
+                    const currentQty = parseFloat(qtyInput.value) || 1;
+                    const qty = parseFloat(document.getElementById('qty-input').value) || 1;
                     qtyInput.value = currentQty + qty;
                     qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
                     barcodeInput.value = '';
@@ -592,7 +592,7 @@
                     closeSearchDropdown();
                     return;
                 }
-                const qty = parseInt(document.getElementById('qty-input').value) || 1;
+                const qty = parseFloat(document.getElementById('qty-input').value) || 1;
                 fetchProductByBarcode(product.barcode, qty);
             }
             document.getElementById('scan-input').value = '';
@@ -611,12 +611,12 @@
         // ============================================
         async function handleAddToCart() {
             const barcode = document.getElementById('barcode-input').value.trim();
-            const qty = parseInt(document.getElementById('qty-input').value) || 1;
+            const qty = parseFloat(document.getElementById('qty-input').value) || 1;
             if (!barcode) { alert('Please enter a barcode or search for a product.'); return; }
             const existingRow = document.querySelector(`#cart-items tr[data-barcode="${barcode}"]`);
             if (existingRow) {
                 const qtyInput = existingRow.querySelector('.cart-qty-input');
-                const currentQty = parseInt(qtyInput.value) || 1;
+                const currentQty = parseFloat(qtyInput.value) || 1;
                 qtyInput.value = currentQty + qty;
                 qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
                 document.getElementById('barcode-input').value = '';
@@ -682,10 +682,10 @@
             if (!row) return;
             const qtyInput = row.querySelector('.cart-qty-input');
             const priceInput = row.querySelector('.cart-price-input');
-            const maxStock = parseInt(row.getAttribute('data-stock')) || 999;
-            let qty = parseInt(qtyInput.value) || 1;
+            const maxStock = parseFloat(row.getAttribute('data-stock')) || 999;
+            let qty = parseFloat(qtyInput.value) || 1;
             if (qty > maxStock) { qty = maxStock; qtyInput.value = maxStock; showNotification('Only ' + maxStock + ' available', 'warning'); }
-            if (qty < 1) { qty = 1; qtyInput.value = 1; }
+            if (qty < 0.5) { qty = 0.5; qtyInput.value = 0.5; }
             let currentPrice = parseFloat(priceInput.value) || 0;
             const wholesaleQty = parseInt(row.getAttribute('data-wholesale-threshold')) || 0;
             const retailPrice = parseFloat(row.getAttribute('data-retail-price')) || 0;
@@ -719,10 +719,10 @@
             if (!row) return;
             const qtyInput = row.querySelector('.cart-qty-input');
             if (!qtyInput) return;
-            const current = parseInt(qtyInput.value) || 1;
+            const current = parseFloat(qtyInput.value) || 1;
             const next = current + delta;
             const max = parseInt(qtyInput.max) || 999;
-            if (next < 1) return;
+            if (next < 0.5) return;
             if (next > max) {
                 qtyInput.value = max;
                 if (typeof showNotification === 'function') showNotification('Only ' + max + ' available', 'warning');
@@ -857,7 +857,7 @@
                 const productName = row.querySelector('td:first-child')?.textContent?.trim() || 'Product';
                 const subtotalTd = row.querySelector('.subtotal-td');
                 if (qtyInput && priceInput && productId > 0) {
-                    const qty = parseInt(qtyInput.value) || 1;
+                    const qty = parseFloat(qtyInput.value) || 1;
                     const unitPrice = parseFloat(priceInput.value) || 0;
                     const subtotal = subtotalTd ? parseFloat(subtotalTd.innerText.replace('KES', '').trim()) : (qty * unitPrice);
                     items.push({ product_id: productId, product_name: productName, quantity: qty, unit_price: unitPrice, subtotal: subtotal });
@@ -2117,10 +2117,9 @@
         });
 
     </script>
-
-    <script src="/static/js/spide-modals.js?v=2"></script>
-    <script src="/static/js/spide-loaders.js"></script>
-
+    <script src="/static/js/spide-modals.js?v=3"></script>
+    <script src="/static/js/spide-loaders.js?v=3"></script>
+  
 </body>
 
 </html>

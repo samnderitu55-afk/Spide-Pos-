@@ -241,9 +241,9 @@ func ScanProductHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	qty := 1
+	qty := 1.0
 	if qtyParam := r.URL.Query().Get("qty"); qtyParam != "" {
-		if q, err := strconv.Atoi(qtyParam); err == nil && q > 0 {
+		if q, err := strconv.ParseFloat(qtyParam, 64); err == nil && q > 0 {
 			qty = q
 		}
 	}
@@ -264,7 +264,7 @@ func ScanProductHandler(w http.ResponseWriter, r *http.Request) {
 		companyID = 1
 	}
 
-	log.Printf("🔍 Scanning barcode: %s, company: %d, shop: %d, qty: %d", barcode, companyID, shopID, qty)
+	log.Printf("🔍 Scanning barcode: %s, company: %d, shop: %d, qty: %s", barcode, companyID, shopID, db.FormatQty(qty))
 
 	// ✅ Get product from master catalog (company_id)
 	// ✅ Also gets stock quantity for this specific shop
@@ -316,11 +316,11 @@ func ScanProductHandler(w http.ResponseWriter, r *http.Request) {
                 <div class="text-3xl mb-2">⚠️</div>
                 <div class="text-amber-600 font-bold">Insufficient Stock</div>
                 <div class="text-sm text-gray-600 mt-1">%s</div>
-                <div class="text-sm font-bold text-amber-700">Only %d items available</div>
-                <div class="text-xs text-gray-400 mt-1">Requested: %d</div>
+                <div class="text-sm font-bold text-amber-700">Only %s items available</div>
+                <div class="text-xs text-gray-400 mt-1">Requested: %s</div>
                 <div class="text-xs text-gray-400">Reduce quantity or transfer stock</div>
             </div>
-        `, product.Name, product.StockQuantity, qty)
+        `, product.Name, db.FormatQty(product.StockQuantity), db.FormatQty(qty))
 		http.Error(w, html, http.StatusBadRequest)
 		return
 	}
@@ -359,10 +359,12 @@ func UpdateProductStockHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		ProductID      int    `json:"product_id"`
-		Quantity       int    `json:"quantity"`
-		AdjustmentType string `json:"adjustment_type"`
-		ShopID         int    `json:"shop_id"`
+		ProductID      int      `json:"product_id"`
+		Quantity       float64  `json:"quantity"`
+		AdjustmentType string   `json:"adjustment_type"`
+		ShopID         int      `json:"shop_id"`
+		StockCap       *float64 `json:"stock_cap"`
+		ReorderLevel   *float64 `json:"reorder_level"`
 	}
 
 	// ✅ Decode request body
@@ -377,8 +379,8 @@ func UpdateProductStockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("📦 Stock update request - ProductID: %d, Quantity: %d, Type: %s, ShopID: %d",
-		req.ProductID, req.Quantity, req.AdjustmentType, req.ShopID)
+	log.Printf("📦 Stock update request - ProductID: %d, Quantity: %s, Type: %s, ShopID: %d",
+		req.ProductID, db.FormatQty(req.Quantity), req.AdjustmentType, req.ShopID)
 
 	if req.ProductID <= 0 {
 		w.Header().Set("Content-Type", "application/json")
@@ -438,26 +440,31 @@ func UpdateProductStockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ✅ Get current stock
-	var currentStock int
-	err = db.GetDB().QueryRow(`
-        SELECT COALESCE(quantity, 0) 
-        FROM shop_stock 
-        WHERE product_id = ? AND shop_id = ? AND company_id = ?
-    `, req.ProductID, shopID, companyID).Scan(&currentStock)
-	if err != nil && err != sql.ErrNoRows {
-		log.Printf("❌ Failed to get current stock: %v", err)
+	// ✅ Get current stock, cap, and reorder level for this shop.
+	//    Row may not exist yet (new product + shop combo) — treat as zero values.
+	var currentStock, currentCap, currentReorder float64
+	sqlGetStock := "SELECT quantity, stock_cap, reorder_level FROM shop_stock WHERE product_id = ? AND shop_id = ? AND company_id = ?"
+	err = db.GetDB().QueryRow(sqlGetStock, req.ProductID, shopID, companyID).Scan(&currentStock, &currentCap, &currentReorder)
+
+	if err == sql.ErrNoRows {
+		currentStock = 0
+		currentCap = 0
+		currentReorder = 5
+		err = nil
+	} else if err != nil {
+		log.Printf("❌ Failed to get current stock (product=%d, shop=%d, company=%d): %v",
+			req.ProductID, shopID, companyID, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"success": false,
-			"error":   "Failed to get current stock",
+			"error":   "Failed to get current stock: " + err.Error(),
 		})
 		return
 	}
 
 	// ✅ Calculate new quantity
-	var newQuantity int
+	var newQuantity float64
 	switch req.AdjustmentType {
 	case "set":
 		newQuantity = req.Quantity
@@ -472,16 +479,39 @@ func UpdateProductStockHandler(w http.ResponseWriter, r *http.Request) {
 		newQuantity = req.Quantity
 	}
 
-	log.Printf("📦 Stock update - Product: %s, Current: %d, New: %d",
-		productName, currentStock, newQuantity)
+	// Cap: use provided value, otherwise keep existing
+	newCap := currentCap
+	if req.StockCap != nil {
+		newCap = *req.StockCap
+		if newCap < 0 {
+			newCap = 0
+		}
+	}
+
+	// Reorder: same
+	newReorder := currentReorder
+	if req.ReorderLevel != nil {
+		newReorder = *req.ReorderLevel
+		if newReorder < 0 {
+			newReorder = 0
+		}
+	}
+
+	log.Printf("📦 Stock update - Product: %s, Current: %s, New: %s",
+		productName, db.FormatQty(currentStock), db.FormatQty(newQuantity))
 
 	// ✅ Update stock
 	query := `
-        INSERT INTO shop_stock (shop_id, product_id, quantity, company_id, created_at, updated_at)
-        VALUES (?, ?, ?, ?, NOW(), NOW())
-        ON DUPLICATE KEY UPDATE quantity = ?, updated_at = NOW()
-    `
-	_, err = db.GetDB().Exec(query, shopID, req.ProductID, newQuantity, companyID, newQuantity)
+    INSERT INTO shop_stock 
+        (shop_id, product_id, quantity, stock_cap, reorder_level, company_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+    ON DUPLICATE KEY UPDATE
+        quantity      = VALUES(quantity),
+        stock_cap     = VALUES(stock_cap),
+        reorder_level = VALUES(reorder_level),
+        updated_at    = NOW()
+`
+	_, err = db.GetDB().Exec(query, shopID, req.ProductID, newQuantity, newCap, newReorder, companyID)
 	if err != nil {
 		log.Printf("❌ Failed to update stock: %v", err)
 		w.Header().Set("Content-Type", "application/json")
@@ -493,19 +523,21 @@ func UpdateProductStockHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("✅ Stock updated - Product: %s, Old: %d, New: %d", productName, currentStock, newQuantity)
+	log.Printf("✅ Stock updated - Product: %s, Old: %s, New: %s", productName, db.FormatQty(currentStock), db.FormatQty(newQuantity))
 
 	// ✅ Always return JSON
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":      true,
-		"message":      "Stock updated successfully",
-		"product_name": productName,
-		"old_quantity": currentStock,
-		"new_quantity": newQuantity,
-		"product_id":   req.ProductID,
-		"shop_id":      shopID,
-		"adjustment":   req.AdjustmentType,
+		"success":       true,
+		"message":       "Stock updated successfully",
+		"product_name":  productName,
+		"old_quantity":  currentStock,
+		"new_quantity":  newQuantity,
+		"product_id":    req.ProductID,
+		"shop_id":       shopID,
+		"adjustment":    req.AdjustmentType,
+		"stock_cap":     newCap,
+		"reorder_level": newReorder,
 	})
 }

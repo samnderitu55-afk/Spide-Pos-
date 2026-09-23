@@ -38,7 +38,7 @@ func CreatePurchase(db *sql.DB, purchase *Purchase) error {
 	purchaseNumber := "PO-" + time.Now().Format("20060102") + "-" + fmt.Sprintf("%04d", time.Now().UnixNano()%10000)
 
 	// Calculate total
-	var totalItems int
+	var totalItems float64
 	var totalCost float64
 	for _, item := range purchase.Items {
 		totalItems += item.Quantity
@@ -100,7 +100,7 @@ func CreatePurchase(db *sql.DB, purchase *Purchase) error {
 		}
 
 		// Update product stock quantity and cost price (weighted average)
-		var currentStock int
+		var currentStock float64
 		var currentCost float64
 		err = tx.QueryRow(`
             SELECT COALESCE(stock_quantity, 0), COALESCE(cost_price, 0) 
@@ -111,7 +111,7 @@ func CreatePurchase(db *sql.DB, purchase *Purchase) error {
 		}
 
 		// Calculate new weighted average cost
-		newTotalCost := (currentCost * float64(currentStock)) + (item.CostPrice * float64(item.Quantity))
+		newTotalCost := (currentCost * currentStock) + (item.CostPrice * item.Quantity)
 		newStock := currentStock + item.Quantity
 		newCost := newTotalCost / float64(newStock)
 

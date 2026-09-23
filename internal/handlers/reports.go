@@ -13,7 +13,7 @@ import (
 type LowStockItem struct {
 	ProductName   string  `json:"product_name"`
 	Category      string  `json:"category"`
-	StockQuantity int     `json:"stock_quantity"`
+	StockQuantity float64 `json:"stock_quantity"`
 	ReorderLevel  int     `json:"reorder_level"`
 	CostPrice     float64 `json:"cost_price"`
 	RestockCost   float64 `json:"restock_cost"`

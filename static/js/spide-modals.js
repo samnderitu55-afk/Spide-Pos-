@@ -138,7 +138,7 @@
                     <div class="flex-1 relative">
                         <input type="text" id="catalog-search-input" placeholder="🔍 Search by product name or barcode..."
                             class="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:outline-none bg-white"
-                            oninput="filterCatalog()">
+                            oninput="filterCatalogDebounced()">
                         <span id="catalog-search-count"
                             class="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400"></span>
                     </div>

@@ -4,25 +4,38 @@ import (
 	"database/sql"
 	"fmt"
 	"html"
+	"strconv"
+	"strings"
 	"time"
 )
 
+func FormatQty(q float64) string {
+	s := strconv.FormatFloat(q, 'f', 3, 64)
+	s = strings.TrimRight(s, "0")
+	s = strings.TrimRight(s, ".")
+	return s
+}
+
 type Product struct {
-	ID              int64     `json:"id"`
-	CompanyID       int       `json:"company_id"`
-	Barcode         *string   `json:"barcode"`
-	Name            string    `json:"name"`
-	Category        string    `json:"category"`
-	CategoryID      int       `json:"category_id"`
-	CostPrice       float64   `json:"cost_price"`
-	RetailPrice     float64   `json:"retail_price"`
-	WholesalePrice  float64   `json:"wholesale_price"`
-	WholesaleMinQty int       `json:"wholesale_min_qty"`
-	StockQuantity   int       `json:"stock_quantity"`
-	ReorderLevel    int       `json:"reorder_level"`
-	IsActive        bool      `json:"is_active"`
-	CreatedAt       time.Time `json:"created_at"`
-	UpdatedAt       time.Time `json:"updated_at"`
+	ID               int64     `json:"id"`
+	CompanyID        int       `json:"company_id"`
+	Barcode          *string   `json:"barcode"`
+	Name             string    `json:"name"`
+	Category         string    `json:"category"`
+	CategoryID       int       `json:"category_id"`
+	CostPrice        float64   `json:"cost_price"`
+	RetailPrice      float64   `json:"retail_price"`
+	WholesalePrice   float64   `json:"wholesale_price"`
+	WholesaleMinQty  float64   `json:"wholesale_min_qty"`
+	StockQuantity    float64   `json:"stock_quantity"`
+	ReorderLevel     float64   `json:"reorder_level"`
+	IsActive         bool      `json:"is_active"`
+	CreatedAt        time.Time `json:"created_at"`
+	UpdatedAt        time.Time `json:"updated_at"`
+	StockCap         float64   `json:"stock_cap"`
+	ShopReorderLevel float64   `json:"shop_reorder_level"`
+	UnitType         string    `json:"unit_type"`
+	UnitLabel        *string   `json:"unit_label"`
 }
 
 func (p *Product) RenderRowHTML() string {
@@ -41,17 +54,29 @@ func (p *Product) RenderRowHTML() string {
 		stockClass = "text-amber-500 font-bold"
 	}
 
-	return fmt.Sprintf(`<tr data-product-id="%d" data-retail-price="%.2f" data-wholesale-price="%.2f" data-wholesale-threshold="%d" data-barcode="%s" data-stock="%d">
+	// Fractional step for unit-based products (e.g. refills sold in ml)
+	step := "1"
+	if p.UnitType == "unit" {
+		step = "0.5"
+	}
+
+	// Unit label for display (empty for packages)
+	unitLabel := ""
+	if p.UnitLabel != nil {
+		unitLabel = *p.UnitLabel
+	}
+
+	return fmt.Sprintf(`<tr data-product-id="%d" data-retail-price="%.2f" data-wholesale-price="%.2f" data-wholesale-threshold="%s" data-barcode="%s" data-stock="%s" data-unit-type="%s" data-unit-label="%s">
         <td class="p-3 font-medium text-gray-800 text-sm min-w-0 max-w-[220px]">%s</td>
-        <td class="p-3 text-center font-mono %s">%d</td>
+        <td class="p-3 text-center font-mono %s">%s</td>
         <td class="p-3 text-right font-mono text-gray-500 text-xs whitespace-nowrap">KES %.2f</td>
         <td class="p-3 text-center">
             <div class="inline-flex items-center gap-1">
-                <button type="button" onclick="adjustCartQty(this, -1)"
+                <button type="button" onclick="adjustCartQty(this, -%s)"
                         class="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold leading-none">−</button>
-                <input type="number" class="cart-qty-input w-12 px-2 py-1 border rounded text-center focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                       value="1" min="1" max="%d" oninput="updateRowTotals(this, false)">
-                <button type="button" onclick="adjustCartQty(this, 1)"
+                <input type="number" class="cart-qty-input w-20 px-2 py-1 border rounded text-center focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                       value="1" min="%s" step="%s" max="%s" oninput="updateRowTotals(this, false)">
+                <button type="button" onclick="adjustCartQty(this, %s)"
                         class="w-7 h-7 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold leading-none">+</button>
             </div>
         </td>
@@ -71,14 +96,20 @@ func (p *Product) RenderRowHTML() string {
 		p.ID,
 		p.RetailPrice,
 		p.WholesalePrice,
-		p.WholesaleMinQty,
+		FormatQty(p.WholesaleMinQty),
 		barcodeEsc,
-		p.StockQuantity,
+		FormatQty(p.StockQuantity),
+		p.UnitType,
+		unitLabel,
 		nameEsc,
 		stockClass,
-		p.StockQuantity,
+		FormatQty(p.StockQuantity),
 		p.CostPrice,
-		p.StockQuantity,
+		step,
+		step,
+		step,
+		FormatQty(p.StockQuantity),
+		step,
 		p.RetailPrice,
 		p.RetailPrice,
 	)
@@ -89,7 +120,7 @@ type ShopStock struct {
 	CompanyID int       `json:"company_id"`
 	ShopID    int       `json:"shop_id"`
 	ProductID int       `json:"product_id"`
-	Quantity  int       `json:"quantity"`
+	Quantity  float64   `json:"quantity"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -107,7 +138,7 @@ type SaleItem struct {
 	SaleID      int64   `json:"sale_id"`
 	ProductID   int64   `json:"product_id"`
 	ProductName string  `json:"product_name"`
-	Quantity    int     `json:"quantity"`
+	Quantity    float64 `json:"quantity"`
 	UnitPrice   float64 `json:"unit_price"`
 	Subtotal    float64 `json:"subtotal"`
 }
@@ -142,7 +173,7 @@ type SaleRequest struct {
 	DepositAmount float64 `json:"deposit_amount"`
 	Items         []struct {
 		ProductID int64   `json:"product_id"`
-		Quantity  int     `json:"quantity"`
+		Quantity  float64 `json:"quantity"`
 		UnitPrice float64 `json:"unit_price"`
 		Subtotal  float64 `json:"subtotal"`
 	} `json:"items"`
@@ -196,20 +227,20 @@ type ProductSalesReportItem struct {
 	ProductID    int     `json:"product_id"`
 	ProductName  string  `json:"product_name"`
 	Category     string  `json:"category"`
-	UnitsSold    int     `json:"units_sold"`
+	UnitsSold    float64 `json:"units_sold"`
 	TotalCost    float64 `json:"total_cost"`
 	TotalRevenue float64 `json:"total_revenue"`
 	NetProfit    float64 `json:"net_profit"`
 	MarginPct    float64 `json:"margin_pct"`
-	CurrentStock int     `json:"current_stock"`
+	CurrentStock float64 `json:"current_stock"`
 	StockCap     int     `json:"stock_cap"`
 }
 
 type LowStockReportItem struct {
 	ProductName   string  `json:"product_name"`
 	Category      string  `json:"category"`
-	StockQuantity int     `json:"stock_quantity"`
-	ReorderLevel  int     `json:"reorder_level"`
+	StockQuantity float64 `json:"stock_quantity"`
+	ReorderLevel  float64 `json:"reorder_level"`
 	CostPrice     float64 `json:"cost_price"`
 	RestockCost   float64 `json:"restock_cost"`
 }
@@ -278,7 +309,7 @@ type Purchase struct {
 	PurchaseNumber string  `json:"purchase_number"`
 	SupplierID     int     `json:"supplier_id"`
 	SupplierName   string  `json:"supplier_name"`
-	TotalItems     int     `json:"total_items"`
+	TotalItems     float64 `json:"total_items"`
 	TotalCost      float64 `json:"total_cost"`
 	PurchaseDate   string  `json:"purchase_date"`
 	Notes          string  `json:"notes"`
@@ -287,7 +318,7 @@ type Purchase struct {
 	ShopID         int     `json:"shop_id"`
 	Items          []struct {
 		ProductID int     `json:"product_id"`
-		Quantity  int     `json:"quantity"`
+		Quantity  float64 `json:"quantity"`
 		CostPrice float64 `json:"cost_price"`
 	} `json:"items,omitempty"`
 }
@@ -325,7 +356,7 @@ type DashboardStats struct {
 	} `json:"sales_trend"`
 	TopProducts []struct {
 		ProductName string  `json:"product_name"`
-		UnitsSold   int     `json:"units_sold"`
+		UnitsSold   float64 `json:"units_sold"`
 		Revenue     float64 `json:"revenue"`
 	} `json:"top_products"`
 	RecentSales   []Sale               `json:"recent_sales"`

@@ -113,8 +113,15 @@
 
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">Password</label>
-                    <input type="password" id="password" placeholder="Enter your password" required
-                        class="input-field w-full p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition">
+                    <div class="relative">
+                        <input type="password" id="password" placeholder="Enter your password" required
+                            class="input-field w-full p-3 pr-12 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition">
+                        <button type="button" onclick="togglePasswordVisibility('password', this)"
+                            class="absolute inset-y-0 right-0 px-4 flex items-center text-gray-400 hover:text-gray-600 text-xl transition"
+                            tabindex="-1" aria-label="Toggle password visibility">
+                            👁️
+                        </button>
+                    </div>
                 </div>
 
                 <button type="submit" id="loginBtn"
@@ -141,6 +148,18 @@
             document.getElementById('message').classList.add('hidden');
         }
 
+                function togglePasswordVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+            const showing = input.type === 'text';
+            input.type = showing ? 'password' : 'text';
+            if (btn) btn.textContent = showing ? '👁️' : '🙈';
+            // Keep cursor position so the user doesn't lose their place
+            const pos = input.selectionStart;
+            input.focus();
+            try { input.setSelectionRange(pos, pos); } catch (e) { }
+        }
+
         document.addEventListener('DOMContentLoaded', function () {
             document.getElementById('username').focus();
             // Check if switching company
@@ -155,7 +174,7 @@
 
         });
 
-        async function handleLogin(event) {
+                async function handleLogin(event) {
             event.preventDefault();
 
             const username = document.getElementById('username').value.trim();
@@ -181,43 +200,41 @@
 
                 const data = await response.json();
 
-                if (response.ok && data.success) {
-                    // Save to localStorage
-                    localStorage.setItem('spide_token', data.token);
-                    localStorage.setItem('spide_user', JSON.stringify(data.user));
-                    localStorage.setItem('currentShopId', data.user.shop_id || 1);
-                    localStorage.setItem('currentShopName', data.user.shop_name || 'Store #1 - Main');
-
-                     // ✅ Use the user's assigned shop
-                    const shopId = data.user.shop_id || 1;
-                    const shopName = data.user.shop_name || 'Store #' + shopId;
-
-
-                    if (response.ok && data.success) {
-                        const targetCompany = localStorage.getItem('target_company_id');
-                        if (targetCompany) {
-                            localStorage.removeItem('target_company_id');
-                            // Redirect to the company's dashboard
-                            window.location.href = '/director?company_id=' + targetCompany;
-                        }
-                    }
-                   
-                    showMessage('✅ Login successful! Redirecting...', 'success');
-
-                    // Redirect based on role
-                    setTimeout(function () {
-                        if (data.user.role === 'director' || data.user.role === 'admin') {
-                            window.location.href = '/director';
-                        } else {
-                            // Cashiers and Managers go directly to POS
-                            window.location.href = '/pos?shop_id=' + shopId;
-                        }
-                    }, 500);
-                } else {
+                if (!response.ok || !data.success) {
                     showMessage('❌ ' + (data.error || 'Invalid username or password'), 'error');
                     loginBtn.disabled = false;
                     loginBtn.innerHTML = '🚀 Login';
+                    return;
                 }
+
+                // ✅ Persist session
+                localStorage.setItem('spide_token', data.token);
+                localStorage.setItem('spide_user', JSON.stringify(data.user));
+                localStorage.setItem('currentShopId', data.user.shop_id || 1);
+                localStorage.setItem('currentShopName', data.user.shop_name || 'Store #1 - Main');
+
+                const shopId = data.user.shop_id || 1;
+                const isDirector = (data.user.role === 'director' || data.user.role === 'admin');
+
+                // ✅ Determine single redirect target — no races, no double navigation
+                let targetUrl;
+                const targetCompany = localStorage.getItem('target_company_id');
+
+                if (targetCompany && isDirector) {
+                    // Director returning to a specific company
+                    localStorage.removeItem('target_company_id');
+                    targetUrl = '/director?company_id=' + encodeURIComponent(targetCompany);
+                } else {
+                    // Non-director switching company is not allowed — clear and continue normally
+                    if (targetCompany) localStorage.removeItem('target_company_id');
+                    targetUrl = isDirector ? '/director' : ('/pos?shop_id=' + shopId);
+                }
+
+                showMessage('✅ Login successful! Redirecting...', 'success');
+
+                setTimeout(function () {
+                    window.location.href = targetUrl;
+                }, 400);
             } catch (error) {
                 showMessage('❌ Network error. Please try again.', 'error');
                 loginBtn.disabled = false;

@@ -39,7 +39,7 @@ type OutletStat struct {
 	ShopName          string  `json:"shop_name"`
 	TodayRevenue      float64 `json:"today_revenue"`
 	TodayTransactions int     `json:"today_transactions"`
-	TodayItems        int     `json:"today_items"`
+	TodayItems        float64 `json:"today_items"`
 	MonthRevenue      float64 `json:"month_revenue"`
 	Status            string  `json:"status"`
 }
@@ -52,16 +52,16 @@ type SalesTrendDay struct {
 type TopProduct struct {
 	ProductName string  `json:"product_name"`
 	Category    string  `json:"category"`
-	UnitsSold   int     `json:"units_sold"`
+	UnitsSold   float64 `json:"units_sold"`
 	Revenue     float64 `json:"revenue"`
 }
 
 type StockAlert struct {
-	ProductName  string `json:"product_name"`
-	ShopName     string `json:"shop_name"`
-	StockLevel   int    `json:"stock_level"`
-	ReorderLevel int    `json:"reorder_level"`
-	Severity     string `json:"severity"` // critical, high, medium
+	ProductName  string  `json:"product_name"`
+	ShopName     string  `json:"shop_name"`
+	StockLevel   float64 `json:"stock_level"`
+	ReorderLevel float64 `json:"reorder_level"`
+	Severity     string  `json:"severity"` // critical, high, medium
 }
 
 type OutletStats struct {
@@ -71,7 +71,7 @@ type OutletStats struct {
 	Manager           string  `json:"manager"`
 	TodayRevenue      float64 `json:"today_revenue"`
 	TodayTransactions int     `json:"today_transactions"`
-	TodayItems        int     `json:"today_items"`
+	TodayItems        float64 `json:"today_items"`
 	MonthRevenue      float64 `json:"month_revenue"`
 	MonthTransactions int     `json:"month_transactions"`
 	Status            string  `json:"status"`
@@ -85,7 +85,7 @@ type SalesTrendItem struct {
 type TopProductItem struct {
 	ProductName string  `json:"product_name"`
 	Category    string  `json:"category"`
-	UnitsSold   int     `json:"units_sold"`
+	UnitsSold   float64 `json:"units_sold"`
 	Revenue     float64 `json:"revenue"`
 }
 
@@ -98,11 +98,11 @@ type RecentTxItem struct {
 }
 
 type AlertItem struct {
-	ShopName     string `json:"shop_name"`
-	ProductName  string `json:"product_name"`
-	StockLevel   int    `json:"stock_level"`
-	ReorderLevel int    `json:"reorder_level"`
-	Severity     string `json:"severity"`
+	ShopName     string  `json:"shop_name"`
+	ProductName  string  `json:"product_name"`
+	StockLevel   float64 `json:"stock_level"`
+	ReorderLevel float64 `json:"reorder_level"`
+	Severity     string  `json:"severity"`
 }
 
 func GetDirectorDashboardData(db *sql.DB, companyID int) (*DirectorDashboardData, error) {

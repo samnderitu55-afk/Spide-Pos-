@@ -10,8 +10,8 @@ type LowStockItem struct {
 	ProductID     int     `json:"product_id"`
 	ProductName   string  `json:"product_name"`
 	Category      string  `json:"category"`
-	StockQuantity int     `json:"stock_quantity"`
-	ReorderLevel  int     `json:"reorder_level"`
+	StockQuantity float64 `json:"stock_quantity"`
+	ReorderLevel  float64 `json:"reorder_level"`
 	RestockCost   float64 `json:"restock_cost"`
 	ShopID        int     `json:"shop_id"`
 	ShopName      string  `json:"shop_name"`
