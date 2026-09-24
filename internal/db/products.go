@@ -136,7 +136,8 @@ func GetAllProducts(db *sql.DB) ([]Product, error) {
 	query := `
         SELECT p.id, p.barcode, p.name, p.category, p.cost_price, p.retail_price, 
                p.wholesale_price, p.wholesale_min_qty, p.reorder_level,
-               COALESCE(ss.quantity, 0) as stock_quantity
+               COALESCE(ss.quantity, 0) as stock_quantity,
+			   p.unit_type, p.unit_label
         FROM products p
         LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = 1
         WHERE p.is_active = 1
@@ -164,6 +165,8 @@ func GetAllProducts(db *sql.DB) ([]Product, error) {
 			&p.WholesaleMinQty,
 			&p.ReorderLevel,
 			&p.StockQuantity,
+			&p.UnitType,
+			&p.UnitLabel,
 		)
 		if err != nil {
 			return nil, err
@@ -185,7 +188,8 @@ func SearchProducts(db *sql.DB, query string) ([]Product, error) {
 	sqlQuery := `
         SELECT p.id, p.barcode, p.name, p.category, p.cost_price, p.retail_price, 
                p.wholesale_price, p.wholesale_min_qty, p.reorder_level,
-               COALESCE(ss.quantity, 0) as stock_quantity
+               COALESCE(ss.quantity, 0) as stock_quantity,
+			   p.unit_type, p.unit_label
         FROM products p
         LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = 1
         WHERE p.is_active = 1 AND (p.name LIKE ? OR p.barcode LIKE ?)
@@ -204,6 +208,7 @@ func SearchProducts(db *sql.DB, query string) ([]Product, error) {
 			&p.ID, &p.Barcode, &p.Name, &p.Category,
 			&p.CostPrice, &p.RetailPrice, &p.WholesalePrice,
 			&p.WholesaleMinQty, &p.ReorderLevel, &p.StockQuantity,
+			&p.UnitType, &p.UnitLabel,
 		)
 		if err != nil {
 			return nil, err
@@ -327,7 +332,8 @@ func SearchProductsByShop(db *sql.DB, query string, shopID int) ([]Product, erro
         SELECT p.id, p.barcode, p.name, p.category, p.cost_price, p.retail_price, 
                p.wholesale_price, p.wholesale_min_qty, 
                COALESCE(ss.quantity, 0) as stock_quantity,
-               p.reorder_level, p.is_active
+               p.reorder_level, p.is_active,
+			   p.unit_type, p.unit_label
         FROM products p
         LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ?
         WHERE p.is_active = 1 AND (p.name LIKE ? OR p.barcode LIKE ?)
@@ -355,6 +361,8 @@ func SearchProductsByShop(db *sql.DB, query string, shopID int) ([]Product, erro
 			&p.StockQuantity,
 			&p.ReorderLevel,
 			&p.IsActive,
+			&p.UnitType,
+			&p.UnitLabel,
 		)
 		if err != nil {
 			return nil, err
@@ -375,7 +383,8 @@ func GetProductsByShop(db *sql.DB, shopID int) ([]Product, error) {
             p.id, p.barcode, p.name, p.category, p.cost_price, 
             p.retail_price, p.wholesale_price, p.wholesale_min_qty,
             p.reorder_level, p.created_at, p.updated_at,
-            COALESCE(ss.quantity, 0) as stock_quantity
+            COALESCE(ss.quantity, 0) as stock_quantity,
+			p.unit_type, p.unit_label
         FROM products p
         LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ?
         ORDER BY p.name
@@ -394,6 +403,7 @@ func GetProductsByShop(db *sql.DB, shopID int) ([]Product, error) {
 			&p.CostPrice, &p.RetailPrice, &p.WholesalePrice,
 			&p.WholesaleMinQty, &p.ReorderLevel,
 			&p.CreatedAt, &p.UpdatedAt, &p.StockQuantity,
+			&p.UnitType, &p.UnitLabel,
 		)
 		if err != nil {
 			return nil, err
@@ -427,7 +437,7 @@ func SearchProductsByCompany(db *sql.DB, query string, companyID int, shopID int
 	searchTerm := "%" + query + "%"
 
 	sqlQuery := `
-        SELECT 
+               SELECT 
             p.id, 
             p.company_id,
             p.barcode, 
@@ -442,7 +452,9 @@ func SearchProductsByCompany(db *sql.DB, query string, companyID int, shopID int
             p.reorder_level, 
             p.is_active,
             p.created_at,
-            p.updated_at
+            p.updated_at,
+            p.unit_type,
+            p.unit_label
         FROM products p
         LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ? AND ss.company_id = ?
         WHERE p.is_active = 1 
@@ -492,6 +504,8 @@ func SearchProductsByCompany(db *sql.DB, query string, companyID int, shopID int
 			&p.IsActive,
 			&p.CreatedAt,
 			&p.UpdatedAt,
+			&p.UnitType,
+			&p.UnitLabel,
 		)
 		if err != nil {
 			return nil, err
@@ -532,6 +546,8 @@ func GetProductsByCompany(db *sql.DB, companyID int, shopID int) ([]Product, err
             p.is_active,
             p.created_at, 
             p.updated_at,
+			&p.UpdatedAt,
+            &p.StockQuantity,
             COALESCE(ss.quantity, 0) as stock_quantity
         FROM products p
         LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ? AND ss.company_id = ?
@@ -564,6 +580,8 @@ func GetProductsByCompany(db *sql.DB, companyID int, shopID int) ([]Product, err
 			&p.CreatedAt,
 			&p.UpdatedAt,
 			&p.StockQuantity,
+			&p.UnitType,
+			&p.UnitLabel,
 		)
 		if err != nil {
 			return nil, err
@@ -623,7 +641,8 @@ func GetProductsByNameFuzzy(db *sql.DB, name string, companyID int) ([]Product, 
 	query := `
         SELECT id, company_id, barcode, name, category, category_id,
                cost_price, retail_price, wholesale_price, wholesale_min_qty,
-               reorder_level, created_at, updated_at
+               reorder_level, created_at, updated_at,
+			   unit_type, unit_label
         FROM products
         WHERE name LIKE ? AND company_id = ?
         LIMIT 10
@@ -652,6 +671,8 @@ func GetProductsByNameFuzzy(db *sql.DB, name string, companyID int) ([]Product, 
 			&p.ReorderLevel,
 			&p.CreatedAt,
 			&p.UpdatedAt,
+			&p.UnitType,
+			&p.UnitLabel,
 		)
 		if err != nil {
 			return nil, err
@@ -708,7 +729,9 @@ func GetProductsByCompanyWithStock(db *sql.DB, companyID int, shopID int) ([]Pro
             p.reorder_level, 
             p.is_active,
             p.created_at, 
-            p.updated_at
+            p.updated_at,
+			p.unit_type,
+            p.unit_label
         FROM products p
         LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.shop_id = ? AND ss.company_id = ?
         WHERE p.company_id = ? AND p.is_active = 1
@@ -744,6 +767,8 @@ func GetProductsByCompanyWithStock(db *sql.DB, companyID int, shopID int) ([]Pro
 			&p.IsActive,
 			&p.CreatedAt,
 			&p.UpdatedAt,
+			&p.UnitType,
+			&p.UnitLabel,
 		)
 		if err != nil {
 			return nil, err
@@ -769,13 +794,15 @@ func getAllProductsWithTotalStock(db *sql.DB, companyID int) ([]Product, error) 
             COALESCE(SUM(ss.quantity), 0) AS stock_quantity,
             COALESCE(SUM(ss.stock_cap), 0) AS stock_cap,
             COALESCE(MAX(ss.reorder_level), p.reorder_level) AS shop_reorder_level,
-            p.reorder_level, p.is_active, p.created_at, p.updated_at
+            p.reorder_level, p.is_active, p.created_at, p.updated_at,
+			p.unit_type, p.unit_label
         FROM products p
         LEFT JOIN shop_stock ss ON p.id = ss.product_id AND ss.company_id = p.company_id
         WHERE p.company_id = ? AND p.is_active = 1
         GROUP BY p.id, p.company_id, p.barcode, p.name, p.category, p.category_id,
                  p.cost_price, p.retail_price, p.wholesale_price, p.wholesale_min_qty,
-                 p.reorder_level, p.is_active, p.created_at, p.updated_at
+                 p.reorder_level, p.is_active, p.created_at, p.updated_at,
+				 p.unit_type, p.unit_label
         ORDER BY p.name ASC
     `
 	rows, err := db.Query(query, companyID)
@@ -793,6 +820,7 @@ func getAllProductsWithTotalStock(db *sql.DB, companyID int) ([]Product, error) 
 			&p.CostPrice, &p.RetailPrice, &p.WholesalePrice, &p.WholesaleMinQty,
 			&p.StockQuantity, &p.StockCap, &p.ShopReorderLevel,
 			&p.ReorderLevel, &p.IsActive, &p.CreatedAt, &p.UpdatedAt,
+			&p.UnitType, &p.UnitLabel,
 		)
 		if err != nil {
 			return nil, err

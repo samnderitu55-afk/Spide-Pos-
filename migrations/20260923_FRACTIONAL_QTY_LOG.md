@@ -91,25 +91,10 @@ Line 685 `parseInt` on `data-stock` → `parseFloat`.
 ---
 
 ## KNOWN GAPS — must be resolved before production deploy
-
-### GAP-1: Eleven product SELECTs don't return unit_type/unit_label
-Files affected (line numbers as of this commit):
-- internal/db/products.go:137, 186, 237, 323, 370, 426, 516, 580, 620, 690, 762
-
-Impact: The product catalog, product search dropdown, product edit form,
-low-stock report, inventory valuation — all render products with EMPTY
-unit_type/unit_label. Result: a cashier who finds a refill via the search
-dropdown gets an integer-only qty input. Scan still works; search does not.
-
-Fix: for each SELECT, add `, p.unit_type, p.unit_label` (or unqualified
-for non-aliased queries) at the END of the column list. For each matching
-Scan, add `&p.UnitType, &p.UnitLabel` at the END of the argument list.
-
-CRITICAL: the column count and Scan arg count MUST match. Adding to
-SELECT without adding to Scan (or vice versa) shifts every subsequent
-column → runtime scan errors like:
-  "converting driver.Value type []uint8 ('1.500') to a int"
-This exact bug happened twice during the local migration. Check both sides.
+### GAP-1: RESOLVED 2026-09-24
+All 10 product-loading functions in internal/db/products.go now
+select and scan unit_type/unit_label. Verified via POS search
+dropdown, product catalogue, and 1.5ml checkout. Commit: <your new SHA>
 
 ### GAP-2: 'ml' label not displayed on cart rows or receipts
 The data is available (`data-unit-label="ml"` on the cart row,
